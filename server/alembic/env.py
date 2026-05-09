@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
 from oracle.core.config import settings
+from oracle.models.base import Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
@@ -14,8 +15,11 @@ config.set_main_option("sqlalchemy.url", settings.database_url)
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Populated once SQLAlchemy models are introduced (Phase 1 schema work).
-target_metadata = None
+# Import all models so their tables are registered on Base.metadata before
+# autogenerate inspects it.
+import oracle.models  # noqa: F401, E402
+
+target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
