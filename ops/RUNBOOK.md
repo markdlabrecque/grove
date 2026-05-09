@@ -58,7 +58,52 @@ Fill in `.env`:
 - `BEARER_TOKEN` — `openssl rand -hex 32`
 - `POSTGRES_PASSWORD` — `openssl rand -hex 24`
 - `TAILSCALE_HOSTNAME` — your laptop's MagicDNS name from step 1
+- `GH_TOKEN` — fine-grained PAT for the project's GitHub identity (see
+  next section)
 - `OPENAI_API_KEY` / `OPENROUTER_API_KEY` can stay blank until Phase 2/3
+
+### 2a. Per-project GitHub identity (direnv)
+
+This project uses a different GitHub account than may be globally
+configured on the laptop. To keep `gh` and agent automation acting as
+the right identity inside this directory, we use direnv to load
+`.env` automatically.
+
+One-time setup:
+
+```
+brew install direnv
+# add to ~/.zshrc:
+eval "$(direnv hook zsh)"
+# reload shell, then:
+direnv allow
+```
+
+Generate a fine-grained PAT at
+<https://github.com/settings/tokens?type=beta>:
+
+- Repository access: **only `markdlabrecque/the-oracle`**
+- Permissions:
+  - Issues: read + write
+  - Pull requests: read + write
+  - Contents: read + write
+  - Metadata: read
+  - Workflows: read (if/when CI lands)
+
+Paste the token into `.env` as `GH_TOKEN=github_pat_…` (fine-grained
+tokens use the `github_pat_` prefix; the older `ghp_` prefix is for
+classic tokens, which we're not using). Verify:
+
+```
+gh auth status
+# → Logged in to github.com account markdlabrecque (GH_TOKEN)
+```
+
+If `gh auth status` still shows the global account, your shell hasn't
+re-loaded direnv — run `direnv reload` or open a new terminal in the
+project. **For Claude/agent invocations to pick up the new token, the
+Claude Code session must be (re)started from inside the project
+directory** so it inherits the direnv-loaded environment.
 
 ### 3. Issue the dev TLS cert
 

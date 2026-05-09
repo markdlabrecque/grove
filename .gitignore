@@ -1,5 +1,7 @@
 # Environment
 .env
+.envrc.local
+.direnv/
 
 # Python
 __pycache__/
