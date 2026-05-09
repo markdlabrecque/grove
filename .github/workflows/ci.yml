@@ -1,0 +1,144 @@
+name: CI
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - "server/**"
+      - "pyproject.toml"
+      - ".github/workflows/**"
+  pull_request:
+    paths:
+      - "server/**"
+      - "pyproject.toml"
+      - ".github/workflows/**"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('server/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dev dependencies
+        run: pip install -e "server/[dev]"
+
+      - name: ruff check
+        run: ruff check server/
+
+      - name: ruff format --check
+        run: ruff format --check server/
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: oracle_test
+          POSTGRES_USER: oracle
+          POSTGRES_PASSWORD: oracle
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oracle -d oracle_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://oracle:oracle@localhost:5432/oracle_test
+      BEARER_TOKEN: ci-dummy-token
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('server/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -e "server/[dev]"
+
+      - name: Apply migrations
+        working-directory: server
+        run: alembic upgrade head
+
+      - name: Run tests
+        run: pytest server/tests/
+
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_DB: oracle_test
+          POSTGRES_USER: oracle
+          POSTGRES_PASSWORD: oracle
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U oracle -d oracle_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://oracle:oracle@localhost:5432/oracle_test
+      BEARER_TOKEN: ci-dummy-token
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('server/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -e "server/[dev]"
+
+      - name: Upgrade to head
+        working-directory: server
+        run: alembic upgrade head
+
+      - name: Downgrade to base
+        working-directory: server
+        run: alembic downgrade base
+
+      - name: Upgrade to head again
+        working-directory: server
+        run: alembic upgrade head
