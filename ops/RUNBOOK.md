@@ -88,7 +88,7 @@ Generate a fine-grained PAT at
   - Pull requests: read + write
   - Contents: read + write
   - Metadata: read
-  - Workflows: read (if/when CI lands)
+  - Workflows: read + write
 
 Paste the token into `.env` as `GH_TOKEN=github_pat_…` (fine-grained
 tokens use the `github_pat_` prefix; the older `ghp_` prefix is for
@@ -124,6 +124,20 @@ make health
 `make health` curls the public health endpoints over HTTPS using the hostname
 from `.env`. From the iPhone (on the tailnet), browsing to
 `https://$TAILSCALE_HOSTNAME/healthz` should return JSON, no cert warning.
+
+## CI (GitHub Actions)
+
+The workflow at `.github/workflows/ci.yml` runs automatically on `push` to
+`develop` and on all pull requests that touch `server/`, `pyproject.toml`, or
+the workflow file itself. Three jobs run in parallel:
+
+- **lint** — `ruff check` + `ruff format --check`
+- **test** — `pytest server/tests/` against an ephemeral `pgvector/pgvector:pg16`
+  service container (migrations applied before tests run)
+- **migrations** — `alembic upgrade head && alembic downgrade base && alembic
+  upgrade head` (confirms round-trip reversibility)
+
+Python-only PRs require all three to be green before Theo merges.
 
 ## Routine operations
 
