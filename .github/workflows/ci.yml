@@ -5,12 +5,10 @@ on:
     branches: [develop]
     paths:
       - "server/**"
-      - "pyproject.toml"
       - ".github/workflows/**"
   pull_request:
     paths:
       - "server/**"
-      - "pyproject.toml"
       - ".github/workflows/**"
 
 jobs:
