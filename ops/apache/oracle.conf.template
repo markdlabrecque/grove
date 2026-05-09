@@ -1,0 +1,23 @@
+<VirtualHost *:443>
+    ServerName @@TAILSCALE_HOSTNAME@@
+
+    SSLEngine on
+    SSLCertificateFile /usr/local/apache2/conf/certs/@@TAILSCALE_HOSTNAME@@.crt
+    SSLCertificateKeyFile /usr/local/apache2/conf/certs/@@TAILSCALE_HOSTNAME@@.key
+
+    SSLProtocol all -SSLv3 -TLSv1 -TLSv1.1
+    SSLCipherSuite HIGH:!aNULL:!MD5
+    SSLHonorCipherOrder on
+
+    ProxyPreserveHost On
+    ProxyRequests Off
+    ProxyTimeout 60
+
+    ProxyPass / http://app:8000/
+    ProxyPassReverse / http://app:8000/
+
+    RequestHeader set X-Forwarded-Proto "https"
+
+    ErrorLog /proc/self/fd/2
+    CustomLog /proc/self/fd/1 combined
+</VirtualHost>
