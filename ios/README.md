@@ -106,21 +106,32 @@ API credentials.
 
 ## Testing
 
-### Running tests
+### Pre-push checklist
 
-Three Makefile targets correspond to the two-job CI strategy:
+Before pushing any iOS change, run the full local test suite:
+
+```bash
+make ios-test
+```
+
+This runs both targets in sequence:
 
 ```bash
 make ios-test-core   # OracleCore swift package only — no simulator needed
 make ios-test-app    # Full Oracle scheme on iPhone 17 simulator (requires xcconfig)
-make ios-test        # Both in sequence (local green check before pushing)
 ```
+
+Both must be green before pushing. `make ios-test` is the local gate that
+replaces the canary CI job (see CI section below for why the canary was removed).
+
+### Running tests
 
 `make ios-test-core` is the fast, always-available check. It runs `swift test`
 against the `OracleCore` package and requires no simulator or xcconfig.
 
-`make ios-test-app` runs `xcodebuild test` against the full Oracle scheme and
-requires a populated `Config.debug.xcconfig`. After a failure:
+`make ios-test-app` runs `xcodebuild test` against the full Oracle scheme. It
+requires Xcode 26 and a populated `Config.debug.xcconfig` (see First-time setup
+above). After a failure:
 
 ```bash
 open ios/build/TestResults.xcresult
@@ -198,22 +209,25 @@ option, not a current commitment. See ticket `#64` for the rationale.
 
 ### CI
 
-`ios-ci.yml` uses a two-job strategy:
+`ios-ci.yml` runs a single required job:
 
 | Job | Runner | Tool | Required? |
 |---|---|---|---|
 | `stable` (Core) | `macos-latest`, Xcode 16.2 | `swift test` on `OracleCore` package | Yes — merge gate |
-| `canary` (App) | `macos-latest`, Xcode 16.2 | `xcodebuild test` on `Oracle` scheme | No — `continue-on-error: true` |
 
-**The `stable` job is the required check.** It covers all logic-level code
+**The `stable` job is the only CI job.** It covers all logic-level code
 (Config, OracleAPI, Codable models) and runs without a simulator or iOS 26 SDK,
-so it is always green on `macos-latest` with Xcode 16.2.
+so it passes on `macos-latest` with Xcode 16.2.
 
-**The `canary` job is informational.** It covers iOS 26-specific code paths and
-the app scheme tests. It will fail on CI until GitHub ships Xcode 26 on
-`macos-latest` runners — this is expected and does not block merges. Once Xcode
-26 lands on runners and canary goes green, it will be promoted to a required
-check and the two-job split retired (see `TODO(ci):` in `ios-ci.yml`).
+The full-app job (`xcodebuild test` on the Oracle scheme) was removed from CI
+because `macos-latest` ships Xcode 16.2, which cannot build the iOS 26
+deployment target. The xcconfig files are also gitignored, so credential
+injection would fail on CI regardless. The equivalent coverage runs locally via
+`make ios-test` (see pre-push checklist above).
+
+**TODO(ci):** When `macos-latest` ships Xcode 26, re-add the full-app job as a
+required check. At that point a CI-safe xcconfig strategy (e.g. a committed
+placeholder with empty credentials) will also be needed.
 
 **Manual step after `#64` merges:** add the `stable` job to the branch-protection
 ruleset so iOS PRs can't merge with a red stable gate:
