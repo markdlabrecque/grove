@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -16,6 +17,12 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TIMESTAMP
 
 from oracle.models.base import Base
+
+if TYPE_CHECKING:
+    from oracle.models.appointment import Appointment
+    from oracle.models.decision import Decision
+    from oracle.models.people_interaction import PeopleInteraction
+    from oracle.models.task import Task
 
 
 class Memory(Base):
@@ -41,6 +48,18 @@ class Memory(Base):
 
     chunks: Mapped[list[MemoryChunk]] = relationship(
         "MemoryChunk", back_populates="memory", cascade="all, delete-orphan"
+    )
+    decisions: Mapped[list[Decision]] = relationship(
+        "Decision", back_populates="memory", cascade="all, delete-orphan"
+    )
+    people_interactions: Mapped[list[PeopleInteraction]] = relationship(
+        "PeopleInteraction", back_populates="memory", cascade="all, delete-orphan"
+    )
+    tasks: Mapped[list[Task]] = relationship(
+        "Task", back_populates="memory", cascade="all, delete-orphan"
+    )
+    appointments: Mapped[list[Appointment]] = relationship(
+        "Appointment", back_populates="memory", cascade="all, delete-orphan"
     )
 
 
