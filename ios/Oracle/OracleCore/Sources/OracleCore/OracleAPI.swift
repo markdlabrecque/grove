@@ -2,8 +2,8 @@ import Foundation
 
 /// Async HTTP client for the Oracle backend.
 ///
-/// `postCapture` sends to POST /v1/captures via `URLSession.shared` async APIs.
-/// `postQuery` is a V1 stub; real implementation lands in ticket #62.
+/// `postCapture` uploads a capture to POST /v1/captures; `postQuery` searches
+/// memories via POST /v1/queries and returns ranked results.
 ///
 /// The actor isolation ensures all mutable state and URLSession callbacks are
 /// serialised without manual locking. Network work is dispatched via URLSession
