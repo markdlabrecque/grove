@@ -21,3 +21,30 @@ ops/certs/*
 # Editor
 .vscode/
 .idea/
+
+# Xcode / iOS
+
+# Local secrets — never commit. Use Config.xcconfig.example as the template.
+ios/Oracle/Oracle/Config.debug.xcconfig
+ios/Oracle/Oracle/Config.release.xcconfig
+
+# Per-user Xcode state (project-level).
+# Note: xcshareddata/xcschemes/ is intentionally NOT ignored — shared schemes
+# must stay tracked so anyone cloning can build with the same scheme.
+ios/**/xcuserdata/
+ios/**/*.xcuserstate
+
+# Build products
+ios/build/
+ios/DerivedData/
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# Swift Package Manager local state (only if SPM gets pulled in later)
+ios/.swiftpm/
+ios/.build/
+
+# Xcode crash + temp files
+*.moved-aside
+*.hmap

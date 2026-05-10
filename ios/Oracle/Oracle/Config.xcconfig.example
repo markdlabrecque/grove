@@ -1,0 +1,11 @@
+// Oracle — build configuration template
+//
+// Copy this file to Config.debug.xcconfig and Config.release.xcconfig.
+// Fill in real values per environment. Both copied files are gitignored.
+//
+// Note: xcconfig uses // for comments, so literal // inside a value must be
+// escaped as $(). The BASE_URL example below uses $() to produce the
+// double-slash in https://.
+
+BASE_URL = https:/$()/<your-tailnet-host>.ts.net
+BEARER_TOKEN = replace-me
