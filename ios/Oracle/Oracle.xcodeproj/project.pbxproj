@@ -16,7 +16,29 @@
 		A1000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000007 /* Assets.xcassets */; };
 		A1000008 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = A2000008 /* Info.plist */; };
 		A1000009 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000009 /* Preview Assets.xcassets */; };
+		B1000001 /* ConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* ConfigTests.swift */; };
+		B1000002 /* OracleAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* OracleAPITests.swift */; };
+		B1000003 /* JSONCodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* JSONCodingTests.swift */; };
+		B1000004 /* capture_response.json in Resources */ = {isa = PBXBuildFile; fileRef = B2000004 /* capture_response.json */; };
+		C1000001 /* OracleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* OracleUITests.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B9000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A4000000;
+			remoteInfo = Oracle;
+		};
+		C9000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A4000000;
+			remoteInfo = Oracle;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		A2000000 /* Oracle.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Oracle.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -32,6 +54,13 @@
 		A200000A /* Config.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig.example; sourceTree = "<group>"; };
 		A200000B /* Config.debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.debug.xcconfig; sourceTree = "<group>"; };
 		A200000C /* Config.release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.release.xcconfig; sourceTree = "<group>"; };
+		B2000001 /* ConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigTests.swift; sourceTree = "<group>"; };
+		B2000002 /* OracleAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OracleAPITests.swift; sourceTree = "<group>"; };
+		B2000003 /* JSONCodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONCodingTests.swift; sourceTree = "<group>"; };
+		B2000004 /* capture_response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = capture_response.json; sourceTree = "<group>"; };
+		B2000005 /* OracleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OracleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C2000001 /* OracleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OracleUITests.swift; sourceTree = "<group>"; };
+		C2000002 /* OracleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OracleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -39,6 +68,8 @@
 			isa = PBXGroup;
 			children = (
 				A3000001 /* Oracle */,
+				B3000001 /* OracleTests */,
+				C3000001 /* OracleUITests */,
 				A3000002 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -64,6 +95,8 @@
 			isa = PBXGroup;
 			children = (
 				A2000000 /* Oracle.app */,
+				B2000005 /* OracleTests.xctest */,
+				C2000002 /* OracleUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -103,6 +136,33 @@
 			path = "Preview Content";
 			sourceTree = "<group>";
 		};
+		B3000001 /* OracleTests */ = {
+			isa = PBXGroup;
+			children = (
+				B2000001 /* ConfigTests.swift */,
+				B2000002 /* OracleAPITests.swift */,
+				B2000003 /* JSONCodingTests.swift */,
+				B3000002 /* Fixtures */,
+			);
+			path = OracleTests;
+			sourceTree = "<group>";
+		};
+		B3000002 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				B2000004 /* capture_response.json */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		C3000001 /* OracleUITests */ = {
+			isa = PBXGroup;
+			children = (
+				C2000001 /* OracleUITests.swift */,
+			);
+			path = OracleUITests;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -123,6 +183,42 @@
 			productReference = A2000000 /* Oracle.app */;
 			productType = "com.apple.product-type.application";
 		};
+		B4000001 /* OracleTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B5000000 /* Build configuration list for PBXNativeTarget "OracleTests" */;
+			buildPhases = (
+				B6000000 /* Sources */,
+				B6000001 /* Resources */,
+				B6000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B9000001 /* PBXTargetDependency */,
+			);
+			name = OracleTests;
+			productName = OracleTests;
+			productReference = B2000005 /* OracleTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		C4000001 /* OracleUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C5000000 /* Build configuration list for PBXNativeTarget "OracleUITests" */;
+			buildPhases = (
+				C6000000 /* Sources */,
+				C6000001 /* Resources */,
+				C6000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C9000001 /* PBXTargetDependency */,
+			);
+			name = OracleUITests;
+			productName = OracleUITests;
+			productReference = C2000002 /* OracleUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -135,6 +231,14 @@
 				TargetAttributes = {
 					A4000000 = {
 						CreatedOnToolsVersion = 16.0;
+					};
+					B4000001 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A4000000;
+					};
+					C4000001 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A4000000;
 					};
 				};
 			};
@@ -152,6 +256,8 @@
 			projectRoot = "";
 			targets = (
 				A4000000 /* Oracle */,
+				B4000001 /* OracleTests */,
+				C4000001 /* OracleUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -163,6 +269,21 @@
 			files = (
 				A1000007 /* Assets.xcassets in Resources */,
 				A1000009 /* Preview Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B6000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000004 /* capture_response.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C6000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -182,6 +303,24 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B6000000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000001 /* ConfigTests.swift in Sources */,
+				B1000002 /* OracleAPITests.swift in Sources */,
+				B1000003 /* JSONCodingTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C6000000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C1000001 /* OracleUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -192,7 +331,34 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B6000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C6000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B9000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A4000000 /* Oracle */;
+			targetProxy = B9000002 /* PBXContainerItemProxy */;
+		};
+		C9000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A4000000 /* Oracle */;
+			targetProxy = C9000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		A8000000 /* Debug */ = {
@@ -372,6 +538,100 @@
 			};
 			name = Release;
 		};
+		B8000000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.markdlabrecque.oracle.OracleTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oracle.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Oracle";
+			};
+			name = Debug;
+		};
+		B8000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.markdlabrecque.oracle.OracleTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oracle.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Oracle";
+			};
+			name = Release;
+		};
+		C8000000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.markdlabrecque.oracle.OracleUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Oracle;
+			};
+			name = Debug;
+		};
+		C8000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.markdlabrecque.oracle.OracleUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Oracle;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -389,6 +649,24 @@
 			buildConfigurations = (
 				A8000000 /* Debug */,
 				A8000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B5000000 /* Build configuration list for PBXNativeTarget "OracleTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B8000000 /* Debug */,
+				B8000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C5000000 /* Build configuration list for PBXNativeTarget "OracleUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C8000000 /* Debug */,
+				C8000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

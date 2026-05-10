@@ -53,4 +53,15 @@ struct Config {
     self.baseURL = url
     self.bearerToken = token
   }
+
+  /// Designated initialiser used by unit tests.
+  ///
+  /// The test bundle cannot easily inject its own `Info.plist` into
+  /// `Bundle.main`, so tests that need a `Config` instance construct one
+  /// directly via this path rather than going through `Config.shared`.
+  /// See `ConfigTests.swift` for usage.
+  init(baseURL: URL, bearerToken: String) {
+    self.baseURL = baseURL
+    self.bearerToken = bearerToken
+  }
 }

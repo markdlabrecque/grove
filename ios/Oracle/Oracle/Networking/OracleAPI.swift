@@ -41,6 +41,18 @@ actor OracleAPI {
     self.session = URLSession(configuration: config)
   }
 
+  /// Designated initialiser used by unit tests.
+  ///
+  /// Accepts explicit `baseURL`, `bearerToken`, and `session` so tests can
+  /// inspect constructed `URLRequest` values without a live server or the
+  /// `Background` session configuration (which requires a real bundle
+  /// identifier). See `OracleAPITests.swift` for usage.
+  init(baseURL: URL, bearerToken: String, session: URLSession = .shared) {
+    self.baseURL = baseURL
+    self.bearerToken = bearerToken
+    self.session = session
+  }
+
   // MARK: - Capture
 
   /// Upload a single capture to the server.
@@ -51,6 +63,30 @@ actor OracleAPI {
     //            Use `payload.clientID` as the idempotency key per the
     //            server's UNIQUE constraint on `memories.client_id`.
     return CaptureResponse(id: payload.clientID.uuidString)
+  }
+
+  /// Build (but do not send) a URLRequest for POST /v1/captures.
+  ///
+  /// Separated from `postCapture` so unit tests can assert on the fully-formed
+  /// request without a live server. Real `postCapture` will call this when
+  /// the stub is replaced in #61.
+  func captureRequest(for payload: CapturePayload) throws -> URLRequest {
+    let url = baseURL.appendingPathComponent("v1/captures")
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "POST"
+
+    let body = CaptureRequestBody(
+      clientID: payload.clientID,
+      content: payload.content,
+      sourceModality: payload.sourceModality,
+      sourceDevice: "iPhone",
+      capturedAt: payload.capturedAt
+    )
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    // Key mapping is handled by CaptureRequestBody.CodingKeys; no strategy needed.
+    request.httpBody = try encoder.encode(body)
+    return request
   }
 
   // MARK: - Query
@@ -69,7 +105,7 @@ actor OracleAPI {
 
   // MARK: - Helpers
 
-  private func authorizedRequest(for url: URL) -> URLRequest {
+  func authorizedRequest(for url: URL) -> URLRequest {
     var request = URLRequest(url: url)
     // TODO(auth): Read token from Keychain rather than Config once V2 auth
     //             migration lands. Delete this comment and the Config bearer
@@ -87,6 +123,47 @@ struct CapturePayload: Sendable {
   let content: String
   let sourceModality: String   // "typed" | "dictated"
   let capturedAt: Date
+}
+
+/// Wire format sent to POST /v1/captures.
+///
+/// `CodingKeys` maps Swift camelCase property names to the server's
+/// snake_case JSON keys. Using explicit keys instead of `.convertToSnakeCase`
+/// avoids the gotcha where `clientID` would encode as `client_i_d` rather
+/// than `client_id`.
+struct CaptureRequestBody: Codable, Sendable {
+  let clientID: UUID
+  let content: String
+  let sourceModality: String
+  let sourceDevice: String
+  let capturedAt: Date
+
+  enum CodingKeys: String, CodingKey {
+    case clientID = "client_id"
+    case content
+    case sourceModality = "source_modality"
+    case sourceDevice = "source_device"
+    case capturedAt = "captured_at"
+  }
+}
+
+/// Wire format returned by POST /v1/captures.
+///
+/// Matches the server's `CaptureResponse` Pydantic model.
+/// `id` and `clientID` are UUIDs; `capturedAt` is an ISO 8601 timestamp
+/// (nullable: rows pre-dating migration 0010 may have `captured_at IS NULL`).
+struct CaptureResponseBody: Codable, Sendable {
+  let id: UUID
+  let clientID: UUID
+  let capturedAt: Date?
+  let enriched: Bool
+
+  enum CodingKeys: String, CodingKey {
+    case id
+    case clientID = "client_id"
+    case capturedAt = "captured_at"
+    case enriched
+  }
 }
 
 struct CaptureResponse: Sendable {
