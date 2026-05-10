@@ -112,13 +112,15 @@ format: ## Apply ruff formatting in-place
 
 # ---------- iOS tests ----------
 
-# Three targets mirror the two-job CI strategy (stable + canary):
-#   ios-test-core  → swift test on the OracleCore package (matches stable CI gate)
-#   ios-test-app   → xcodebuild test on the Oracle scheme  (matches canary CI job)
-#   ios-test       → runs both in sequence; local devs with Xcode 26 see both green
+# Two targets cover the full local test matrix:
+#   ios-test-core  → swift test on the OracleCore package (mirrors the stable CI gate)
+#   ios-test-app   → xcodebuild test on the Oracle scheme  (local-only; requires Xcode 26 + xcconfig)
+#   ios-test       → runs both in sequence; required pre-push check per AGENTS.md
 #
-# The stable gate (ios-test-core) is the required merge check for develop.
-# The canary gate (ios-test-app) requires the iOS 26 SDK locally.
+# CI runs only ios-test-core (the stable gate) because macos-latest ships Xcode 16.2,
+# which cannot build the iOS 26 deployment target, and the xcconfig files are gitignored.
+# ios-test-app is the local substitute for the CI canary job that was removed.
+# See TODO(ci) in .github/workflows/ios-ci.yml for when to re-add the full-app CI job.
 
 .PHONY: ios-test-core
 ios-test-core: ## Run OracleCore swift package tests (stable CI gate; no simulator needed)

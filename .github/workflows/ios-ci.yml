@@ -3,6 +3,33 @@ name: iOS CI
 # Runs only when iOS source files (or this workflow file) change, so
 # server-only PRs do not burn macOS runner minutes.
 
+# ---------------------------------------------------------------------------
+# CI job strategy — why there is only one job here
+#
+# The app's deployment target is iOS 26, which requires the iOS 26 SDK (Xcode
+# 26+). As of this writing, macos-latest ships Xcode 16.2 and cannot build
+# the Oracle app target or run the full Oracle scheme tests.
+#
+# Additionally, the xcconfig files that inject BASE_URL and BEARER_TOKEN into
+# the build are gitignored by design (they hold per-developer credentials).
+# Any xcodebuild run against the Oracle scheme on CI would fail at config
+# injection even if the SDK were available.
+#
+# For these reasons the canary job (xcodebuild test on the Oracle scheme) has
+# been removed from CI. The equivalent coverage runs locally via:
+#
+#   make ios-test
+#
+# which executes both ios-test-core and ios-test-app on the developer's own
+# Xcode 26 environment with a populated xcconfig. This is the required
+# pre-push check per the AGENTS.md workflow.
+#
+# TODO(ci): Once macos-latest ships Xcode 26, re-add the full-app job here as
+# a required check and retire the two-job split note in ios/README.md. At that
+# point the xcconfig problem will also need a CI-safe solution (e.g. a
+# separate xcconfig with placeholder values committed for CI use only).
+# ---------------------------------------------------------------------------
+
 "on":
   pull_request:
     paths:
@@ -39,49 +66,3 @@ jobs:
 
       - name: swift test (OracleCore)
         run: swift test --package-path ios/Oracle/OracleCore
-
-  # ---------------------------------------------------------------------------
-  # canary: informational only — failures do NOT block merges.
-  #
-  # Runs `xcodebuild test` against the full Oracle scheme (app target + UI tests).
-  # This job covers iOS 26-specific code paths and requires the iOS 26 SDK.
-  #
-  # Currently this uses the same Xcode 16.2 runner, so it will fail until GitHub
-  # ships Xcode 26 on macos-latest. That is expected and acceptable.
-  #
-  # TODO(ci): Once GitHub runners ship Xcode 26 on macos-latest, remove the
-  # xcode-select pin here, confirm canary goes green, then promote canary to
-  # a required check and retire the two-job split pattern. At that point the
-  # stable job can be folded back in or kept as a fast pre-check.
-  # ---------------------------------------------------------------------------
-  canary:
-    name: App (canary, informational)
-    runs-on: macos-latest
-    continue-on-error: true
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Select Xcode
-        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
-
-      - name: Show Xcode / Swift version
-        run: |
-          xcodebuild -version
-          swift --version
-
-      - name: xcodebuild test (Oracle scheme)
-        run: |
-          xcodebuild test \
-            -project ios/Oracle/Oracle.xcodeproj \
-            -scheme Oracle \
-            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
-            -resultBundlePath ios/build/TestResults.xcresult
-
-      - name: Upload test results
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: TestResults.xcresult
-          path: ios/build/TestResults.xcresult
-          if-no-files-found: warn
