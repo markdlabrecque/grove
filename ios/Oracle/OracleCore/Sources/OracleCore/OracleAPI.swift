@@ -50,6 +50,22 @@ public actor OracleAPI {
     self.session = session
   }
 
+  /// Testing-only initialiser that accepts a `URLSessionConfiguration`.
+  ///
+  /// Tests inject a configuration (e.g. `.default` with `StubURLProtocol`
+  /// added to `protocolClasses`) so the same `URLSession(configuration:)` call
+  /// path as the singleton's `private init()` is exercised. This is the
+  /// mechanism that would have caught the #87 regression (background session +
+  /// async `data(for:)` incompatibility) at unit-test level.
+  ///
+  /// Access is `internal` — tests use `@testable import OracleCore`. Do not
+  /// widen to `public`.
+  init(baseURL: URL, bearerToken: String, configuration: URLSessionConfiguration) {
+    self.baseURL = baseURL
+    self.bearerToken = bearerToken
+    self.session = URLSession(configuration: configuration)
+  }
+
   // MARK: - Capture
 
   /// Upload a single capture to the server (POST /v1/captures).
