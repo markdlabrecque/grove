@@ -8,6 +8,7 @@ import OracleCore
 /// similarity score, capture date, and matched_via badge.
 struct QueryView: View {
   @State private var viewModel = QueryViewModel()
+  @FocusState private var isFocused: Bool
 
   var body: some View {
     NavigationStack {
@@ -20,6 +21,11 @@ struct QueryView: View {
         resultArea
       }
       .navigationTitle("Ask")
+      .background(
+        Color.clear
+          .contentShape(Rectangle())
+          .onTapGesture { isFocused = false }
+      )
     }
     .alert("Query Failed", isPresented: $viewModel.showErrorAlert) {
       Button("OK", role: .cancel) {}
@@ -35,14 +41,17 @@ struct QueryView: View {
       TextField("Ask your memory…", text: $viewModel.query)
         .submitLabel(.search)
         .onSubmit {
+          isFocused = false
           viewModel.ask()
         }
+        .focused($isFocused)
         .textInputAutocapitalization(.sentences)
         .autocorrectionDisabled(false)
         .accessibilityLabel("Query field")
         .accessibilityHint("Type a question to search your memories")
 
       Button(action: {
+        isFocused = false
         viewModel.ask()
       }) {
         if viewModel.isLoading {
