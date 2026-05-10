@@ -62,6 +62,7 @@ When the implementer hands back after addressing must-fix findings:
    ```
    GitHub auto-closes the issue from `Closes #<N>` in the PR body — verify it actually closed.
 6. Remove the `in progress` label if it's still set: `gh issue edit <N> --remove-label "in progress"`.
+7. **Reset the working copy to a clean `develop`.** `git checkout develop && git pull --ff-only origin develop`. The merge with `--delete-branch` removes the remote branch but the local feature branch lingers — and we share one working copy across all agents (per AGENTS.md). The next agent should pick up a workspace that's already on `develop` with the latest merge pulled, not be left to clean up after the previous run. Optionally `git branch -D <merged-branch>` if the local branch is in your way.
 
 ## Filing non-blocking findings
 

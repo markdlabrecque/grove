@@ -131,6 +131,12 @@ For every ticket that requires implementation work:
      and any follow-up tickets he filed during review. (GitHub
      auto-closes the issue from `Closes #<N>` in the PR body.)
    - Removes the `in progress` label if it was set.
+   - **Resets the working copy to a clean `develop`:** `git checkout
+     develop && git pull --ff-only origin develop`. The
+     `--delete-branch` flag on the merge removes the remote branch but
+     the local feature branch lingers, and all agents share one working
+     copy. The next agent should inherit a workspace already on
+     `develop` with the latest merge pulled.
 
 The implementer never merges. Theo never edits code. The user can
 intervene at any step.
