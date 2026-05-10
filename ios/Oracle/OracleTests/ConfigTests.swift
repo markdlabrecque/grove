@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import OracleCore
 @testable import Oracle
 
 /// Tests for Config — the typed wrapper over Info.plist build-settings values.

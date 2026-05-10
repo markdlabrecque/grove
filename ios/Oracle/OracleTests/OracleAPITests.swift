@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import OracleCore
 @testable import Oracle
 
 /// Tests for OracleAPI — specifically the URLRequest builder for

@@ -13,10 +13,10 @@ import Foundation
 /// migration), update `authorizedRequest(for:)` to read the token from
 /// Keychain at call time rather than from `Config.shared.bearerToken`. See
 /// `Config.swift` for the matching TODO(auth) marker.
-actor OracleAPI {
+public actor OracleAPI {
   // MARK: - Shared instance
 
-  static let shared = OracleAPI()
+  public static let shared = OracleAPI()
 
   // MARK: - Private state
 
@@ -47,7 +47,7 @@ actor OracleAPI {
   /// inspect constructed `URLRequest` values without a live server or the
   /// `Background` session configuration (which requires a real bundle
   /// identifier). See `OracleAPITests.swift` for usage.
-  init(baseURL: URL, bearerToken: String, session: URLSession = .shared) {
+  public init(baseURL: URL, bearerToken: String, session: URLSession = .shared) {
     self.baseURL = baseURL
     self.bearerToken = bearerToken
     self.session = session
@@ -58,7 +58,7 @@ actor OracleAPI {
   /// Upload a single capture to the server.
   ///
   /// V1 stub — always succeeds immediately. Real implementation in #61.
-  func postCapture(_ payload: CapturePayload) async throws -> CaptureResponse {
+  public func postCapture(_ payload: CapturePayload) async throws -> CaptureResponse {
     // TODO(#61): Implement POST /v1/captures with the background URLSession.
     //            Use `payload.clientID` as the idempotency key per the
     //            server's UNIQUE constraint on `memories.client_id`.
@@ -70,7 +70,7 @@ actor OracleAPI {
   /// Separated from `postCapture` so unit tests can assert on the fully-formed
   /// request without a live server. Real `postCapture` will call this when
   /// the stub is replaced in #61.
-  func captureRequest(for payload: CapturePayload) throws -> URLRequest {
+  public func captureRequest(for payload: CapturePayload) throws -> URLRequest {
     let url = baseURL.appendingPathComponent("v1/captures")
     var request = authorizedRequest(for: url)
     request.httpMethod = "POST"
@@ -94,7 +94,7 @@ actor OracleAPI {
   /// Send a natural-language query and receive a synthesised answer.
   ///
   /// V1 stub — returns a placeholder. Real implementation in #62.
-  func postQuery(_ queryText: String) async throws -> QueryResponse {
+  public func postQuery(_ queryText: String) async throws -> QueryResponse {
     // TODO(#62): Implement POST /v1/queries; parse the answer and source
     //            memory references for display in QueryView.
     return QueryResponse(
@@ -105,7 +105,7 @@ actor OracleAPI {
 
   // MARK: - Helpers
 
-  func authorizedRequest(for url: URL) -> URLRequest {
+  public func authorizedRequest(for url: URL) -> URLRequest {
     var request = URLRequest(url: url)
     // TODO(auth): Read token from Keychain rather than Config once V2 auth
     //             migration lands. Delete this comment and the Config bearer
@@ -118,11 +118,18 @@ actor OracleAPI {
 
 // MARK: - Data transfer objects
 
-struct CapturePayload: Sendable {
-  let clientID: UUID
-  let content: String
-  let sourceModality: String   // "typed" | "dictated"
-  let capturedAt: Date
+public struct CapturePayload: Sendable {
+  public let clientID: UUID
+  public let content: String
+  public let sourceModality: String   // "typed" | "dictated"
+  public let capturedAt: Date
+
+  public init(clientID: UUID, content: String, sourceModality: String, capturedAt: Date) {
+    self.clientID = clientID
+    self.content = content
+    self.sourceModality = sourceModality
+    self.capturedAt = capturedAt
+  }
 }
 
 /// Wire format sent to POST /v1/captures.
@@ -131,14 +138,14 @@ struct CapturePayload: Sendable {
 /// snake_case JSON keys. Using explicit keys instead of `.convertToSnakeCase`
 /// avoids the gotcha where `clientID` would encode as `client_i_d` rather
 /// than `client_id`.
-struct CaptureRequestBody: Codable, Sendable {
-  let clientID: UUID
-  let content: String
-  let sourceModality: String
-  let sourceDevice: String
-  let capturedAt: Date
+public struct CaptureRequestBody: Codable, Sendable {
+  public let clientID: UUID
+  public let content: String
+  public let sourceModality: String
+  public let sourceDevice: String
+  public let capturedAt: Date
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case clientID = "client_id"
     case content
     case sourceModality = "source_modality"
@@ -152,13 +159,13 @@ struct CaptureRequestBody: Codable, Sendable {
 /// Matches the server's `CaptureResponse` Pydantic model.
 /// `id` and `clientID` are UUIDs; `capturedAt` is an ISO 8601 timestamp
 /// (nullable: rows pre-dating migration 0010 may have `captured_at IS NULL`).
-struct CaptureResponseBody: Codable, Sendable {
-  let id: UUID
-  let clientID: UUID
-  let capturedAt: Date?
-  let enriched: Bool
+public struct CaptureResponseBody: Codable, Sendable {
+  public let id: UUID
+  public let clientID: UUID
+  public let capturedAt: Date?
+  public let enriched: Bool
 
-  enum CodingKeys: String, CodingKey {
+  public enum CodingKeys: String, CodingKey {
     case id
     case clientID = "client_id"
     case capturedAt = "captured_at"
@@ -166,17 +173,32 @@ struct CaptureResponseBody: Codable, Sendable {
   }
 }
 
-struct CaptureResponse: Sendable {
-  let id: String
+public struct CaptureResponse: Sendable {
+  public let id: String
+
+  public init(id: String) {
+    self.id = id
+  }
 }
 
-struct QueryResponse: Sendable {
-  let answer: String
-  let sources: [MemorySource]
+public struct QueryResponse: Sendable {
+  public let answer: String
+  public let sources: [MemorySource]
+
+  public init(answer: String, sources: [MemorySource]) {
+    self.answer = answer
+    self.sources = sources
+  }
 }
 
-struct MemorySource: Sendable {
-  let memoryID: String
-  let excerpt: String
-  let score: Double
+public struct MemorySource: Sendable {
+  public let memoryID: String
+  public let excerpt: String
+  public let score: Double
+
+  public init(memoryID: String, excerpt: String, score: Double) {
+    self.memoryID = memoryID
+    self.excerpt = excerpt
+    self.score = score
+  }
 }

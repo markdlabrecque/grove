@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import OracleCore
 @testable import Oracle
 
 /// Anchor class used solely to locate the OracleTests bundle at runtime.
