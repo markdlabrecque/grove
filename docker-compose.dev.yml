@@ -1,0 +1,14 @@
+# Dev-only Compose overlay. Never apply this on the prod server.
+#
+# Merge with the base file via COMPOSE_FILE in .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.dev.yml
+#
+# This publishes the app service on loopback only so `curl localhost:8000`
+# works from the Mac without going through Tailscale + TLS. The port is
+# bound to 127.0.0.1 so it is not reachable over LAN or Tailscale.
+services:
+  app:
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      LOG_LEVEL: DEBUG
