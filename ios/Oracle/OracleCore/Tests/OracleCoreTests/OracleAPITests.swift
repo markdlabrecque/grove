@@ -25,13 +25,17 @@ struct OracleAPITests {
   private func makePayload(
     clientID: UUID = UUID(),
     content: String = "Remember to call Theo about the demo.",
-    sourceModality: String = "typed",
+    sourceModality: String = "text",
+    sourceDevice: String = "iphone",
+    language: String = "en",
     capturedAt: Date = Date()
   ) -> CapturePayload {
     CapturePayload(
       clientID: clientID,
       content: content,
       sourceModality: sourceModality,
+      sourceDevice: sourceDevice,
+      language: language,
       capturedAt: capturedAt
     )
   }
@@ -83,7 +87,9 @@ struct OracleAPITests {
     let payload = makePayload(
       clientID: clientID,
       content: "Remember to call Theo about the demo.",
-      sourceModality: "typed",
+      sourceModality: "text",
+      sourceDevice: "iphone",
+      language: "en",
       capturedAt: capturedAt
     )
 
@@ -98,9 +104,53 @@ struct OracleAPITests {
 
     #expect(decoded.clientID == clientID)
     #expect(decoded.content == payload.content)
-    #expect(decoded.sourceModality == payload.sourceModality)
-    #expect(!decoded.sourceDevice.isEmpty)
+    #expect(decoded.sourceModality == "text")
+    #expect(decoded.sourceDevice == "iphone")
+    #expect(decoded.language == "en")
     // Timestamp round-trip: allow up to 1 s of floating-point drift.
     #expect(abs(decoded.capturedAt.timeIntervalSince(capturedAt)) < 1.0)
+  }
+
+  // MARK: - Schema completeness
+
+  @Test("captureRequest body includes all fields required by server CaptureRequest schema")
+  func captureRequestBodyMatchesServerSchema() async throws {
+    // Verifies that CaptureRequestBody encodes every field the server
+    // validates via its Pydantic CaptureRequest model:
+    //   client_id, content, source_modality, source_device, language, captured_at
+    let clientID = UUID()
+    let capturedAt = Date(timeIntervalSince1970: 1_778_423_400) // 2026-05-10T14:30:00Z
+    let payload = CapturePayload(
+      clientID: clientID,
+      content: "A representative capture used to verify the wire schema.",
+      sourceModality: "text",
+      sourceDevice: "iphone",
+      language: "en",
+      capturedAt: capturedAt
+    )
+
+    let api = makeAPI()
+    let request = try await api.captureRequest(for: payload)
+
+    let body = try #require(request.httpBody)
+    let json = try #require(
+      try JSONSerialization.jsonObject(with: body) as? [String: Any]
+    )
+
+    // Every field the server's CaptureRequest schema requires must be present.
+    #expect(json["client_id"] != nil)
+    #expect(json["content"] != nil)
+    #expect(json["source_modality"] != nil)
+    #expect(json["source_device"] != nil)
+    #expect(json["language"] != nil)
+    #expect(json["captured_at"] != nil)
+
+    // Spot-check concrete values. UUID strings are compared case-insensitively
+    // because JSONEncoder uppercases them by default; the server accepts both.
+    let encodedClientID = try #require(json["client_id"] as? String)
+    #expect(encodedClientID.lowercased() == clientID.uuidString.lowercased())
+    #expect(json["source_modality"] as? String == "text")
+    #expect(json["source_device"] as? String == "iphone")
+    #expect(json["language"] as? String == "en")
   }
 }

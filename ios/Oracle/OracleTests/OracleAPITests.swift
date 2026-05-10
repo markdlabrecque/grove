@@ -26,13 +26,17 @@ struct OracleAPITests {
   private func makePayload(
     clientID: UUID = UUID(),
     content: String = "Remember to call Theo about the demo.",
-    sourceModality: String = "typed",
+    sourceModality: String = "text",
+    sourceDevice: String = "iphone",
+    language: String = "en",
     capturedAt: Date = Date()
   ) -> CapturePayload {
     CapturePayload(
       clientID: clientID,
       content: content,
       sourceModality: sourceModality,
+      sourceDevice: sourceDevice,
+      language: language,
       capturedAt: capturedAt
     )
   }
@@ -84,7 +88,9 @@ struct OracleAPITests {
     let payload = makePayload(
       clientID: clientID,
       content: "Remember to call Theo about the demo.",
-      sourceModality: "typed",
+      sourceModality: "text",
+      sourceDevice: "iphone",
+      language: "en",
       capturedAt: capturedAt
     )
 
@@ -99,8 +105,9 @@ struct OracleAPITests {
 
     #expect(decoded.clientID == clientID)
     #expect(decoded.content == payload.content)
-    #expect(decoded.sourceModality == payload.sourceModality)
-    #expect(!decoded.sourceDevice.isEmpty)
+    #expect(decoded.sourceModality == "text")
+    #expect(decoded.sourceDevice == "iphone")
+    #expect(decoded.language == "en")
     // Timestamp round-trip: allow up to 1 s of floating-point drift.
     #expect(abs(decoded.capturedAt.timeIntervalSince(capturedAt)) < 1.0)
   }
