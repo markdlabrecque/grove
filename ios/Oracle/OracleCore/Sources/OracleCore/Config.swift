@@ -15,18 +15,18 @@ import Foundation
 /// use. See `kai.md` §"What to avoid" — "Keychain only" is the standing rule;
 /// this `.xcconfig` path is an explicit V1 override. The Keychain migration
 /// ticket follows this one.
-struct Config {
+public struct Config: Sendable {
   /// Shared singleton; constructed once at app launch.
-  static let shared = Config()
+  public static let shared = Config()
 
   /// The server's base URL, e.g. `https://oracle.example.ts.net`.
-  let baseURL: URL
+  public let baseURL: URL
 
   /// Long-lived bearer token sent with every API request.
   ///
   /// TODO(auth): V2 — move this value to Keychain + LAContext; delete the
   /// `BEARER_TOKEN` key from Info.plist and the `.xcconfig` files.
-  let bearerToken: String
+  public let bearerToken: String
 
   private init() {
     guard
@@ -52,5 +52,16 @@ struct Config {
 
     self.baseURL = url
     self.bearerToken = token
+  }
+
+  /// Designated initialiser used by unit tests.
+  ///
+  /// The test bundle cannot easily inject its own `Info.plist` into
+  /// `Bundle.main`, so tests that need a `Config` instance construct one
+  /// directly via this path rather than going through `Config.shared`.
+  /// See `ConfigTests.swift` for usage.
+  public init(baseURL: URL, bearerToken: String) {
+    self.baseURL = baseURL
+    self.bearerToken = bearerToken
   }
 }

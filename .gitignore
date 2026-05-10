@@ -41,9 +41,10 @@ ios/DerivedData/
 *.dSYM
 *.dSYM.zip
 
-# Swift Package Manager local state (only if SPM gets pulled in later)
+# Swift Package Manager local state
 ios/.swiftpm/
 ios/.build/
+ios/Oracle/OracleCore/.build/
 
 # Xcode crash + temp files
 *.moved-aside
