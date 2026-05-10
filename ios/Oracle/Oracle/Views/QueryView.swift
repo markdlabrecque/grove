@@ -35,7 +35,7 @@ struct QueryView: View {
       TextField("Ask your memory…", text: $viewModel.query)
         .submitLabel(.search)
         .onSubmit {
-          Task { await viewModel.ask() }
+          viewModel.ask()
         }
         .textInputAutocapitalization(.sentences)
         .autocorrectionDisabled(false)
@@ -43,7 +43,7 @@ struct QueryView: View {
         .accessibilityHint("Type a question to search your memories")
 
       Button(action: {
-        Task { await viewModel.ask() }
+        viewModel.ask()
       }) {
         if viewModel.isLoading {
           ProgressView()
@@ -55,7 +55,7 @@ struct QueryView: View {
       }
       .buttonStyle(.borderedProminent)
       .disabled(!viewModel.isAskEnabled)
-      .accessibilityLabel("Ask")
+      .accessibilityLabel(viewModel.isLoading ? "Ask — cancels current search and starts a new one" : "Ask")
       .accessibilityHint("Submit query to search your memories")
     }
   }

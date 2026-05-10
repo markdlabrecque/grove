@@ -1,0 +1,225 @@
+import Testing
+import Foundation
+import OracleCore
+@testable import Oracle
+
+/// Unit tests for `QueryViewModel`'s in-flight cancel behaviour.
+///
+/// These tests inject a stub `queryProvider` closure so no live network is
+/// needed. Because `QueryViewModel` is `@MainActor`, every test is also
+/// `@MainActor` to satisfy the actor isolation requirement.
+///
+/// Serialised to avoid shared-state races between tests that rely on
+/// continuation-based synchronisation.
+@Suite("QueryViewModel cancel-in-flight", .serialized)
+@MainActor
+struct QueryViewModelTests {
+
+  // MARK: - Fixtures
+
+  private func makeResults() -> [QueryResult] {
+    [
+      QueryResult(
+        memoryID: UUID(),
+        score: 0.9,
+        matchedVia: "whole",
+        matchedChunkIndex: nil,
+        snippet: "Existing result",
+        capturedAt: nil,
+        sourceModality: "text"
+      )
+    ]
+  }
+
+  private func makeResponse(results: [QueryResult] = []) -> QueryResponseBody {
+    QueryResponseBody(results: results, queryTokenCount: 3, latencyMs: 100)
+  }
+
+  // MARK: - Cancel-in-flight: spinner clears, prior results survive
+
+  /// Tapping Ask while a slow query is running should:
+  ///   1. Cancel the first request (no error alert).
+  ///   2. Clear the spinner (queryStatus → .idle) once cancelled.
+  ///   3. Leave any prior `.results(...)` state intact.
+  @Test("cancel() clears spinner and preserves prior results")
+  func cancelClearSpinnerPreservesResults() async throws {
+    // First: put the VM in a known .results state by running a fast query.
+    let priorResults = makeResults()
+    let vm = QueryViewModel { _ in
+      self.makeResponse(results: priorResults)
+    }
+    vm.query = "first query"
+    vm.ask()
+    // Wait for the fast provider to complete.
+    try await Task.sleep(nanoseconds: 10_000_000)  // 10 ms
+
+    guard case .results(let r) = vm.queryStatus, !r.isEmpty else {
+      Issue.record("Expected .results after first fast query, got \(vm.queryStatus)")
+      return
+    }
+
+    // Now inject a slow provider and fire a second query.
+    let slowStarted = AsyncStream<Void>.makeStream()
+    let slowUnblock = AsyncStream<Void>.makeStream()
+
+    vm.queryProvider = { _ in
+      slowStarted.continuation.yield(())
+      // Block until unblocked or cancelled.
+      for await _ in slowUnblock.stream {
+        break
+      }
+      try Task.checkCancellation()
+      return self.makeResponse()
+    }
+
+    vm.query = "slow query"
+    vm.ask()
+
+    // Wait until the slow provider has started.
+    var slowIter = slowStarted.stream.makeAsyncIterator()
+    _ = await slowIter.next()
+
+    // At this point the spinner should be showing.
+    #expect(vm.isLoading == true)
+
+    // Cancel the in-flight request explicitly.
+    vm.cancel()
+
+    // Give the cancelled task time to settle (catch block runs async).
+    try await Task.sleep(nanoseconds: 50_000_000)  // 50 ms
+
+    // Spinner must be gone.
+    #expect(vm.isLoading == false)
+
+    // No error alert must have fired.
+    #expect(vm.showErrorAlert == false)
+
+    // Prior results must still be visible.
+    guard case .results(let surviving) = vm.queryStatus else {
+      Issue.record("Expected .results after cancel, got \(vm.queryStatus)")
+      return
+    }
+    #expect(surviving.count == priorResults.count)
+  }
+
+  // MARK: - Empty query while in-flight keeps Ask disabled
+
+  @Test("empty query keeps isAskEnabled false even while loading")
+  func emptyQueryDisabledWhileLoading() async {
+    // Slow provider that never completes on its own.
+    let started = AsyncStream<Void>.makeStream()
+    let vm = QueryViewModel { _ in
+      started.continuation.yield(())
+      // Suspend indefinitely — test will cancel before it matters.
+      try await Task.sleep(nanoseconds: 999_000_000_000)
+      return self.makeResponse()
+    }
+
+    vm.query = "something"
+    vm.ask()
+
+    var iter = started.stream.makeAsyncIterator()
+    _ = await iter.next()
+
+    // Now clear the query field.
+    vm.query = ""
+
+    // With an empty field, Ask must be disabled even though a request is running.
+    #expect(vm.isAskEnabled == false)
+
+    // Clean up.
+    vm.cancel()
+  }
+
+  // MARK: - Ask during in-flight cancels and restarts
+
+  @Test("calling ask() while in-flight cancels the first request and starts a second")
+  func askWhileInFlightCancelsFirst() async throws {
+    var firstRequestCancelled = false
+
+    let firstStarted = AsyncStream<Void>.makeStream()
+
+    // First provider: records cancellation, blocks until cancelled.
+    let firstProvider: (String) async throws -> QueryResponseBody = { _ in
+      firstStarted.continuation.yield(())
+      do {
+        try await Task.sleep(nanoseconds: 999_000_000_000)
+        return QueryResponseBody(results: [], queryTokenCount: 0, latencyMs: 0)
+      } catch {
+        firstRequestCancelled = true
+        throw error
+      }
+    }
+
+    // Second provider: fast, returns a real result.
+    let secondResults = [QueryResult(
+      memoryID: UUID(),
+      score: 0.8,
+      matchedVia: "whole",
+      matchedChunkIndex: nil,
+      snippet: "Second result",
+      capturedAt: nil,
+      sourceModality: "text"
+    )]
+    let secondProvider: (String) async throws -> QueryResponseBody = { _ in
+      QueryResponseBody(results: secondResults, queryTokenCount: 4, latencyMs: 50)
+    }
+
+    var callCount = 0
+    let vm = QueryViewModel { text in
+      callCount += 1
+      if callCount == 1 {
+        return try await firstProvider(text)
+      } else {
+        return try await secondProvider(text)
+      }
+    }
+
+    // Fire first request.
+    vm.query = "first"
+    vm.ask()
+
+    var iter = firstStarted.stream.makeAsyncIterator()
+    _ = await iter.next()
+
+    // Fire second request while first is in-flight — should cancel first.
+    vm.query = "second"
+    vm.ask()
+
+    // Wait for second request to complete.
+    try await Task.sleep(nanoseconds: 100_000_000)  // 100 ms
+
+    // Second query should have produced results.
+    guard case .results(let r) = vm.queryStatus else {
+      Issue.record("Expected .results from second query, got \(vm.queryStatus)")
+      return
+    }
+    #expect(r.count == secondResults.count)
+
+    // No error alert should have fired.
+    #expect(vm.showErrorAlert == false)
+
+    // First request was cancelled.
+    // (Small sleep to let the cancellation propagate through the first task.)
+    try await Task.sleep(nanoseconds: 50_000_000)
+    #expect(firstRequestCancelled == true)
+  }
+
+  // MARK: - Real errors still fire alert
+
+  @Test("real network failure surfaces error alert, not silent swallow")
+  func realErrorFiresAlert() async throws {
+    let vm = QueryViewModel { _ in
+      throw APIError.httpError(statusCode: 500, detail: "internal server error")
+    }
+
+    vm.query = "anything"
+    vm.ask()
+
+    try await Task.sleep(nanoseconds: 50_000_000)  // 50 ms
+
+    #expect(vm.showErrorAlert == true)
+    #expect(vm.errorMessage.contains("internal server error"))
+    #expect(vm.isLoading == false)
+  }
+}
