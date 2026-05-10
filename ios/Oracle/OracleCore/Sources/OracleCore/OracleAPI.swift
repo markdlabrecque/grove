@@ -2,8 +2,8 @@ import Foundation
 
 /// Async HTTP client for the Oracle backend.
 ///
-/// `postCapture` sends to POST /v1/captures via `URLSession.shared` async APIs.
-/// `postQuery` is a V1 stub; real implementation lands in ticket #62.
+/// `postCapture` uploads a capture to POST /v1/captures; `postQuery` searches
+/// memories via POST /v1/queries and returns ranked results.
 ///
 /// The actor isolation ensures all mutable state and URLSession callbacks are
 /// serialised without manual locking. Network work is dispatched via URLSession
@@ -120,16 +120,45 @@ public actor OracleAPI {
 
   // MARK: - Query
 
-  /// Send a natural-language query and receive a synthesised answer.
+  /// Send a natural-language query and receive ranked memory snippets.
   ///
-  /// V1 stub — returns a placeholder. Real implementation in #62.
-  public func postQuery(_ queryText: String) async throws -> QueryResponse {
-    // TODO(#62): Implement POST /v1/queries; parse the answer and source
-    //            memory references for display in QueryView.
-    return QueryResponse(
-      answer: "Retrieval not yet implemented. Coming in ticket #62.",
-      sources: []
-    )
+  /// Hits POST /v1/queries with `{"query": <text>, "limit": 10}`. Decodes
+  /// the server's `QueryResponse` shape into `QueryResponseBody`. Same auth
+  /// and Content-Type pattern as `postCapture`.
+  ///
+  /// Throws `APIError` on HTTP-level failures. The caller owns retry logic.
+  ///
+  /// TODO(offline): V2 should queue failed queries locally and retry on
+  /// NWPathMonitor "satisfied", consistent with the capture offline strategy.
+  public func postQuery(_ queryText: String, limit: Int = 10) async throws -> QueryResponseBody {
+    let url = baseURL.appendingPathComponent("v1/queries")
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "POST"
+
+    let body = QueryRequestBody(query: queryText, limit: limit)
+    let encoder = JSONEncoder()
+    request.httpBody = try encoder.encode(body)
+
+    let (data, response) = try await session.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+
+    print("[query] sent query_chars=\(queryText.count) status=\(status)")
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let result = try decoder.decode(QueryResponseBody.self, from: data)
+    print("[query] sent query_chars=\(queryText.count) status=\(status) results=\(result.results.count)")
+    return result
   }
 
   // MARK: - Helpers
@@ -247,24 +276,53 @@ public struct CaptureResponseBody: Codable, Sendable {
   }
 }
 
-public struct QueryResponse: Sendable {
-  public let answer: String
-  public let sources: [MemorySource]
+/// Wire format sent to POST /v1/queries.
+public struct QueryRequestBody: Codable, Sendable {
+  public let query: String
+  public let limit: Int
 
-  public init(answer: String, sources: [MemorySource]) {
-    self.answer = answer
-    self.sources = sources
+  public init(query: String, limit: Int = 10) {
+    self.query = query
+    self.limit = limit
   }
 }
 
-public struct MemorySource: Sendable {
-  public let memoryID: String
-  public let excerpt: String
-  public let score: Double
+/// A single ranked result returned by POST /v1/queries.
+///
+/// `matchedVia` is either `"whole"` (whole-memory cosine match) or `"chunk"`
+/// (chunk-level match). When `"chunk"`, `matchedChunkIndex` carries the
+/// 0-based chunk index from the server.
+public struct QueryResult: Codable, Sendable {
+  public let memoryID: UUID
+  public let score: Float
+  public let matchedVia: String         // "whole" | "chunk"
+  public let matchedChunkIndex: Int?    // 0-based; nil when matchedVia == "whole"
+  public let snippet: String
+  public let capturedAt: Date?
+  public let sourceModality: String?
 
-  public init(memoryID: String, excerpt: String, score: Double) {
-    self.memoryID = memoryID
-    self.excerpt = excerpt
-    self.score = score
+  public enum CodingKeys: String, CodingKey {
+    case memoryID = "memory_id"
+    case score
+    case matchedVia = "matched_via"
+    case matchedChunkIndex = "matched_chunk_index"
+    case snippet
+    case capturedAt = "captured_at"
+    case sourceModality = "source_modality"
+  }
+}
+
+/// Wire format returned by POST /v1/queries.
+///
+/// Matches the server's `QueryResponse` Pydantic model.
+public struct QueryResponseBody: Codable, Sendable {
+  public let results: [QueryResult]
+  public let queryTokenCount: Int
+  public let latencyMs: Double
+
+  public enum CodingKeys: String, CodingKey {
+    case results
+    case queryTokenCount = "query_token_count"
+    case latencyMs = "latency_ms"
   }
 }
