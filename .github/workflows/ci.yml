@@ -11,9 +11,9 @@ on:
       - "Makefile"
       - "docker-compose.yml"
       - "docker-compose.dev.yml"
+  # pull_request has no paths filter — fires on every PR so required checks
+  # always have exactly one source. The `changes` job gates which steps run.
   pull_request:
-    # No paths filter — fires on every PR so required checks always have
-    # exactly one source. The `changes` job gates which steps actually run.
 
 jobs:
   changes:
