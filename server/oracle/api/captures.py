@@ -62,55 +62,62 @@ async def create_capture(
 ) -> CaptureResponse:
     total_start = time.monotonic()
 
-    # --- Idempotency pre-check ---
-    # Must come before embedding so retries don't burn API calls.
-    existing_check = await session.execute(select(Memory).where(Memory.client_id == body.client_id))
-    existing_row = existing_check.scalar_one_or_none()
-    if existing_row is not None:
-        elapsed_ms = (time.monotonic() - total_start) * 1000
-        logger.info(
-            "capture_stored",
-            client_id=str(body.client_id),
-            memory_id=str(existing_row.id),
-            content_length=len(body.content),
-            idempotent=True,
-            total_capture_latency_ms=round(elapsed_ms, 1),
-        )
-        response = CaptureResponse(
-            id=existing_row.id,
-            client_id=existing_row.client_id,
-            captured_at=existing_row.captured_at,
-            enriched=existing_row.enriched,
-        )
-        from fastapi.responses import JSONResponse
-
-        return JSONResponse(  # type: ignore[return-value]
-            content=response.model_dump(mode="json"),
-            status_code=status.HTTP_200_OK,
-        )
-
-    # --- Token count & embedding (outside the DB transaction to keep it short) ---
-    token_count = count_tokens(body.content)
-    provider = get_embedding_provider()
-
-    embed_start = time.monotonic()
-    if token_count <= WHOLE_VS_CHUNKS_THRESHOLD:
-        vectors = await provider.embed_batch([body.content])
-        whole_embedding: list[float] | None = vectors[0]
-        chunk_texts: list[str] = []
-        chunk_vectors: list[list[float]] = []
-    else:
-        chunk_texts = chunk(body.content)
-        chunk_vectors = await provider.embed_batch(chunk_texts)
-        whole_embedding = None
-
-    embedding_latency_ms = (time.monotonic() - embed_start) * 1000
-
-    chunk_count = len(chunk_texts)
-
-    # --- Atomic DB write ---
+    # --- Idempotency pre-check, embedding, and atomic DB write in one transaction ---
+    # SQLAlchemy 2.x autobegin triggers on the first execute(), so the pre-check
+    # and the subsequent session.begin() must share the same transaction block to
+    # avoid "A transaction is already begun on this Session".
     memory_id = uuid.uuid4()
     async with session.begin():
+        # Idempotency pre-check: must come before embedding so retries don't burn
+        # API calls.
+        existing_check = await session.execute(
+            select(Memory).where(Memory.client_id == body.client_id)
+        )
+        existing_row = existing_check.scalar_one_or_none()
+        if existing_row is not None:
+            elapsed_ms = (time.monotonic() - total_start) * 1000
+            logger.info(
+                "capture_stored",
+                client_id=str(body.client_id),
+                memory_id=str(existing_row.id),
+                content_length=len(body.content),
+                idempotent=True,
+                total_capture_latency_ms=round(elapsed_ms, 1),
+            )
+            response = CaptureResponse(
+                id=existing_row.id,
+                client_id=existing_row.client_id,
+                captured_at=existing_row.captured_at,
+                enriched=existing_row.enriched,
+            )
+            from fastapi.responses import JSONResponse
+
+            return JSONResponse(  # type: ignore[return-value]
+                content=response.model_dump(mode="json"),
+                status_code=status.HTTP_200_OK,
+            )
+
+        # --- Token count & embedding ---
+        # The network call happens inside the transaction for simplicity. At
+        # personal scale the extra lock hold is acceptable.
+        token_count = count_tokens(body.content)
+        provider = get_embedding_provider()
+
+        embed_start = time.monotonic()
+        if token_count <= WHOLE_VS_CHUNKS_THRESHOLD:
+            vectors = await provider.embed_batch([body.content])
+            whole_embedding: list[float] | None = vectors[0]
+            chunk_texts: list[str] = []
+            chunk_vectors: list[list[float]] = []
+        else:
+            chunk_texts = chunk(body.content)
+            chunk_vectors = await provider.embed_batch(chunk_texts)
+            whole_embedding = None
+
+        embedding_latency_ms = (time.monotonic() - embed_start) * 1000
+
+        chunk_count = len(chunk_texts)
+
         stmt = (
             insert(Memory)
             .values(
