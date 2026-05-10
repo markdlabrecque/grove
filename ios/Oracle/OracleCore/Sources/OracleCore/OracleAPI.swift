@@ -30,15 +30,12 @@ public actor OracleAPI {
     self.baseURL = Config.shared.baseURL
     self.bearerToken = Config.shared.bearerToken
 
-    // Use a background URLSession configuration so uploads survive app
-    // suspension and locked-screen transitions (PRD §6.8, §8.2).
-    // The identifier must be stable across launches.
-    let config = URLSessionConfiguration.background(
-      withIdentifier: "com.markdlabrecque.oracle.background-session"
-    )
-    config.isDiscretionary = false
-    config.sessionSendsLaunchEvents = true
-    self.session = URLSession(configuration: config)
+    // V1 uses a default session. A background `URLSessionConfiguration` is
+    // incompatible with async `data(for:)` — background sessions require
+    // delegate-based `uploadTask`/`downloadTask` calls. V2 will migrate to a
+    // proper background + delegate pipeline alongside the offline-queue work
+    // (see TODO(offline) on `postCapture`).
+    self.session = URLSession(configuration: .default)
   }
 
   /// Designated initialiser used by unit tests.
@@ -69,7 +66,10 @@ public actor OracleAPI {
   /// retry when connectivity returns (NWPathMonitor "satisfied" event), and
   /// reuse the same `client_id` on retry — the server's UNIQUE constraint on
   /// `memories.client_id` guarantees idempotency so duplicate uploads are
-  /// harmless no-ops.
+  /// harmless no-ops. V2 should also migrate to a background `URLSession`
+  /// with a `URLSessionDataDelegate` so uploads survive app suspension; V1
+  /// uses the default config because async `data(for:)` is incompatible with
+  /// background sessions.
   public func postCapture(_ payload: CapturePayload) async throws -> CaptureResponseBody {
     let request = try captureRequest(for: payload)
 
