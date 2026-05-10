@@ -7,9 +7,10 @@ struct OracleApp: App {
     // Debug helper: confirm which config is in use at launch.
     // Remove or gate behind a build flag before any wider distribution.
     //
-    // Guard: skip the config access when the app is being launched as a unit
-    // test host. `Config.shared` calls fatalError if BASE_URL is missing, and
-    // the test host process doesn't have a populated Info.plist.
+    // Guard: suppress the print during test runs — `Config.shared` returns
+    // stub values under XCTest (see Config.swift), so logging them would be
+    // misleading noise in the test output.  The fatalError crash that
+    // originally motivated this guard is now handled inside Config.init().
     #if DEBUG
     let isRunningTests = ProcessInfo.processInfo.environment["XCTestSessionIdentifier"] != nil
     if !isRunningTests {
