@@ -111,6 +111,12 @@ For every ticket that requires implementation work:
    - Runs the relevant test suite locally to confirm green
      (`make test` for server work; `xcodebuild test` for iOS once
      scaffolded).
+   - **Confirms CI is green on the head commit.** `gh pr checks <PR>`
+     must report every required check (`Lint`, `Test`, `Migrations`
+     for server PRs) as `pass` on the latest SHA. If any check is
+     failing, pending, or stale, do not merge — comment on the PR
+     and hand back to the implementer. Local-green is not a substitute
+     for CI-green; both gate the merge.
    - **Merges.** `gh pr merge --squash --delete-branch <PR>`. Squash
      because one ticket = one commit on `develop`. The squash commit
      subject is `#<N> <type>: <title>` matching the project's commit
