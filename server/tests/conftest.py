@@ -7,3 +7,5 @@ os.environ.setdefault(
     "DATABASE_URL",
     "postgresql+asyncpg://test:test@localhost:5432/test",
 )
+# Embedding tests mock the HTTP boundary; this key is never sent to OpenAI.
+os.environ.setdefault("OPENAI_API_KEY", "test-stub-key")

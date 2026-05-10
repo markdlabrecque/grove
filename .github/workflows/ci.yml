@@ -71,6 +71,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+asyncpg://oracle:oracle@localhost:5432/oracle_test
       BEARER_TOKEN: ci-dummy-token
+      OPENAI_API_KEY: ci-stub-key
 
     steps:
       - uses: actions/checkout@v6
