@@ -18,13 +18,17 @@ Infrastructure assumptions
   DATABASE_URL is seeded by conftest.py (local dev) or injected by CI.
 - The OpenAI embedding API is mocked at the HTTP boundary via ``respx``.
   No network calls leave the process.
+- ``@respx.mock`` enforces both ``assert_all_mocked=True`` (any unmocked
+  outbound HTTP call raises an error) and ``assert_all_called=True`` (every
+  registered mock route must be called at least once). Only register routes
+  you expect the test to actually hit.
 """
 
 from __future__ import annotations
 
 import json
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
 
 import httpx
 import pytest
@@ -103,7 +107,7 @@ async def _override_get_session() -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture(autouse=True)
-def override_db() -> AsyncIterator[None]:
+def override_db() -> Iterator[None]:
     """Wire the app to the NullPool test engine for every test in this module."""
     app.dependency_overrides[get_session] = _override_get_session
     yield

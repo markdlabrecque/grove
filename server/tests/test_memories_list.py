@@ -278,6 +278,53 @@ async def test_cursor_pagination(five_memories: list[Memory]) -> None:
 
 
 @pytest.mark.asyncio
+async def test_cursor_with_time_window_filter(five_memories: list[Memory]) -> None:
+    """cursor + created_before together: pagination stays inside the time window."""
+    from oracle.main import app
+
+    sorted_by_time = sorted(five_memories, key=lambda m: m.created_at)
+    our_ids = {str(m.id) for m in five_memories}
+
+    # Exclude the last fixture row from the window so we exercise a real
+    # boundary: 4 rows qualify, we page with limit=2 (2 pages of 2).
+    window_end = sorted_by_time[-1].created_at.isoformat()  # strictly before last row
+
+    collected: list[str] = []
+    seen: set[str] = set()
+    cursor: str | None = None
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        while True:
+            params: dict = {"limit": 2, "created_before": window_end}
+            if cursor:
+                params["cursor"] = cursor
+
+            response = await client.get("/v1/memories", headers=AUTH_HEADERS, params=params)
+            assert response.status_code == 200
+            body = response.json()
+
+            for item in body["items"]:
+                # Every returned item must fall inside the time window.
+                assert item["created_at"] < window_end, (
+                    f"item {item['id']} at {item['created_at']!r} outside window_end"
+                )
+                # Only track our fixture rows for the duplicate/completeness check.
+                if item["id"] in our_ids:
+                    assert item["id"] not in seen, f"duplicate id across pages: {item['id']}"
+                    seen.add(item["id"])
+                    collected.append(item["id"])
+
+            cursor = body["next_cursor"]
+            if cursor is None:
+                break
+
+    # 4 of the 5 fixture rows fall before window_end (the last row is excluded).
+    expected_ids = {str(m.id) for m in sorted_by_time[:4]}
+    assert set(collected) == expected_ids
+    assert len(collected) == 4
+
+
+@pytest.mark.asyncio
 async def test_cursor_no_duplicates_across_pages(five_memories: list[Memory]) -> None:
     """Verify no ID appears on more than one page within the fixture's time window."""
     from oracle.main import app
