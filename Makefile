@@ -110,6 +110,21 @@ lint: ## Run ruff lint + format check
 format: ## Apply ruff formatting in-place
 	$(COMPOSE) run --rm $(APP) bash -c "pip install -e '.[dev]' >/dev/null && ruff format . && ruff check --fix ."
 
+# ---------- iOS tests ----------
+
+.PHONY: ios-test
+ios-test: ## Run the iOS test suite on the iPhone 17 simulator
+	xcodebuild test \
+		-project ios/Oracle/Oracle.xcodeproj \
+		-scheme Oracle \
+		-destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+		-resultBundlePath ios/build/TestResults.xcresult
+
+.PHONY: ios-test-clean
+ios-test-clean: ## Wipe iOS build artefacts (ios/build/ and ios/DerivedData/) then run tests
+	rm -rf ios/build/ ios/Oracle/DerivedData/
+	$(MAKE) ios-test
+
 # ---------- certs ----------
 
 .PHONY: cert

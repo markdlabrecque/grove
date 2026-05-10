@@ -104,6 +104,75 @@ API credentials.
 
 ---
 
+## Testing
+
+### Running tests
+
+**In Xcode:** Open `ios/Oracle/Oracle.xcodeproj`, select the Oracle scheme, and
+press `Cmd+U`. Both the `OracleTests` and `OracleUITests` targets run.
+
+**From the command line:**
+
+```bash
+make ios-test
+```
+
+This runs `xcodebuild test` against the iPhone 17 simulator and writes a
+`TestResults.xcresult` bundle to `ios/build/`. To view it after a failure:
+
+```bash
+open ios/build/TestResults.xcresult
+```
+
+To wipe build artefacts and run from a clean slate:
+
+```bash
+make ios-test-clean
+```
+
+### What is covered
+
+| Target | Framework | Scope |
+|---|---|---|
+| `OracleTests` | Swift Testing (`@Test`, `#expect`) | Unit tests: `Config`, `OracleAPI` request builder, JSON coding |
+| `OracleUITests` | XCUITest | Placeholder only — no real UI to drive yet |
+
+Seed unit tests (`#64`):
+
+- **`ConfigTests`** — verifies `Config.init(baseURL:bearerToken:)` stores the
+  correct values. Uses an internal initialiser rather than `Config.shared`
+  because the test bundle does not have a populated `Info.plist`. The
+  `Config.shared` path is exercised by every app build via `OracleApp.init()`.
+- **`OracleAPITests`** — verifies `OracleAPI.captureRequest(for:)` produces a
+  `POST` request to `baseURL/v1/captures` with correct `Authorization` and
+  `Content-Type` headers and a round-trippable JSON body. No live server.
+- **`JSONCodingTests`** — verifies `CaptureResponseBody` decodes from a canned
+  fixture (`OracleTests/Fixtures/capture_response.json`) and that `captured_at`
+  parses as a timezone-aware `Date`.
+
+Real UI tests (Save flow, Ask flow) are deferred to the tickets that land those
+screens (`#61`, `#62`).
+
+### Future: snapshot testing
+
+`// TODO(snapshot):` — once `#61`/`#62` have stable SwiftUI layouts, consider
+adding [swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing)
+as the one third-party SPM dependency. This is noted as an explicit future
+option, not a current commitment. See ticket `#64` for the rationale.
+
+### CI
+
+The `ios-ci.yml` workflow runs on `macos-latest` for every pull request that
+touches `ios/**`. It uploads `TestResults.xcresult` as an artefact so failures
+can be inspected without re-running locally.
+
+This CI job is a required check for `ios/**` PRs on the `develop` branch.
+After the PR for `#64` merges, add it to the branch-protection ruleset:
+GitHub → Settings → Branches → develop → Require status checks → `Test`
+(from the `iOS CI` workflow).
+
+---
+
 ## Build configuration detail
 
 The project has two build configurations: Debug and Release. Each is backed by

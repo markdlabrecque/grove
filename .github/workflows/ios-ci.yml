@@ -1,0 +1,42 @@
+name: iOS CI
+
+# Runs only when iOS source files (or this workflow file) change, so
+# server-only PRs do not burn macOS runner minutes.
+
+on:
+  pull_request:
+    paths:
+      - "ios/**"
+      - ".github/workflows/ios-ci.yml"
+
+jobs:
+  test:
+    name: Test
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pin the Xcode version explicitly so a toolchain upgrade on the runner
+      # image does not silently break the build between PRs.
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Run iOS tests
+        run: |
+          xcodebuild test \
+            -project ios/Oracle/Oracle.xcodeproj \
+            -scheme Oracle \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
+            -resultBundlePath ios/build/TestResults.xcresult
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: TestResults.xcresult
+          path: ios/build/TestResults.xcresult
+          if-no-files-found: warn
