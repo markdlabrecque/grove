@@ -57,9 +57,10 @@ public actor OracleAPI {
 
   /// Upload a single capture to the server (POST /v1/captures).
   ///
-  /// Uses `URLSession.shared` async data task so the call can be awaited from
-  /// the caller's async context without blocking the main actor. Network work
-  /// runs on URLSession's internal dispatch queue.
+  /// Uses the injected `session` (defaulting to `URLSession.shared`) so callers
+  /// and tests can swap in a custom session. Network work runs on URLSession's
+  /// internal dispatch queue and can be awaited from the caller's async context
+  /// without blocking the main actor.
   ///
   /// Throws `APIError` on HTTP-level failures. Does NOT retry — callers are
   /// responsible for re-enqueueing failed captures.
@@ -72,7 +73,7 @@ public actor OracleAPI {
   public func postCapture(_ payload: CapturePayload) async throws -> CaptureResponseBody {
     let request = try captureRequest(for: payload)
 
-    let (data, response) = try await URLSession.shared.data(for: request)
+    let (data, response) = try await session.data(for: request)
 
     guard let httpResponse = response as? HTTPURLResponse else {
       throw APIError.unexpectedResponse
