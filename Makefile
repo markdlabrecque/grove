@@ -112,13 +112,28 @@ format: ## Apply ruff formatting in-place
 
 # ---------- iOS tests ----------
 
-.PHONY: ios-test
-ios-test: ## Run the iOS test suite on the iPhone 17 simulator
+# Three targets mirror the two-job CI strategy (stable + canary):
+#   ios-test-core  → swift test on the OracleCore package (matches stable CI gate)
+#   ios-test-app   → xcodebuild test on the Oracle scheme  (matches canary CI job)
+#   ios-test       → runs both in sequence; local devs with Xcode 26 see both green
+#
+# The stable gate (ios-test-core) is the required merge check for develop.
+# The canary gate (ios-test-app) requires the iOS 26 SDK locally.
+
+.PHONY: ios-test-core
+ios-test-core: ## Run OracleCore swift package tests (stable CI gate; no simulator needed)
+	swift test --package-path ios/Oracle/OracleCore
+
+.PHONY: ios-test-app
+ios-test-app: ## Run the full Oracle scheme tests on iPhone 17 simulator (canary CI job)
 	xcodebuild test \
 		-project ios/Oracle/Oracle.xcodeproj \
 		-scheme Oracle \
 		-destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
 		-resultBundlePath ios/build/TestResults.xcresult
+
+.PHONY: ios-test
+ios-test: ios-test-core ios-test-app ## Run all iOS tests: OracleCore package + Oracle scheme (requires iOS 26 SDK)
 
 .PHONY: ios-test-clean
 ios-test-clean: ## Wipe iOS build artefacts (ios/build/ and ios/DerivedData/) then run tests

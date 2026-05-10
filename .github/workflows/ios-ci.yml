@@ -10,22 +10,67 @@ name: iOS CI
       - ".github/workflows/ios-ci.yml"
 
 jobs:
-  test:
-    name: Test
+  # ---------------------------------------------------------------------------
+  # stable: required check for develop branch protection.
+  #
+  # Runs `swift test` against the OracleCore Swift Package only. No xcodebuild,
+  # no simulator, no iOS 26 SDK surface area. Passes on any runner that has
+  # Xcode 16+ (PackageDescription 6.0) installed.
+  #
+  # This is the gate that blocks merges. It covers all logic-level code:
+  # Config, OracleAPI request builder, Codable models, JSON fixtures.
+  # ---------------------------------------------------------------------------
+  stable:
+    name: Core (stable gate)
     runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
 
-      # Pin the Xcode version explicitly so a toolchain upgrade on the runner
-      # image does not silently break the build between PRs.
+      - name: Select Xcode
+        # Pin the Xcode version so a toolchain upgrade on the runner image does
+        # not silently break the build between PRs.
+        run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
+
+      - name: Show Xcode / Swift version
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: swift test (OracleCore)
+        run: swift test --package-path ios/Oracle/OracleCore
+
+  # ---------------------------------------------------------------------------
+  # canary: informational only — failures do NOT block merges.
+  #
+  # Runs `xcodebuild test` against the full Oracle scheme (app target + UI tests).
+  # This job covers iOS 26-specific code paths and requires the iOS 26 SDK.
+  #
+  # Currently this uses the same Xcode 16.2 runner, so it will fail until GitHub
+  # ships Xcode 26 on macos-latest. That is expected and acceptable.
+  #
+  # TODO(ci): Once GitHub runners ship Xcode 26 on macos-latest, remove the
+  # xcode-select pin here, confirm canary goes green, then promote canary to
+  # a required check and retire the two-job split pattern. At that point the
+  # stable job can be folded back in or kept as a fast pre-check.
+  # ---------------------------------------------------------------------------
+  canary:
+    name: App (canary, informational)
+    runs-on: macos-latest
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v4
+
       - name: Select Xcode
         run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
 
-      - name: Show Xcode version
-        run: xcodebuild -version
+      - name: Show Xcode / Swift version
+        run: |
+          xcodebuild -version
+          swift --version
 
-      - name: Run iOS tests
+      - name: xcodebuild test (Oracle scheme)
         run: |
           xcodebuild test \
             -project ios/Oracle/Oracle.xcodeproj \
