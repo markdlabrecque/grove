@@ -1,14 +1,17 @@
 from __future__ import annotations
 
-import os
-
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-# Read the token the same way the app does so tests work both locally
-# (where conftest.py seeds a default) and in Docker (where BEARER_TOKEN
-# is injected from docker-compose env).
-CORRECT_TOKEN = os.environ.get("BEARER_TOKEN", "test-token")
+from oracle.core.config import settings
+
+# oracle.main is imported at module level so Python's import cache makes this
+# a single import regardless of how many tests run. conftest.py seeds the env
+# vars (BEARER_TOKEN, DATABASE_URL, OPENAI_API_KEY) before this line executes.
+from oracle.main import app
+
+# Use the same token the app validates against, not a hardcoded value.
+_AUTH_HEADERS = {"Authorization": f"Bearer {settings.bearer_token}"}
 
 # Use a minimal valid captures payload as the probe for auth tests.
 _PROBE_PAYLOAD = {
@@ -20,50 +23,41 @@ _PROBE_PAYLOAD = {
 }
 
 
+@pytest.fixture
+async def client() -> AsyncClient:
+    """Shared ASGI test client for all auth tests."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+        yield ac
+
+
 @pytest.mark.asyncio
-async def test_captures_no_auth_header_returns_401() -> None:
-    from oracle.main import app
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post("/v1/captures", json=_PROBE_PAYLOAD)
-
+async def test_captures_no_auth_header_returns_401(client: AsyncClient) -> None:
+    response = await client.post("/v1/captures", json=_PROBE_PAYLOAD)
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_captures_wrong_token_returns_401() -> None:
-    from oracle.main import app
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(
-            "/v1/captures",
-            json=_PROBE_PAYLOAD,
-            headers={"Authorization": "Bearer wrong-token"},
-        )
-
+async def test_captures_wrong_token_returns_401(client: AsyncClient) -> None:
+    response = await client.post(
+        "/v1/captures",
+        json=_PROBE_PAYLOAD,
+        headers={"Authorization": "Bearer wrong-token"},
+    )
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_captures_basic_scheme_returns_401() -> None:
-    from oracle.main import app
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.post(
-            "/v1/captures",
-            json=_PROBE_PAYLOAD,
-            headers={"Authorization": "Basic dXNlcjpwYXNz"},
-        )
-
+async def test_captures_basic_scheme_returns_401(client: AsyncClient) -> None:
+    response = await client.post(
+        "/v1/captures",
+        json=_PROBE_PAYLOAD,
+        headers={"Authorization": "Basic dXNlcjpwYXNz"},
+    )
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_healthz_remains_public() -> None:
+async def test_healthz_remains_public(client: AsyncClient) -> None:
     """Health check must not require auth — it's called by the load balancer."""
-    from oracle.main import app
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/healthz")
-
+    response = await client.get("/healthz")
     assert response.status_code == 200
