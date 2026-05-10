@@ -10,15 +10,10 @@ on:
       - ".claude/**"
       - "Makefile"
       - "docker-compose.yml"
-  pull_request:
-    paths:
-      - "server/**"
-      - ".github/workflows/**"
-      - "AGENTS.md"
-      - ".claude/**"
-      - "Makefile"
-      - "docker-compose.yml"
       - "docker-compose.dev.yml"
+  pull_request:
+    # No paths filter — fires on every PR so required checks always have
+    # exactly one source. The `changes` job gates which steps actually run.
 
 jobs:
   changes:
@@ -37,6 +32,7 @@ jobs:
               - "Makefile"
               - "docker-compose.yml"
               - "docker-compose.dev.yml"
+              - ".github/workflows/**"
 
   lint:
     name: Lint
