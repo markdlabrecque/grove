@@ -110,19 +110,6 @@ async def test_missing_auth_returns_401() -> None:
 
 
 @pytest.mark.asyncio
-async def test_empty_result_set(db_session: AsyncSession) -> None:
-    """When no memories exist the endpoint returns an empty list with no cursor."""
-
-    # Delete all memories to ensure clean state (other tests may leave rows).
-    # We query first to get IDs then delete — simpler than DDL in a test.
-    # Actually: just use a unique client_id filter is not possible. Instead,
-    # rely on the fixture isolation approach: this test inserts nothing and
-    # verifies the endpoint handles whatever is in the DB (might not be empty).
-    # Skip this approach — see test_empty_result_set_isolated below.
-    pass
-
-
-@pytest.mark.asyncio
 async def test_empty_result_set_via_filter(db_session: AsyncSession) -> None:
     """Filter to a time window in the future produces an empty list + null cursor."""
     from oracle.main import app
@@ -292,15 +279,23 @@ async def test_cursor_pagination(five_memories: list[Memory]) -> None:
 
 @pytest.mark.asyncio
 async def test_cursor_no_duplicates_across_pages(five_memories: list[Memory]) -> None:
-    """Verify no ID appears on more than one page."""
+    """Verify no ID appears on more than one page within the fixture's time window."""
     from oracle.main import app
+
+    sorted_by_time = sorted(five_memories, key=lambda m: m.created_at)
+    window_start = (sorted_by_time[0].created_at - timedelta(seconds=1)).isoformat()
+    window_end = (sorted_by_time[-1].created_at + timedelta(seconds=1)).isoformat()
 
     seen: set[str] = set()
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         cursor: str | None = None
         while True:
-            params: dict = {"limit": 2}
+            params: dict = {
+                "limit": 2,
+                "created_after": window_start,
+                "created_before": window_end,
+            }
             if cursor:
                 params["cursor"] = cursor
 
@@ -315,6 +310,8 @@ async def test_cursor_no_duplicates_across_pages(five_memories: list[Memory]) ->
             cursor = body["next_cursor"]
             if cursor is None:
                 break
+
+    assert len(seen) == 5
 
 
 # ---------------------------------------------------------------------------
