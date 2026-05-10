@@ -20,7 +20,7 @@
 		B1000002 /* OracleAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* OracleAPITests.swift */; };
 		B1000003 /* JSONCodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* JSONCodingTests.swift */; };
 		B1000004 /* capture_response.json in Resources */ = {isa = PBXBuildFile; fileRef = B2000004 /* capture_response.json */; };
-		B1000005 /* query_response.json in Resources */ = {isa = PBXBuildFile; fileRef = B2000006 /* query_response.json */; };
+		B1000006 /* QueryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000007 /* QueryViewModelTests.swift */; };
 		B100000A /* OracleCore in Frameworks */ = {isa = PBXBuildFile; productRef = B200000A /* OracleCore */; };
 		C1000001 /* OracleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* OracleUITests.swift */; };
 /* End PBXBuildFile section */
@@ -60,7 +60,7 @@
 		B2000002 /* OracleAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OracleAPITests.swift; sourceTree = "<group>"; };
 		B2000003 /* JSONCodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONCodingTests.swift; sourceTree = "<group>"; };
 		B2000004 /* capture_response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = capture_response.json; sourceTree = "<group>"; };
-		B2000006 /* query_response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = query_response.json; sourceTree = "<group>"; };
+		B2000007 /* QueryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModelTests.swift; sourceTree = "<group>"; };
 		B2000005 /* OracleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OracleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2000001 /* OracleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OracleUITests.swift; sourceTree = "<group>"; };
 		C2000002 /* OracleUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OracleUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -162,6 +162,7 @@
 				B2000001 /* ConfigTests.swift */,
 				B2000002 /* OracleAPITests.swift */,
 				B2000003 /* JSONCodingTests.swift */,
+				B2000007 /* QueryViewModelTests.swift */,
 				B3000002 /* Fixtures */,
 			);
 			path = OracleTests;
@@ -171,7 +172,6 @@
 			isa = PBXGroup;
 			children = (
 				B2000004 /* capture_response.json */,
-				B2000006 /* query_response.json */,
 			);
 			path = Fixtures;
 			sourceTree = "<group>";
@@ -307,7 +307,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B1000004 /* capture_response.json in Resources */,
-				B1000005 /* query_response.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -341,6 +340,7 @@
 				B1000001 /* ConfigTests.swift in Sources */,
 				B1000002 /* OracleAPITests.swift in Sources */,
 				B1000003 /* JSONCodingTests.swift in Sources */,
+				B1000006 /* QueryViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

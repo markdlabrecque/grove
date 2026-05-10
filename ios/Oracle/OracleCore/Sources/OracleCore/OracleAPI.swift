@@ -317,6 +317,24 @@ public struct QueryResult: Codable, Sendable {
   public let capturedAt: Date?
   public let sourceModality: String?
 
+  public init(
+    memoryID: UUID,
+    score: Float,
+    matchedVia: String,
+    matchedChunkIndex: Int?,
+    snippet: String,
+    capturedAt: Date?,
+    sourceModality: String?
+  ) {
+    self.memoryID = memoryID
+    self.score = score
+    self.matchedVia = matchedVia
+    self.matchedChunkIndex = matchedChunkIndex
+    self.snippet = snippet
+    self.capturedAt = capturedAt
+    self.sourceModality = sourceModality
+  }
+
   public enum CodingKeys: String, CodingKey {
     case memoryID = "memory_id"
     case score
@@ -335,6 +353,12 @@ public struct QueryResponseBody: Codable, Sendable {
   public let results: [QueryResult]
   public let queryTokenCount: Int
   public let latencyMs: Double
+
+  public init(results: [QueryResult], queryTokenCount: Int, latencyMs: Double) {
+    self.results = results
+    self.queryTokenCount = queryTokenCount
+    self.latencyMs = latencyMs
+  }
 
   public enum CodingKeys: String, CodingKey {
     case results
