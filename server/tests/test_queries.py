@@ -23,6 +23,7 @@ import pytest
 import respx
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
+from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -30,6 +31,7 @@ from oracle.core.config import settings
 from oracle.core.db import get_session
 from oracle.embeddings import EMBEDDING_DIM
 from oracle.models.memory import Memory, MemoryChunk
+from oracle.models.query_log import QueryLog
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -59,13 +61,20 @@ async def _override_get_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
+def _override_get_log_session_factory() -> async_sessionmaker[AsyncSession]:
+    return _TestSession
+
+
 @pytest.fixture(autouse=True)
 def override_db(monkeypatch) -> None:  # type: ignore[misc]
+    from oracle.api.queries import get_log_session_factory
     from oracle.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
+    app.dependency_overrides[get_log_session_factory] = _override_get_log_session_factory
     yield
     app.dependency_overrides.pop(get_session, None)
+    app.dependency_overrides.pop(get_log_session_factory, None)
 
 
 @pytest.fixture
@@ -146,6 +155,19 @@ async def _seed_chunked_memory(
 async def _delete_memory(session: AsyncSession, memory_id: uuid.UUID) -> None:
     # ON DELETE CASCADE propagates to memory_chunks.
     await session.execute(delete(Memory).where(Memory.id == memory_id))
+    await session.commit()
+
+
+async def _delete_query_logs_for_memory(session: AsyncSession, memory_id: uuid.UUID) -> None:
+    """Delete query_logs rows whose returned_memory_ids contains memory_id."""
+
+    # Use the @> (contains) operator via text to find rows referencing this memory.
+    from sqlalchemy import text
+
+    await session.execute(
+        text("DELETE FROM query_logs WHERE returned_memory_ids @> ARRAY[:mid]::uuid[]"),
+        {"mid": str(memory_id)},
+    )
     await session.commit()
 
 
@@ -455,3 +477,95 @@ async def test_wrong_token_returns_401() -> None:
         )
 
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# #54 — query_logs write
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_query_log_inserted_with_result_count_and_memory_ids(
+    db_session: AsyncSession,
+) -> None:
+    """A successful query creates a query_log row with correct result_count and returned_memory_ids."""  # noqa: E501
+    from oracle.main import app
+
+    memory_id = await _seed_whole_memory(
+        db_session, embedding=_QUERY_VEC, content="Log test memory"
+    )
+    try:
+        respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+            return_value=httpx.Response(200, json=_make_openai_response(_QUERY_VEC))
+        )
+
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.post(
+                "/v1/queries",
+                json={"query": "log test query", "limit": 50},
+                headers=AUTH_HEADERS,
+            )
+
+        assert response.status_code == 200
+        body = response.json()
+        result_count = len(body["results"])
+        assert result_count >= 1
+
+        # Fetch the most recent query_log row. There may be others from parallel
+        # tests, so filter to those that include our memory_id.
+        result = await db_session.execute(
+            sa_select(QueryLog)
+            .where(QueryLog.returned_memory_ids.contains([memory_id]))
+            .order_by(QueryLog.created_at.desc())
+            .limit(1)
+        )
+        log_row = result.scalar_one_or_none()
+
+        assert log_row is not None, "Expected a query_log row to be inserted"
+        assert log_row.result_count == result_count
+        assert memory_id in (log_row.returned_memory_ids or [])
+        assert log_row.query_text == "log test query"
+        assert log_row.tables_searched == ["memories", "memory_chunks"]
+        # Synthesis fields are NULL in this phase.
+        assert log_row.synthesis_model is None
+        assert log_row.synthesis_input_tokens is None
+        assert log_row.synthesis_output_tokens is None
+    finally:
+        await _delete_query_logs_for_memory(db_session, memory_id)
+        await _delete_memory(db_session, memory_id)
+
+
+# ---------------------------------------------------------------------------
+# #55 — min_similarity bounds validation
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_min_similarity_below_zero_returns_422() -> None:
+    """min_similarity=-0.5 is outside [0.0, 1.0] and must be rejected with 422."""
+    from oracle.main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/v1/queries",
+            json={"query": "bounds test", "min_similarity": -0.5},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_min_similarity_above_one_returns_422() -> None:
+    """min_similarity=1.5 is outside [0.0, 1.0] and must be rejected with 422."""
+    from oracle.main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/v1/queries",
+            json={"query": "bounds test", "min_similarity": 1.5},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 422
