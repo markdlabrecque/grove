@@ -104,6 +104,9 @@ def chunk(
         window_size = j - i
         min_advance = max(1, window_size - len(overlap))
         next_start = max(i + min_advance, j - len(overlap))
+        # Terminal: the window consumed to end of content — nothing left to emit.
+        if j >= n:
+            break
         i = next_start
 
     return chunks

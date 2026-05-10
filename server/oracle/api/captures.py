@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -104,15 +104,19 @@ async def create_capture(
         provider = get_embedding_provider()
 
         embed_start = time.monotonic()
-        if token_count <= WHOLE_VS_CHUNKS_THRESHOLD:
-            vectors = await provider.embed_batch([body.content])
-            whole_embedding: list[float] | None = vectors[0]
-            chunk_texts: list[str] = []
-            chunk_vectors: list[list[float]] = []
-        else:
-            chunk_texts = chunk(body.content)
-            chunk_vectors = await provider.embed_batch(chunk_texts)
-            whole_embedding = None
+        try:
+            if token_count <= WHOLE_VS_CHUNKS_THRESHOLD:
+                vectors = await provider.embed_batch([body.content])
+                whole_embedding: list[float] | None = vectors[0]
+                chunk_texts: list[str] = []
+                chunk_vectors: list[list[float]] = []
+            else:
+                chunk_texts = chunk(body.content)
+                chunk_vectors = await provider.embed_batch(chunk_texts)
+                whole_embedding = None
+        except Exception as exc:
+            logger.error("embedding_provider_error", error=str(exc))
+            raise HTTPException(status_code=502, detail="Embedding provider error") from exc
 
         embedding_latency_ms = (time.monotonic() - embed_start) * 1000
 
