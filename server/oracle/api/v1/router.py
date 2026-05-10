@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from oracle.api import captures
+from oracle.api import captures, memories
 from oracle.core.auth import require_bearer
 
 # All routes registered on this router inherit require_bearer via the
@@ -13,3 +13,4 @@ router = APIRouter(
 )
 
 router.include_router(captures.router)
+router.include_router(memories.router)
