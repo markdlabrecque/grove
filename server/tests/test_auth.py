@@ -10,48 +10,52 @@ from httpx import ASGITransport, AsyncClient
 # is injected from docker-compose env).
 CORRECT_TOKEN = os.environ.get("BEARER_TOKEN", "test-token")
 
+# Use a minimal valid captures payload as the probe for auth tests.
+_PROBE_PAYLOAD = {
+    "client_id": "00000000-0000-0000-0000-000000000001",
+    "content": "auth probe",
+    "source_modality": "text",
+    "source_device": "test",
+    "captured_at": "2024-01-01T00:00:00+00:00",
+}
+
 
 @pytest.mark.asyncio
-async def test_ping_no_auth_header_returns_401() -> None:
+async def test_captures_no_auth_header_returns_401() -> None:
     from oracle.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/v1/ping")
+        response = await client.post("/v1/captures", json=_PROBE_PAYLOAD)
 
     assert response.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_ping_wrong_token_returns_401() -> None:
+async def test_captures_wrong_token_returns_401() -> None:
     from oracle.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/v1/ping", headers={"Authorization": "Bearer wrong-token"})
-
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_ping_basic_scheme_returns_401() -> None:
-    from oracle.main import app
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get("/v1/ping", headers={"Authorization": "Basic dXNlcjpwYXNz"})
-
-    assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_ping_correct_token_returns_200() -> None:
-    from oracle.main import app
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get(
-            "/v1/ping", headers={"Authorization": f"Bearer {CORRECT_TOKEN}"}
+        response = await client.post(
+            "/v1/captures",
+            json=_PROBE_PAYLOAD,
+            headers={"Authorization": "Bearer wrong-token"},
         )
 
-    assert response.status_code == 200
-    assert response.json() == {"status": "pong"}
+    assert response.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_captures_basic_scheme_returns_401() -> None:
+    from oracle.main import app
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post(
+            "/v1/captures",
+            json=_PROBE_PAYLOAD,
+            headers={"Authorization": "Basic dXNlcjpwYXNz"},
+        )
+
+    assert response.status_code == 401
 
 
 @pytest.mark.asyncio

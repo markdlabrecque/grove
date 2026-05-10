@@ -33,6 +33,9 @@ class Memory(Base):
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
+    # Client-supplied timestamp — the moment the user captured the memory on-device.
+    # Distinct from created_at (server ingestion time); nullable to allow old rows.
+    captured_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     source_modality: Mapped[str | None] = mapped_column(Text)
     source_device: Mapped[str | None] = mapped_column(Text)
     language: Mapped[str | None] = mapped_column(Text)
