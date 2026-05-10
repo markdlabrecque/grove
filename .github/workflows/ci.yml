@@ -8,12 +8,16 @@ on:
       - ".github/workflows/**"
       - "AGENTS.md"
       - ".claude/**"
+      - "Makefile"
+      - "docker-compose.yml"
   pull_request:
     paths:
       - "server/**"
       - ".github/workflows/**"
       - "AGENTS.md"
       - ".claude/**"
+      - "Makefile"
+      - "docker-compose.yml"
 
 jobs:
   lint:

@@ -100,7 +100,7 @@ new-migration: ## Create a new migration. Usage: make new-migration MSG="add mem
 
 .PHONY: test
 test: ## Run the test suite inside the app container
-	$(COMPOSE) run --rm $(APP) bash -c "pip install -e '.[dev]' >/dev/null && pytest"
+	$(COMPOSE) run --rm $(APP) bash -c "pip install -e '.[dev]' >/dev/null && alembic upgrade head && pytest"
 
 .PHONY: lint
 lint: ## Run ruff lint + format check
