@@ -1,3 +1,4 @@
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -6,8 +7,8 @@ class Settings(BaseSettings):
 
     bearer_token: str
     database_url: str
-    openai_api_key: str | None = None
-    openrouter_api_key: str | None = None
+    openai_api_key: SecretStr | None = None
+    openrouter_api_key: SecretStr | None = None
     log_level: str = "INFO"
 
 
