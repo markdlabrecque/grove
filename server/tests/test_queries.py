@@ -152,22 +152,24 @@ async def _seed_chunked_memory(
     return memory_id
 
 
-async def _delete_memory(session: AsyncSession, memory_id: uuid.UUID) -> None:
-    # ON DELETE CASCADE propagates to memory_chunks.
-    await session.execute(delete(Memory).where(Memory.id == memory_id))
-    await session.commit()
-
-
 async def _delete_query_logs_for_memory(session: AsyncSession, memory_id: uuid.UUID) -> None:
     """Delete query_logs rows whose returned_memory_ids contains memory_id."""
-
-    # Use the @> (contains) operator via text to find rows referencing this memory.
     from sqlalchemy import text
 
+    # returned_memory_ids is a uuid[] column; @> checks array containment.
     await session.execute(
         text("DELETE FROM query_logs WHERE returned_memory_ids @> ARRAY[:mid]::uuid[]"),
         {"mid": str(memory_id)},
     )
+    await session.commit()
+
+
+async def _delete_memory(session: AsyncSession, memory_id: uuid.UUID) -> None:
+    # Clean up query_log rows that reference this memory before removing it,
+    # so orphan rows don't accumulate in the shared dev DB across test runs.
+    await _delete_query_logs_for_memory(session, memory_id)
+    # ON DELETE CASCADE propagates to memory_chunks.
+    await session.execute(delete(Memory).where(Memory.id == memory_id))
     await session.commit()
 
 
@@ -532,7 +534,6 @@ async def test_query_log_inserted_with_result_count_and_memory_ids(
         assert log_row.synthesis_input_tokens is None
         assert log_row.synthesis_output_tokens is None
     finally:
-        await _delete_query_logs_for_memory(db_session, memory_id)
         await _delete_memory(db_session, memory_id)
 
 
