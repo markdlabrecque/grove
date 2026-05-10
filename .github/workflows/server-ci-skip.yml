@@ -1,0 +1,40 @@
+name: CI
+
+# Emits the same check names that ci.yml produces (Lint, Test, Migrations)
+# but as immediate no-ops, so GitHub's required-check ruleset is satisfied
+# on PRs that touch only non-server paths (e.g. iOS-only PRs).
+#
+# Path filter is the complement of ci.yml's trigger list. If a PR touches
+# any server-side path, ci.yml fires instead and this workflow does not run.
+# A mixed PR (server + ios) triggers ci.yml only — the paths-ignore list
+# here prevents this workflow from also firing in that case.
+
+"on":
+  pull_request:
+    paths-ignore:
+      - "server/**"
+      - ".github/workflows/**"
+      - "AGENTS.md"
+      - ".claude/**"
+      - "Makefile"
+      - "docker-compose.yml"
+      - "docker-compose.dev.yml"
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "skipped — not a server PR"
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "skipped — not a server PR"
+
+  migrations:
+    name: Migrations
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "skipped — not a server PR"
