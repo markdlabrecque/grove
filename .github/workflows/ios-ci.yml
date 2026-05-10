@@ -3,7 +3,7 @@ name: iOS CI
 # Runs only when iOS source files (or this workflow file) change, so
 # server-only PRs do not burn macOS runner minutes.
 
-on:
+"on":
   pull_request:
     paths:
       - "ios/**"
