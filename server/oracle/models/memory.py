@@ -50,7 +50,10 @@ class Memory(Base):
     enrichment_error: Mapped[str | None] = mapped_column(Text)
 
     chunks: Mapped[list[MemoryChunk]] = relationship(
-        "MemoryChunk", back_populates="memory", cascade="all, delete-orphan"
+        "MemoryChunk",
+        back_populates="memory",
+        cascade="all, delete-orphan",
+        order_by="MemoryChunk.chunk_index",
     )
     decisions: Mapped[list[Decision]] = relationship(
         "Decision", back_populates="memory", cascade="all, delete-orphan"
