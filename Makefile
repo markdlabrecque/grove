@@ -194,7 +194,7 @@ smoke-ingress: ## Verify Tailnet → Apache TLS → FastAPI ingress is healthy (
 	if echo "$$TLS_OUT" | grep -q "verify ok"; then \
 		echo "   PASS: verify ok"; \
 	else \
-		echo "   FAIL: TLS verify not ok — $(echo "$$TLS_OUT" | grep -E 'verify|subject|issuer' | head -5)"; exit 1; \
+		echo "   FAIL: TLS verify not ok — $$(echo "$$TLS_OUT" | grep -E 'verify|subject|issuer' | head -5)"; exit 1; \
 	fi; \
 	if echo "$$TLS_OUT" | grep -qE 'HTTP/[0-9.]+ 200'; then \
 		echo "   PASS: HTTP 200 on /healthz"; \
