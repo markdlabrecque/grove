@@ -21,18 +21,43 @@ on:
       - "docker-compose.dev.yml"
 
 jobs:
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            server:
+              - "server/**"
+              - "Makefile"
+              - "docker-compose.yml"
+              - "docker-compose.dev.yml"
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
+    needs: changes
 
     steps:
+      - name: Skipped — no relevant changes
+        if: needs.changes.outputs.server != 'true'
+        run: echo "Skipped — no relevant changes"
+
       - uses: actions/checkout@v6
+        if: needs.changes.outputs.server == 'true'
 
       - uses: actions/setup-python@v6
+        if: needs.changes.outputs.server == 'true'
         with:
           python-version: "3.12"
 
       - name: Cache pip
+        if: needs.changes.outputs.server == 'true'
         uses: actions/cache@v5
         with:
           path: ~/.cache/pip
@@ -41,17 +66,21 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install dev dependencies
+        if: needs.changes.outputs.server == 'true'
         run: pip install -e "server/[dev]"
 
       - name: ruff check
+        if: needs.changes.outputs.server == 'true'
         run: ruff check server/
 
       - name: ruff format --check
+        if: needs.changes.outputs.server == 'true'
         run: ruff format --check server/
 
   test:
     name: Test
     runs-on: ubuntu-latest
+    needs: changes
 
     services:
       postgres:
@@ -74,13 +103,20 @@ jobs:
       OPENAI_API_KEY: ci-stub-key
 
     steps:
+      - name: Skipped — no relevant changes
+        if: needs.changes.outputs.server != 'true'
+        run: echo "Skipped — no relevant changes"
+
       - uses: actions/checkout@v6
+        if: needs.changes.outputs.server == 'true'
 
       - uses: actions/setup-python@v6
+        if: needs.changes.outputs.server == 'true'
         with:
           python-version: "3.12"
 
       - name: Cache pip
+        if: needs.changes.outputs.server == 'true'
         uses: actions/cache@v5
         with:
           path: ~/.cache/pip
@@ -89,18 +125,22 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
+        if: needs.changes.outputs.server == 'true'
         run: pip install -e "server/[dev]"
 
       - name: Apply migrations
+        if: needs.changes.outputs.server == 'true'
         working-directory: server
         run: alembic upgrade head
 
       - name: Run tests
+        if: needs.changes.outputs.server == 'true'
         run: pytest server/tests/
 
   migrations:
     name: Migrations
     runs-on: ubuntu-latest
+    needs: changes
 
     services:
       postgres:
@@ -122,13 +162,20 @@ jobs:
       BEARER_TOKEN: ci-dummy-token
 
     steps:
+      - name: Skipped — no relevant changes
+        if: needs.changes.outputs.server != 'true'
+        run: echo "Skipped — no relevant changes"
+
       - uses: actions/checkout@v6
+        if: needs.changes.outputs.server == 'true'
 
       - uses: actions/setup-python@v6
+        if: needs.changes.outputs.server == 'true'
         with:
           python-version: "3.12"
 
       - name: Cache pip
+        if: needs.changes.outputs.server == 'true'
         uses: actions/cache@v5
         with:
           path: ~/.cache/pip
@@ -137,16 +184,20 @@ jobs:
             ${{ runner.os }}-pip-
 
       - name: Install dependencies
+        if: needs.changes.outputs.server == 'true'
         run: pip install -e "server/[dev]"
 
       - name: Upgrade to head
+        if: needs.changes.outputs.server == 'true'
         working-directory: server
         run: alembic upgrade head
 
       - name: Downgrade to base
+        if: needs.changes.outputs.server == 'true'
         working-directory: server
         run: alembic downgrade base
 
       - name: Upgrade to head again
+        if: needs.changes.outputs.server == 'true'
         working-directory: server
         run: alembic upgrade head
