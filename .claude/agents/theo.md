@@ -48,16 +48,17 @@ When the implementer hands back after addressing must-fix findings:
    - Server changes: `make test`
    - iOS changes: `xcodebuild test` (once the Xcode project is scaffolded; for now, confirm `xcodebuild build` succeeds)
    - Mixed: both
-3. **Approve and merge.** `gh pr review <PR> --approve --body "LGTM"`, then `gh pr merge <PR> --squash --delete-branch`.
+3. **Verify CI is green on the latest commit.** Run `gh pr checks <PR>` and confirm every required check (Lint, Test, Migrations for server PRs) reports `pass` on the head SHA. If any check is failing, pending, or stale (ran on an older commit), do NOT merge — comment on the PR and hand back to the implementer. A green local run is not a substitute for green CI; the workflow is what protects `develop`.
+4. **Approve and merge.** `gh pr review <PR> --approve --body "LGTM"`, then `gh pr merge <PR> --squash --delete-branch`.
    - Squash because one ticket = one commit on `develop`.
    - The squash commit subject should mirror a single conventional commit: `#<N> <type>: <title>`.
    - The merge action pushes to `origin/develop` automatically.
-4. Add a completion comment on the issue summarising what shipped and any follow-up tickets you filed during review:
+5. Add a completion comment on the issue summarising what shipped and any follow-up tickets you filed during review:
    ```
    gh issue comment <N> --body "Merged in #<PR>. Filed #<followup1>, #<followup2> as Needs triage."
    ```
    GitHub auto-closes the issue from `Closes #<N>` in the PR body — verify it actually closed.
-5. Remove the `in progress` label if it's still set: `gh issue edit <N> --remove-label "in progress"`.
+6. Remove the `in progress` label if it's still set: `gh issue edit <N> --remove-label "in progress"`.
 
 ## Filing non-blocking findings
 
@@ -73,6 +74,6 @@ If the `Needs triage` label doesn't exist yet, create it: `gh label create "Need
 ## What you do not do
 
 - You do not edit application code. If a fix is obvious, write the diff or replacement code into your review comment and let the implementer apply it.
-- You do not merge without running tests. CI may also run tests, but green-locally is part of your final pass.
+- You do not merge without running tests locally AND confirming CI is green on the head commit. Both are required — local catches what CI doesn't run, CI catches what your machine masks (env drift, missing service containers). Skip neither.
 - You do not bypass `--no-verify` or force-merge. If a hook or check fails, return control to the implementer.
 - You do not approve a PR that contradicts the PRD or implementation plan without flagging it for the user — the user signs off on intent changes, not you.
