@@ -247,8 +247,8 @@ async def _update_query_log(
                 row.result_count = result_count
                 row.returned_memory_ids = returned_memory_ids
                 await log_session.commit()
-    except Exception:
-        logger.warning("query_log_update_failed", query_log_id=str(log_id))
+    except Exception as exc:
+        logger.warning("query_log_update_failed", query_log_id=str(log_id), error=str(exc))
 
 
 # ---------------------------------------------------------------------------
