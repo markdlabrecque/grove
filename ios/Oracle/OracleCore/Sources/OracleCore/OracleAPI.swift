@@ -2,8 +2,8 @@ import Foundation
 
 /// Async HTTP client for the Oracle backend.
 ///
-/// V1 stubs: `postCapture` and `postQuery` return placeholder responses.
-/// Real implementations land in tickets #61 (capture path) and #62 (retrieval).
+/// `postCapture` sends to POST /v1/captures via `URLSession.shared` async APIs.
+/// `postQuery` is a V1 stub; real implementation lands in ticket #62.
 ///
 /// The actor isolation ensures all mutable state and URLSession callbacks are
 /// serialised without manual locking. Network work is dispatched via URLSession
@@ -55,21 +55,49 @@ public actor OracleAPI {
 
   // MARK: - Capture
 
-  /// Upload a single capture to the server.
+  /// Upload a single capture to the server (POST /v1/captures).
   ///
-  /// V1 stub — always succeeds immediately. Real implementation in #61.
-  public func postCapture(_ payload: CapturePayload) async throws -> CaptureResponse {
-    // TODO(#61): Implement POST /v1/captures with the background URLSession.
-    //            Use `payload.clientID` as the idempotency key per the
-    //            server's UNIQUE constraint on `memories.client_id`.
-    return CaptureResponse(id: payload.clientID.uuidString)
+  /// Uses the injected `session` (defaulting to `URLSession.shared`) so callers
+  /// and tests can swap in a custom session. Network work runs on URLSession's
+  /// internal dispatch queue and can be awaited from the caller's async context
+  /// without blocking the main actor.
+  ///
+  /// Throws `APIError` on HTTP-level failures. Does NOT retry — callers are
+  /// responsible for re-enqueueing failed captures.
+  ///
+  /// TODO(offline): V2 should persist failed captures locally in SwiftData,
+  /// retry when connectivity returns (NWPathMonitor "satisfied" event), and
+  /// reuse the same `client_id` on retry — the server's UNIQUE constraint on
+  /// `memories.client_id` guarantees idempotency so duplicate uploads are
+  /// harmless no-ops.
+  public func postCapture(_ payload: CapturePayload) async throws -> CaptureResponseBody {
+    let request = try captureRequest(for: payload)
+
+    let (data, response) = try await session.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    print("[capture] sent client_id=\(payload.clientID.uuidString.lowercased()) status=\(status)")
+
+    // 200 (idempotent re-upload) and 201 (new record) are both success.
+    guard status == 200 || status == 201 else {
+      // Try to extract the server's `detail` field from the JSON error body.
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode(CaptureResponseBody.self, from: data)
   }
 
   /// Build (but do not send) a URLRequest for POST /v1/captures.
   ///
   /// Separated from `postCapture` so unit tests can assert on the fully-formed
-  /// request without a live server. Real `postCapture` will call this when
-  /// the stub is replaced in #61.
+  /// request without a live server.
   public func captureRequest(for payload: CapturePayload) throws -> URLRequest {
     let url = baseURL.appendingPathComponent("v1/captures")
     var request = authorizedRequest(for: url)
@@ -79,7 +107,8 @@ public actor OracleAPI {
       clientID: payload.clientID,
       content: payload.content,
       sourceModality: payload.sourceModality,
-      sourceDevice: "iPhone",
+      sourceDevice: payload.sourceDevice,
+      language: payload.language,
       capturedAt: payload.capturedAt
     )
     let encoder = JSONEncoder()
@@ -114,6 +143,38 @@ public actor OracleAPI {
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     return request
   }
+
+  /// Extract the `detail` string from a FastAPI-style JSON error body.
+  ///
+  /// FastAPI returns `{"detail": "…"}` for 4xx/5xx errors. Returns `nil`
+  /// if the body is not JSON or does not contain a `detail` key.
+  private func extractDetail(from data: Data) -> String? {
+    guard
+      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+      let detail = json["detail"] as? String
+    else { return nil }
+    return detail
+  }
+}
+
+// MARK: - API errors
+
+/// Errors surfaced by `OracleAPI` network calls.
+public enum APIError: Error, LocalizedError {
+  case unexpectedResponse
+  case httpError(statusCode: Int, detail: String?)
+
+  public var errorDescription: String? {
+    switch self {
+    case .unexpectedResponse:
+      return "Received an unexpected response from the server."
+    case .httpError(let code, let detail):
+      if let detail {
+        return detail
+      }
+      return "Server returned HTTP \(code)."
+    }
+  }
 }
 
 // MARK: - Data transfer objects
@@ -121,13 +182,24 @@ public actor OracleAPI {
 public struct CapturePayload: Sendable {
   public let clientID: UUID
   public let content: String
-  public let sourceModality: String   // "typed" | "dictated"
+  public let sourceModality: String   // "text" | "voice"
+  public let sourceDevice: String     // "iphone"
+  public let language: String         // BCP-47 language code, e.g. "en"
   public let capturedAt: Date
 
-  public init(clientID: UUID, content: String, sourceModality: String, capturedAt: Date) {
+  public init(
+    clientID: UUID,
+    content: String,
+    sourceModality: String,
+    sourceDevice: String,
+    language: String,
+    capturedAt: Date
+  ) {
     self.clientID = clientID
     self.content = content
     self.sourceModality = sourceModality
+    self.sourceDevice = sourceDevice
+    self.language = language
     self.capturedAt = capturedAt
   }
 }
@@ -143,6 +215,7 @@ public struct CaptureRequestBody: Codable, Sendable {
   public let content: String
   public let sourceModality: String
   public let sourceDevice: String
+  public let language: String
   public let capturedAt: Date
 
   public enum CodingKeys: String, CodingKey {
@@ -150,6 +223,7 @@ public struct CaptureRequestBody: Codable, Sendable {
     case content
     case sourceModality = "source_modality"
     case sourceDevice = "source_device"
+    case language
     case capturedAt = "captured_at"
   }
 }
@@ -170,14 +244,6 @@ public struct CaptureResponseBody: Codable, Sendable {
     case clientID = "client_id"
     case capturedAt = "captured_at"
     case enriched
-  }
-}
-
-public struct CaptureResponse: Sendable {
-  public let id: String
-
-  public init(id: String) {
-    self.id = id
   }
 }
 
