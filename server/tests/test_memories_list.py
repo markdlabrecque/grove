@@ -371,9 +371,23 @@ async def test_enriched_false_filter(mixed_enrichment_memories: list[Memory]) ->
 
     our_ids = {str(m.id) for m in mixed_enrichment_memories}
 
+    # Scope to the fixture's time window so rows inserted by other tests (e.g.
+    # the e2e capture harness, which lands at now()) don't fill the page and
+    # push fixture rows out of the limit=50 window.
+    sorted_by_time = sorted(mixed_enrichment_memories, key=lambda m: m.created_at)
+    window_start = (sorted_by_time[0].created_at - timedelta(seconds=1)).isoformat()
+    window_end = (sorted_by_time[-1].created_at + timedelta(seconds=1)).isoformat()
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
-            "/v1/memories", headers=AUTH_HEADERS, params={"enriched": "false", "limit": 50}
+            "/v1/memories",
+            headers=AUTH_HEADERS,
+            params={
+                "enriched": "false",
+                "limit": 50,
+                "created_after": window_start,
+                "created_before": window_end,
+            },
         )
 
     assert response.status_code == 200
@@ -397,11 +411,15 @@ async def test_created_after_filter(five_memories: list[Memory]) -> None:
     cutoff = sorted_by_time[2].created_at.isoformat()
     expected_ids = {str(m.id) for m in sorted_by_time[3:]}
 
+    # Cap the window just past the last fixture row so that e2e-inserted rows
+    # (which land at now() / 2026) do not fill the page and push our rows out.
+    window_end = (sorted_by_time[-1].created_at + timedelta(seconds=1)).isoformat()
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
             "/v1/memories",
             headers=AUTH_HEADERS,
-            params={"created_after": cutoff, "limit": 50},
+            params={"created_after": cutoff, "created_before": window_end, "limit": 50},
         )
 
     assert response.status_code == 200
