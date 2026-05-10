@@ -163,6 +163,26 @@ class TestChunk:
         for c in result:
             assert count_tokens(c) <= 400 + 50
 
+    # --- Overlap degeneracy guard (#37) ---
+
+    def test_no_degenerate_tail_chunks(self) -> None:
+        # 60 identical sentences at ~9 tokens each => ~540 tokens.
+        # target=400, overlap=50.  Without the minimum-advance guard the
+        # chunker produced 7 tiny tail chunks; with it we expect <= 3.
+        text = _make_text(60)
+        assert count_tokens(text) > 400
+
+        result = chunk(text, target_tokens=400, overlap_tokens=50)
+
+        # Sensible result: 2 or 3 chunks, not a degenerate tail of many tiny ones.
+        assert len(result) <= 3, (
+            f"Degeneracy guard failed: got {len(result)} chunks for 540-token text "
+            f"(token counts: {[count_tokens(c) for c in result]})"
+        )
+        # All chunks must still respect the hard ceiling.
+        for c in result:
+            assert count_tokens(c) <= 400 + 50
+
     # --- Constants ---
 
     def test_constants(self) -> None:

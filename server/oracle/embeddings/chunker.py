@@ -98,8 +98,15 @@ def chunk(
             overlap_tok += s_tok
 
         # Next chunk starts at the first sentence NOT covered by the overlap.
-        # That is: j - len(overlap), but at least i+1 to guarantee progress.
-        next_start = max(i + 1, j - len(overlap))
+        # Minimum advance = max(1, window_size - overlap_size) so that a large
+        # overlap relative to a small tail window can't stall progress and
+        # produce many tiny degenerate tail chunks.
+        window_size = j - i
+        min_advance = max(1, window_size - len(overlap))
+        next_start = max(i + min_advance, j - len(overlap))
+        # Terminal: the window consumed to end of content — nothing left to emit.
+        if j >= n:
+            break
         i = next_start
 
     return chunks

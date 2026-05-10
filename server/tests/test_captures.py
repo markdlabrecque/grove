@@ -2,15 +2,21 @@
 
 Requires a real Postgres+pgvector instance with migrations applied.
 DATABASE_URL is set by conftest.py (dev) or docker-compose CI env.
+
+The OpenAI embedding API is mocked at the HTTP boundary with respx so no
+real API key or network access is needed.
 """
 
 from __future__ import annotations
 
+import json
 import os
 import uuid
 from collections.abc import AsyncIterator
 
+import httpx
 import pytest
+import respx
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -18,7 +24,9 @@ from sqlalchemy.pool import NullPool
 
 from oracle.core.config import settings
 from oracle.core.db import get_session
-from oracle.models.memory import Memory
+from oracle.embeddings import EMBEDDING_DIM
+from oracle.embeddings.tokenizer import count_tokens
+from oracle.models.memory import Memory, MemoryChunk
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -34,6 +42,18 @@ BASE_PAYLOAD: dict = {
 # engine and the test's direct session share the same event loop.
 _test_engine = create_async_engine(settings.database_url, poolclass=NullPool)
 _TestSession = async_sessionmaker(_test_engine, expire_on_commit=False)
+
+_OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings"
+_FAKE_VECTOR = [0.01] * EMBEDDING_DIM
+
+
+def _make_openai_response(n: int) -> dict:
+    return {
+        "object": "list",
+        "data": [{"object": "embedding", "index": i, "embedding": _FAKE_VECTOR} for i in range(n)],
+        "model": "text-embedding-3-small",
+        "usage": {"prompt_tokens": 10 * n, "total_tokens": 10 * n},
+    }
 
 
 async def _override_get_session() -> AsyncIterator[AsyncSession]:
@@ -69,13 +89,33 @@ def override_db(monkeypatch) -> None:  # type: ignore[misc]
 
 
 # ---------------------------------------------------------------------------
-# Happy path
+# Helpers
+# ---------------------------------------------------------------------------
+
+
+def _long_content(target_tokens: int = 600) -> str:
+    """Return content that tokenises to roughly target_tokens (>500 threshold)."""
+    sentence = "The quick brown fox jumps over the lazy dog. "
+    # Build up until we exceed target_tokens.
+    text = ""
+    while count_tokens(text) < target_tokens:
+        text += sentence
+    return text.strip()
+
+
+# ---------------------------------------------------------------------------
+# Short capture (<=500 tokens): whole-embedding path
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
+@respx.mock
 async def test_happy_path_creates_memory(payload: dict, db_session: AsyncSession) -> None:
     from oracle.main import app
+
+    respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+        return_value=httpx.Response(200, json=_make_openai_response(1))
+    )
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/v1/captures", json=payload, headers=AUTH_HEADERS)
@@ -87,7 +127,6 @@ async def test_happy_path_creates_memory(payload: dict, db_session: AsyncSession
     assert "id" in body
     assert "captured_at" in body
 
-    # Verify the row is actually in the DB with correct fields.
     client_id = uuid.UUID(payload["client_id"])
     result = await db_session.execute(select(Memory).where(Memory.client_id == client_id))
     row = result.scalar_one()
@@ -97,16 +136,30 @@ async def test_happy_path_creates_memory(payload: dict, db_session: AsyncSession
     assert row.language == "en"
     assert row.enriched is False
     assert row.embedding_model == "text-embedding-3-small"
-    assert row.embedding is None
+    # Short content: embedding stored on the memory row directly.
+    assert row.embedding is not None
+    assert len(row.embedding) == EMBEDDING_DIM
+    # token_count must be stamped (#33).
+    assert row.token_count is not None
+    assert row.token_count > 0
+    # No chunks for short content.
+    chunks_result = await db_session.execute(
+        select(MemoryChunk).where(MemoryChunk.memory_id == row.id)
+    )
+    assert chunks_result.scalars().all() == []
 
-    # Cleanup
     await db_session.delete(row)
     await db_session.commit()
 
 
 @pytest.mark.asyncio
+@respx.mock
 async def test_happy_path_with_explicit_language(payload: dict, db_session: AsyncSession) -> None:
     from oracle.main import app
+
+    respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+        return_value=httpx.Response(200, json=_make_openai_response(1))
+    )
 
     payload["language"] = "fr"
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -123,16 +176,134 @@ async def test_happy_path_with_explicit_language(payload: dict, db_session: Asyn
     await db_session.commit()
 
 
+@pytest.mark.asyncio
+@respx.mock
+async def test_embedding_model_from_provider_not_sentinel(
+    payload: dict, db_session: AsyncSession
+) -> None:
+    """embedding_model is taken from provider.name, not a hardcoded sentinel (#38)."""
+    from oracle.main import app
+
+    respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+        return_value=httpx.Response(200, json=_make_openai_response(1))
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/v1/captures", json=payload, headers=AUTH_HEADERS)
+
+    assert response.status_code == 201
+
+    client_id = uuid.UUID(payload["client_id"])
+    result = await db_session.execute(select(Memory).where(Memory.client_id == client_id))
+    row = result.scalar_one()
+    # The provider's name property (not a hardcoded constant) drove the value.
+    from oracle.embeddings import get_embedding_provider
+
+    assert row.embedding_model == get_embedding_provider().name
+
+    await db_session.delete(row)
+    await db_session.commit()
+
+
 # ---------------------------------------------------------------------------
-# Idempotency
+# Long capture (>500 tokens): chunked path
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
+@respx.mock
+async def test_long_capture_uses_chunks(payload: dict, db_session: AsyncSession) -> None:
+    from oracle.main import app
+
+    long_content = _long_content(target_tokens=700)
+    assert count_tokens(long_content) > 500
+
+    payload["content"] = long_content
+
+    # We don't know exactly how many chunks the chunker will produce, so mock
+    # generously — respx will return the same response regardless of body.
+    embed_route = respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+        side_effect=lambda req: httpx.Response(
+            200,
+            json=_make_openai_response(len(json.loads(req.content)["input"])),
+        )
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/v1/captures", json=payload, headers=AUTH_HEADERS)
+
+    assert response.status_code == 201
+
+    client_id = uuid.UUID(payload["client_id"])
+    result = await db_session.execute(select(Memory).where(Memory.client_id == client_id))
+    row = result.scalar_one()
+
+    # Long content: memories.embedding must be NULL.
+    assert row.embedding is None
+    # token_count is stamped (#33).
+    assert row.token_count is not None
+    assert row.token_count > 500
+
+    # Multiple chunk rows with sequential chunk_index values.
+    chunks_result = await db_session.execute(
+        select(MemoryChunk).where(MemoryChunk.memory_id == row.id).order_by(MemoryChunk.chunk_index)
+    )
+    chunks = chunks_result.scalars().all()
+    assert len(chunks) >= 2
+    for expected_idx, ch in enumerate(chunks):
+        assert ch.chunk_index == expected_idx
+        assert ch.embedding is not None
+        assert len(ch.embedding) == EMBEDDING_DIM
+
+    # embed_batch was called exactly once (batch call for all chunks).
+    assert embed_route.call_count == 1
+
+    # Cleanup cascades to chunks via FK.
+    await db_session.delete(row)
+    await db_session.commit()
+
+
+# ---------------------------------------------------------------------------
+# Provider failure: rollback — no rows in DB
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_provider_failure_rolls_back(payload: dict, db_session: AsyncSession) -> None:
+    from oracle.main import app
+
+    respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+        return_value=httpx.Response(500, json={"error": {"message": "internal server error"}})
+    )
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/v1/captures", json=payload, headers=AUTH_HEADERS)
+
+    # Should return 5xx — the OpenAI error propagates.
+    assert response.status_code >= 500
+
+    # No memory row must exist.
+    client_id = uuid.UUID(payload["client_id"])
+    result = await db_session.execute(select(Memory).where(Memory.client_id == client_id))
+    assert result.scalar_one_or_none() is None
+
+
+# ---------------------------------------------------------------------------
+# Idempotency: duplicate client_id returns 200, embed called exactly once
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_idempotent_second_post_returns_200_with_same_id(
     payload: dict, db_session: AsyncSession
 ) -> None:
     from oracle.main import app
+
+    embed_route = respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+        return_value=httpx.Response(200, json=_make_openai_response(1))
+    )
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         r1 = await client.post("/v1/captures", json=payload, headers=AUTH_HEADERS)
@@ -148,12 +319,15 @@ async def test_idempotent_second_post_returns_200_with_same_id(
     rows = result.scalars().all()
     assert len(rows) == 1
 
+    # The embedding API was called exactly once across both POSTs (#24 idempotency).
+    assert embed_route.call_count == 1
+
     await db_session.delete(rows[0])
     await db_session.commit()
 
 
 # ---------------------------------------------------------------------------
-# Validation — 422 cases
+# Validation — 422 cases (no embed calls needed)
 # ---------------------------------------------------------------------------
 
 

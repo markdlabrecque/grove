@@ -6,20 +6,19 @@ from datetime import datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oracle.core.db import get_session
-from oracle.models.memory import Memory
+from oracle.embeddings import WHOLE_VS_CHUNKS_THRESHOLD, chunk, count_tokens, get_embedding_provider
+from oracle.models.memory import Memory, MemoryChunk
 
 logger = structlog.get_logger()
 
 router = APIRouter()
-
-_EMBEDDING_MODEL_SENTINEL = "text-embedding-3-small"
 
 
 class CaptureRequest(BaseModel):
@@ -61,68 +60,129 @@ async def create_capture(
     body: CaptureRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
 ) -> CaptureResponse:
-    start = time.monotonic()
+    total_start = time.monotonic()
 
-    # INSERT … ON CONFLICT (client_id) DO NOTHING RETURNING *
-    # If a row with this client_id already exists the INSERT silently no-ops
-    # and returns no rows; we then fall through to the SELECT below.
-    stmt = (
-        insert(Memory)
-        .values(
-            id=uuid.uuid4(),
-            client_id=body.client_id,
-            content=body.content,
-            source_modality=body.source_modality,
-            source_device=body.source_device,
-            language=body.language,
-            captured_at=body.captured_at,
-            enriched=False,
-            embedding_model=_EMBEDDING_MODEL_SENTINEL,
-            # embedding left NULL — filled in once the embeddings ticket lands
+    # --- Idempotency pre-check, embedding, and atomic DB write in one transaction ---
+    # SQLAlchemy 2.x autobegin triggers on the first execute(), so the pre-check
+    # and the subsequent session.begin() must share the same transaction block to
+    # avoid "A transaction is already begun on this Session".
+    memory_id = uuid.uuid4()
+    async with session.begin():
+        # Idempotency pre-check: must come before embedding so retries don't burn
+        # API calls.
+        existing_check = await session.execute(
+            select(Memory).where(Memory.client_id == body.client_id)
         )
-        .on_conflict_do_nothing(index_elements=["client_id"])
-        .returning(Memory)
-    )
+        existing_row = existing_check.scalar_one_or_none()
+        if existing_row is not None:
+            elapsed_ms = (time.monotonic() - total_start) * 1000
+            logger.info(
+                "capture_stored",
+                client_id=str(body.client_id),
+                memory_id=str(existing_row.id),
+                content_length=len(body.content),
+                idempotent=True,
+                total_capture_latency_ms=round(elapsed_ms, 1),
+            )
+            response = CaptureResponse(
+                id=existing_row.id,
+                client_id=existing_row.client_id,
+                captured_at=existing_row.captured_at,
+                enriched=existing_row.enriched,
+            )
+            from fastapi.responses import JSONResponse
 
-    result = await session.execute(stmt)
-    row = result.scalar_one_or_none()
+            return JSONResponse(  # type: ignore[return-value]
+                content=response.model_dump(mode="json"),
+                status_code=status.HTTP_200_OK,
+            )
 
-    if row is None:
-        # Idempotent hit: the client_id already exists; fetch the original row.
-        existing = await session.execute(select(Memory).where(Memory.client_id == body.client_id))
-        row = existing.scalar_one()
-        status_code = status.HTTP_200_OK
-    else:
-        status_code = status.HTTP_201_CREATED
+        # --- Token count & embedding ---
+        # The network call happens inside the transaction for simplicity. At
+        # personal scale the extra lock hold is acceptable.
+        token_count = count_tokens(body.content)
+        provider = get_embedding_provider()
 
-    await session.commit()
+        embed_start = time.monotonic()
+        try:
+            if token_count <= WHOLE_VS_CHUNKS_THRESHOLD:
+                vectors = await provider.embed_batch([body.content])
+                whole_embedding: list[float] | None = vectors[0]
+                chunk_texts: list[str] = []
+                chunk_vectors: list[list[float]] = []
+            else:
+                chunk_texts = chunk(body.content)
+                chunk_vectors = await provider.embed_batch(chunk_texts)
+                whole_embedding = None
+        except Exception as exc:
+            logger.error("embedding_provider_error", error=str(exc))
+            raise HTTPException(status_code=502, detail="Embedding provider error") from exc
 
-    elapsed_ms = (time.monotonic() - start) * 1000
+        embedding_latency_ms = (time.monotonic() - embed_start) * 1000
+
+        chunk_count = len(chunk_texts)
+
+        stmt = (
+            insert(Memory)
+            .values(
+                id=memory_id,
+                client_id=body.client_id,
+                content=body.content,
+                source_modality=body.source_modality,
+                source_device=body.source_device,
+                language=body.language,
+                captured_at=body.captured_at,
+                enriched=False,
+                embedding_model=provider.name,
+                token_count=token_count,
+                embedding=whole_embedding,
+            )
+            .on_conflict_do_nothing(index_elements=["client_id"])
+            .returning(Memory)
+        )
+        result = await session.execute(stmt)
+        row = result.scalar_one_or_none()
+
+        if row is None:
+            # Race: another request inserted the same client_id between our
+            # pre-check and the INSERT.  Fetch and return the winning row.
+            existing2 = await session.execute(
+                select(Memory).where(Memory.client_id == body.client_id)
+            )
+            row = existing2.scalar_one()
+        elif chunk_texts:
+            # Insert chunk rows only when we actually did the chunked path.
+            session.add_all(
+                [
+                    MemoryChunk(
+                        id=uuid.uuid4(),
+                        memory_id=row.id,
+                        chunk_index=idx,
+                        content=text,
+                        embedding=vec,
+                        embedding_model=provider.name,
+                    )
+                    for idx, (text, vec) in enumerate(zip(chunk_texts, chunk_vectors, strict=True))
+                ]
+            )
+
+    total_elapsed_ms = (time.monotonic() - total_start) * 1000
     logger.info(
         "capture_stored",
         client_id=str(body.client_id),
         memory_id=str(row.id),
         content_length=len(body.content),
-        idempotent=(status_code == status.HTTP_200_OK),
-        latency_ms=round(elapsed_ms, 1),
+        token_count=token_count,
+        chunk_count=chunk_count,
+        embedding_latency_ms=round(embedding_latency_ms, 1),
+        total_capture_latency_ms=round(total_elapsed_ms, 1),
+        embedding_model=provider.name,
+        idempotent=False,
     )
 
-    response = CaptureResponse(
+    return CaptureResponse(
         id=row.id,
         client_id=row.client_id,
         captured_at=row.captured_at,
         enriched=row.enriched,
     )
-
-    # FastAPI uses the route's default status_code; we must override manually
-    # when returning 200 on an idempotent hit. We do this by returning a
-    # JSONResponse directly for the idempotent case.
-    if status_code == status.HTTP_200_OK:
-        from fastapi.responses import JSONResponse
-
-        return JSONResponse(  # type: ignore[return-value]
-            content=response.model_dump(mode="json"),
-            status_code=status.HTTP_200_OK,
-        )
-
-    return response
