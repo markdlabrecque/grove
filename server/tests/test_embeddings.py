@@ -40,7 +40,7 @@ class TestCountTokens:
         result = count_tokens("Hello world!")
         assert result >= 1
         # Multi-emoji string must not raise.
-        count_tokens("")
+        count_tokens("🎉🔥🌍")
 
     def test_longer_text(self) -> None:
         # Sanity: longer text produces more tokens.

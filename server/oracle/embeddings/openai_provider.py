@@ -31,9 +31,7 @@ class OpenAIEmbeddingProvider:
             cfg_key = settings.openai_api_key
             if cfg_key is None:
                 raise ValueError("OPENAI_API_KEY is not set in configuration")
-            resolved = (
-                cfg_key.get_secret_value() if hasattr(cfg_key, "get_secret_value") else str(cfg_key)
-            )
+            resolved = cfg_key.get_secret_value()
             if not resolved:
                 raise ValueError("OPENAI_API_KEY is empty in configuration")
             api_key = resolved
