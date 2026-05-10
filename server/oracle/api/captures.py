@@ -7,6 +7,7 @@ from typing import Annotated
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert
@@ -47,7 +48,8 @@ class CaptureRequest(BaseModel):
 class CaptureResponse(BaseModel):
     id: uuid.UUID
     client_id: uuid.UUID
-    captured_at: datetime
+    # nullable: rows predating migration 0010 may have captured_at IS NULL
+    captured_at: datetime | None
     enriched: bool
 
 
@@ -90,8 +92,6 @@ async def create_capture(
                 captured_at=existing_row.captured_at,
                 enriched=existing_row.enriched,
             )
-            from fastapi.responses import JSONResponse
-
             return JSONResponse(  # type: ignore[return-value]
                 content=response.model_dump(mode="json"),
                 status_code=status.HTTP_200_OK,

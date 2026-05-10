@@ -420,3 +420,46 @@ async def test_wrong_token_returns_401() -> None:
         )
 
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Regression #32: idempotent path with captured_at IS NULL must not raise
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_idempotent_null_captured_at_returns_200(db_session: AsyncSession) -> None:
+    """Pre-0010 row with captured_at=NULL must not cause a Pydantic error on the
+    idempotent response path (CaptureResponse.captured_at is now datetime | None).
+    """
+    from oracle.main import app
+
+    client_id = uuid.uuid4()
+    row = Memory(
+        id=uuid.uuid4(),
+        client_id=client_id,
+        content="legacy memory without captured_at",
+        source_modality="text",
+        source_device="test-device",
+        language="en",
+        enriched=False,
+        # captured_at intentionally omitted — simulates a pre-migration row
+    )
+    db_session.add(row)
+    await db_session.commit()
+
+    payload = {
+        **BASE_PAYLOAD,
+        "client_id": str(client_id),
+    }
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/v1/captures", json=payload, headers=AUTH_HEADERS)
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["id"] == str(row.id)
+    assert body["captured_at"] is None
+
+    await db_session.delete(row)
+    await db_session.commit()
