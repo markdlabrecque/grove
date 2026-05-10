@@ -9,9 +9,15 @@ import Foundation
 /// Rather than stub the bundle (complex; requires test-target Info.plist
 /// fixtures and build-settings plumbing), these tests construct `Config`
 /// directly via `Config.init(baseURL:bearerToken:)` — an internal init added
-/// for exactly this purpose.  The shared singleton's init path is covered
-/// indirectly by the app build (CI would fail to build if the xcconfig wiring
-/// were broken).
+/// for exactly this purpose.
+///
+/// Note on `Config.shared`: The singleton's test-mode stub (ticket #71) is
+/// verified in `OracleTests/ConfigTests.swift` rather than here because SPM
+/// `swift test` does not set `XCTestConfigurationFilePath` or
+/// `XCTestSessionIdentifier` — the env vars that trigger the stub path.
+/// Accessing `Config.shared` from this suite would crash unless real xcconfig
+/// values are present. Xcode's test runner (which does set those vars) is the
+/// right home for that coverage.
 @Suite("Config", .serialized)
 struct ConfigTests {
 

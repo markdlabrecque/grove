@@ -10,9 +10,12 @@ import OracleCore
 /// Rather than stub the bundle (complex; requires test-target Info.plist
 /// fixtures and build-settings plumbing), these tests construct `Config`
 /// directly via `Config.init(baseURL:bearerToken:)` — an internal init added
-/// for exactly this purpose.  The shared singleton's init path is covered
-/// indirectly by the app build (CI would fail to build if the xcconfig wiring
-/// were broken).
+/// for exactly this purpose.
+///
+/// `Config.shared` itself is exercised below: because `XCTestConfigurationFilePath`
+/// is set in the test process environment, the singleton returns stub values
+/// rather than calling `fatalError`. That code path is what unblocks the
+/// canary CI job (ticket #71).
 @Suite("Config", .serialized)
 struct ConfigTests {
 
@@ -43,5 +46,18 @@ struct ConfigTests {
     let url = try #require(URL(string: "https://oracle.example.ts.net"))
     let config = Config(baseURL: url, bearerToken: "test-token")
     #expect(!config.bearerToken.isEmpty)
+  }
+
+  // MARK: - Shared singleton under test
+
+  /// Verify that `Config.shared` does not crash when accessed from a test
+  /// process — the test env has no populated Info.plist, but `Config.init()`
+  /// detects `XCTestConfigurationFilePath` and returns stub values instead of
+  /// calling `fatalError`. If this test runs at all, the guard worked.
+  @Test("Config.shared returns stub values under XCTest without crashing")
+  func sharedReturnsStubbedValuesUnderTest() throws {
+    let shared = Config.shared
+    #expect(!shared.baseURL.absoluteString.isEmpty)
+    #expect(!shared.bearerToken.isEmpty)
   }
 }

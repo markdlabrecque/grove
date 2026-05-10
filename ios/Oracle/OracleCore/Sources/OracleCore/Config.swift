@@ -29,6 +29,35 @@ public struct Config: Sendable {
   public let bearerToken: String
 
   private init() {
+    // Under XCTest (Xcode unit-test host and XCUITest target-app launches),
+    // the xcconfig files are intentionally unpopulated on CI and fresh clones.
+    // Rather than fatalError before tests can attach, return well-known stub
+    // values that let the app reach its first screen.
+    //
+    // Detection strategy:
+    //   1. `XCTestConfigurationFilePath` — set by Xcode in the unit-test host
+    //      process when running the OracleTests target.
+    //   2. `XCTestSessionIdentifier`     — set by Xcode in the app-under-test
+    //      process when running XCUITests (OracleUITests target).
+    //
+    // Note: SPM `swift test` (OracleCore package tests) uses Swift Testing and
+    // does NOT set either env var. Those tests avoid `Config.shared` entirely
+    // and construct Config directly via `Config(baseURL:bearerToken:)`.
+    //
+    // Production builds (Release scheme, real devices) never have these env
+    // vars set, so the loud fatalError path below is unchanged.
+    let env = ProcessInfo.processInfo.environment
+    let isUnderTest = env["XCTestConfigurationFilePath"] != nil
+      || env["XCTestSessionIdentifier"] != nil
+
+    if isUnderTest {
+      // Stub values — never used for real network calls; tests that need a
+      // live Config construct one explicitly via Config(baseURL:bearerToken:).
+      self.baseURL = URL(string: "https://oracle-test.example.ts.net")!
+      self.bearerToken = "test-bearer-token"
+      return
+    }
+
     guard
       let rawURL = Bundle.main.object(forInfoDictionaryKey: "BASE_URL") as? String,
       let url = URL(string: rawURL)
