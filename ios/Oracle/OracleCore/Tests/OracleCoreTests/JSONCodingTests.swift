@@ -36,6 +36,69 @@ struct JSONCodingTests {
     #expect(abs(capturedAt.timeIntervalSince1970 - 1_778_423_400) < 1.0)
   }
 
+  // MARK: - QueryResponseBody
+
+  @Test("QueryResponseBody decodes from canned JSON fixture")
+  func decodesQueryResponseBody() throws {
+    let data = try loadFixture(named: "query_response")
+    let decoder = makeDecoder()
+    let response = try decoder.decode(QueryResponseBody.self, from: data)
+
+    #expect(response.results.count == 2)
+    #expect(response.queryTokenCount == 7)
+    #expect(abs(response.latencyMs - 612.4) < 0.01)
+  }
+
+  @Test("QueryResponseBody first result is a whole-memory match")
+  func queryResponseBodyFirstResultIsWholeMatch() throws {
+    let data = try loadFixture(named: "query_response")
+    let decoder = makeDecoder()
+    let response = try decoder.decode(QueryResponseBody.self, from: data)
+
+    let first = try #require(response.results.first)
+    #expect(first.memoryID.uuidString.lowercased() == "c1d2e3f4-a5b6-7890-cdef-012345678901")
+    #expect(first.matchedVia == "whole")
+    #expect(first.matchedChunkIndex == nil)
+    #expect(abs(first.score - 0.912345) < 0.000001)
+    #expect(first.snippet.hasPrefix("The project uses SwiftData"))
+  }
+
+  @Test("QueryResponseBody second result is a chunk match with index")
+  func queryResponseBodySecondResultIsChunkMatch() throws {
+    let data = try loadFixture(named: "query_response")
+    let decoder = makeDecoder()
+    let response = try decoder.decode(QueryResponseBody.self, from: data)
+
+    let second = try #require(response.results.dropFirst().first)
+    #expect(second.matchedVia == "chunk")
+    #expect(second.matchedChunkIndex == 2)
+    #expect(second.sourceModality == "voice")
+  }
+
+  @Test("QueryResponseBody captured_at parses as timezone-aware Date")
+  func queryResponseBodyCapturedAtIsTimezoneAware() throws {
+    let data = try loadFixture(named: "query_response")
+    let decoder = makeDecoder()
+    let response = try decoder.decode(QueryResponseBody.self, from: data)
+
+    let capturedAt = try #require(response.results.first?.capturedAt)
+    // 2026-05-09T10:15:00+00:00 = 1778321700 seconds since epoch
+    #expect(abs(capturedAt.timeIntervalSince1970 - 1_778_321_700) < 1.0)
+  }
+
+  @Test("QueryRequestBody encodes to server-expected JSON keys")
+  func queryRequestBodyEncodesCorrectly() throws {
+    let body = QueryRequestBody(query: "what did I capture about SwiftData?", limit: 10)
+    let encoder = JSONEncoder()
+    let data = try encoder.encode(body)
+
+    let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(json["query"] as? String == "what did I capture about SwiftData?")
+    #expect(json["limit"] as? Int == 10)
+    // Ensure no unexpected extra fields.
+    #expect(json.count == 2)
+  }
+
   // MARK: - Helpers
 
   private func makeDecoder() -> JSONDecoder {
