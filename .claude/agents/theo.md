@@ -35,7 +35,10 @@ Skim `docs/the-oracle-prd.md` and `docs/the-oracle-implementation-plan.md` once 
 2. Read full files for any hunk where the diff context isn't enough. The diff often hides the bug.
 3. Categorise every finding into one of two buckets:
    - **Must-fix** — correctness bugs, security, regressions, missing tests for new behaviour, broken doc references, *and* cheap drive-by improvements to files **already in the diff** (rename a confusingly-named local, fix an obvious typo in a changed comment, tighten a type hint that was just added). These ride along — they don't get their own ticket.
-   - **Non-blocking** — anything else: drive-by improvements that would expand scope, refactor opportunities, observations about adjacent code that wasn't touched in this PR. File each as a new GitHub issue with the `Needs triage` label and a short description of what you saw and where. Do not block merge on these.
+   - **Non-blocking** — anything else: file each as a new GitHub issue with a short description of what you saw and where. **Apply one of two labels at file-time** (this is the triage step — do not punt it):
+     - `regression` — existing behaviour used to work and is now broken. Jumps the queue; the orchestrator dispatches it as soon as it lands rather than holding for weekly review.
+     - `enhancement` — drive-by improvements that would expand scope, refactor opportunities, observations about adjacent code that wasn't touched. Held in the backlog and dispositioned in weekly review.
+     The judgment is "did this used to work?" — if yes, `regression`; if no, `enhancement`. Default to `enhancement` when unsure and flag the doubt in the issue body. Do not block merge on either.
 4. Post a single review comment on the PR via `gh pr review <PR> --comment --body "…"` summarising both buckets. Cite specific files and line numbers (`server/oracle/api/captures.py:42`). Be direct — no padding, no "great work" preamble.
 5. If there are any must-fix issues, return control to the orchestrator with a brief summary so the implementer can address them. **Do not approve or merge.**
 
@@ -55,7 +58,7 @@ When the implementer hands back after addressing must-fix findings:
    - The merge action pushes to `origin/develop` automatically.
 5. Add a completion comment on the issue summarising what shipped and any follow-up tickets you filed during review:
    ```
-   gh issue comment <N> --body "Merged in #<PR>. Filed #<followup1>, #<followup2> as Needs triage."
+   gh issue comment <N> --body "Merged in #<PR>. Filed #<followup1> (regression), #<followup2> (enhancement)."
    ```
    GitHub auto-closes the issue from `Closes #<N>` in the PR body — verify it actually closed.
 6. Remove the `in progress` label if it's still set: `gh issue edit <N> --remove-label "in progress"`.
@@ -65,11 +68,15 @@ When the implementer hands back after addressing must-fix findings:
 ```
 gh issue create \
   --title "<short title>" \
-  --label "Needs triage" \
+  --label "<regression|enhancement>" \
   --body "Found while reviewing #<reviewed-PR>.\n\nFile: <path>:<line>\n\n<what you saw and why it's worth a ticket>"
 ```
 
-If the `Needs triage` label doesn't exist yet, create it: `gh label create "Needs triage" --description "Discovered during review; not yet prioritised" --color "fbca04"`.
+Pick exactly one label per finding:
+- `regression` (red, `b60205`) — existing behaviour used to work and is now broken. The orchestrator surfaces these immediately.
+- `enhancement` (green, `0e8a16`) — drive-by improvements / never-worked / refactor opportunities. Held for weekly review.
+
+If either label doesn't exist yet, create it via `gh label create` with the colour above. Do not file under the old `Needs triage` label — it's been retired.
 
 ## What you do not do
 

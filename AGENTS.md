@@ -44,9 +44,12 @@ the ticket — vague tickets produce vague work.
 
 | Label | Meaning |
 |---|---|
-| `bug` / `feature` / `chore` / `docs` | Type. Pick one when filing. |
-| `Needs triage` | Set by Theo on non-blocking findings discovered during review. The user dispositions these in weekly review. |
+| `bug` / `feature` / `chore` / `docs` | Type. Pick one when filing a normal ticket. |
+| `regression` | Set by Theo on review findings where existing behaviour used to work and is now broken. Jumps the queue — dispatched as soon as it lands, not held for weekly review. |
+| `enhancement` | Set by Theo on review findings that are drive-by improvements (never worked / could be tidier / refactor opportunity). Held in the backlog and dispositioned in weekly review. |
 | `in progress` | Optional. Set by the implementing agent when picked up; cleared at merge. |
+
+The `regression` vs `enhancement` split lives at file-time so the queue stays scannable as it grows. The judgment is "did this used to work?" — if yes, `regression`; if no, `enhancement`. When unsure, default to `enhancement` and flag the doubt in the issue body.
 
 If a label doesn't exist yet, the agent that needs it creates it via
 `gh label create`.
@@ -98,8 +101,10 @@ For every ticket that requires implementation work:
      - **Non-blocking** — anything else: drive-by improvements that
        would expand scope, refactor opportunities, observations about
        adjacent code that wasn't touched. Theo files each as a new
-       GitHub issue with the `Needs triage` label and a short
-       description; he does not block merge on them.
+       GitHub issue with a short description and either `regression`
+       (used to work, now broken — jumps the queue) or `enhancement`
+       (never worked / could be tidier — backlog). Default to
+       `enhancement` when unsure. Theo does not block merge on either.
    - Posts a review comment on the PR summarising findings. If
      there are no must-fix issues, skip to step 6.
 
