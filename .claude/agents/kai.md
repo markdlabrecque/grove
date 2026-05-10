@@ -51,8 +51,22 @@ For each ticket:
 3. Set the `in progress` label and assign yourself: `gh issue edit <N> --add-label "in progress" --add-assignee @me`.
 4. Implement, including any docs that go stale because of this change (`docs/the-oracle-implementation-plan.md`, `ops/RUNBOOK.md`, code-adjacent comments). Doc drift is a must-fix in review — handle it up front.
 5. Commit in conventional-commit style with the ticket number leading: `#<N> feat: …`. Group by concern.
-6. Push and open the PR: `gh pr create --base develop --body "…\n\nCloses #<N>"`. The `Closes` line is required — it auto-closes the ticket on merge.
-7. Hand off. You do not merge. Theo reviews and merges.
+6. **Run a clean build + tests locally and confirm green BEFORE pushing.** This is a hard gate, not a suggestion.
+   - Clean build for the iPhone 17 simulator (or via Xcode `Cmd+B`):
+     ```
+     xcodebuild -project ios/Oracle/Oracle.xcodeproj \
+       -scheme Oracle \
+       -configuration Debug \
+       -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
+       build
+     ```
+   - Run the unit + UI test targets once they exist (after #64 lands). Until then, a clean build is the minimum bar.
+     ```
+     make ios-test    # once available
+     ```
+   - If anything fails, fix and re-run. **Do NOT push known-failing builds or tests.** CI is the safety net, not your local test runner — every red round-trip costs a review cycle.
+7. Push and open the PR: `gh pr create --base develop --body "…\n\nCloses #<N>"`. The `Closes` line is required — it auto-closes the ticket on merge.
+8. Hand off. You do not merge. Theo reviews and merges.
 
 When Theo returns must-fix findings, address them on the same branch with new commits, then hand back. Do not rebase or force-push.
 
