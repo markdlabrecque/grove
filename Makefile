@@ -159,3 +159,88 @@ health: ## Curl the public healthz + readyz endpoints
 	@source .env && \
 	echo "→ /healthz" && curl -sf "https://$$TAILSCALE_HOSTNAME/healthz" && echo && \
 	echo "→ /readyz"  && curl -sf "https://$$TAILSCALE_HOSTNAME/readyz"  && echo
+
+# smoke-ingress: Mac-side verification of the Tailnet → Apache (TLS) → FastAPI path.
+# Covers steps 1–5 of the former docs/manual-tests/tailscale-tls-ingress.md.
+#
+# Step 6 (phone-side) is genuinely manual — originate a request from the phone:
+#   Open Safari on the phone → https://<tailnet-host>/healthz  (expect {"status":"ok"})
+#   Or POST /v1/captures via an HTTP-client app with Authorization: Bearer <BEARER_TOKEN>.
+
+.PHONY: smoke-ingress
+smoke-ingress: ## Verify Tailnet → Apache TLS → FastAPI ingress is healthy (run after cert/hostname changes)
+	@set -euo pipefail; \
+	if [ ! -f .env ]; then echo "FAIL: .env not found"; exit 1; fi; \
+	source .env; \
+	if [ -z "$${TAILSCALE_HOSTNAME:-}" ]; then echo "FAIL: TAILSCALE_HOSTNAME not set in .env"; exit 1; fi; \
+	if [ -z "$${BEARER_TOKEN:-}" ]; then echo "FAIL: BEARER_TOKEN not set in .env"; exit 1; fi; \
+	HOST="$$TAILSCALE_HOSTNAME"; \
+	TOKEN="$$BEARER_TOKEN"; \
+	\
+	echo "--- smoke-ingress: $$HOST ---"; \
+	\
+	echo ""; \
+	echo "1. Apache vhost config (ServerName + SSLCertificate lines):"; \
+	VHOST=$$(docker compose exec -T apache cat /usr/local/apache2/conf/extra/oracle.conf 2>&1 | grep -E 'ServerName|SSLCertificate'); \
+	if echo "$$VHOST" | grep -q "$$HOST"; then \
+		echo "   PASS: ServerName contains $$HOST"; \
+	else \
+		echo "   FAIL: ServerName does not contain $$HOST — got: $$VHOST"; exit 1; \
+	fi; \
+	\
+	echo ""; \
+	echo "2. TLS handshake (cert subject CN + verify ok + HTTP 200 on /healthz):"; \
+	TLS_OUT=$$(curl -sv --resolve "$$HOST:443:127.0.0.1" "https://$$HOST/healthz" 2>&1); \
+	if echo "$$TLS_OUT" | grep -q "verify ok"; then \
+		echo "   PASS: verify ok"; \
+	else \
+		echo "   FAIL: TLS verify not ok — $$(echo "$$TLS_OUT" | grep -E 'verify|subject|issuer' | head -5)"; exit 1; \
+	fi; \
+	if echo "$$TLS_OUT" | grep -qE 'HTTP/[0-9.]+ 200'; then \
+		echo "   PASS: HTTP 200 on /healthz"; \
+	else \
+		STATUS=$$(echo "$$TLS_OUT" | grep -oE 'HTTP/[0-9.]+ [0-9]+' | tail -1); \
+		echo "   FAIL: expected HTTP 200, got: $$STATUS"; exit 1; \
+	fi; \
+	\
+	echo ""; \
+	echo "3. Public health endpoints over TLS:"; \
+	HEALTHZ=$$(curl -o /dev/null -sw "%{http_code}" "https://$$HOST/healthz"); \
+	if [ "$$HEALTHZ" = "200" ]; then \
+		echo "   PASS: /healthz → 200"; \
+	else \
+		echo "   FAIL: /healthz → $$HEALTHZ (expected 200)"; exit 1; \
+	fi; \
+	READYZ=$$(curl -o /dev/null -sw "%{http_code}" "https://$$HOST/readyz"); \
+	if [ "$$READYZ" = "200" ]; then \
+		echo "   PASS: /readyz → 200"; \
+	else \
+		echo "   FAIL: /readyz → $$READYZ (expected 200)"; exit 1; \
+	fi; \
+	\
+	echo ""; \
+	echo "4. Auth gate — unauthenticated POST /v1/captures must return 401:"; \
+	UNAUTH=$$(curl -o /dev/null -sw "%{http_code}" -X POST "https://$$HOST/v1/captures" \
+		-H 'Content-Type: application/json' -d '{}'); \
+	if [ "$$UNAUTH" = "401" ]; then \
+		echo "   PASS: unauthenticated POST → 401"; \
+	else \
+		echo "   FAIL: expected 401, got $$UNAUTH (auth gate may be open)"; exit 1; \
+	fi; \
+	\
+	echo ""; \
+	echo "5. Authenticated round-trip — POST /v1/captures with valid bearer:"; \
+	CID=$$(uuidgen | tr A-Z a-z); \
+	NOW=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
+	AUTH=$$(curl -o /dev/null -sw "%{http_code}" -X POST "https://$$HOST/v1/captures" \
+		-H "Authorization: Bearer $$TOKEN" \
+		-H 'Content-Type: application/json' \
+		-d "{\"client_id\":\"$$CID\",\"content\":\"tls smoke from tailnet\",\"source_modality\":\"text\",\"source_device\":\"tailnet-curl\",\"captured_at\":\"$$NOW\"}"); \
+	if [ "$$AUTH" = "201" ]; then \
+		echo "   PASS: authenticated POST → 201"; \
+	else \
+		echo "   FAIL: expected 201, got $$AUTH"; exit 1; \
+	fi; \
+	\
+	echo ""; \
+	echo "smoke-ingress: all checks passed."
