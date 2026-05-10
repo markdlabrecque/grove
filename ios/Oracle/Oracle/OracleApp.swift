@@ -1,4 +1,3 @@
-import OracleCore
 import SwiftUI
 
 @main
