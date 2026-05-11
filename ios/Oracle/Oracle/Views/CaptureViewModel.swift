@@ -1,13 +1,45 @@
 import Foundation
 import OracleCore
+import SwiftData
 
 /// View state and save logic for the capture screen.
 ///
 /// Marked `@Observable` so SwiftUI observes only the properties that change,
 /// without any `@Published` boilerplate. Requires iOS 17+.
+///
+/// # V2 offline-first save flow
+///
+/// Saving no longer blocks on the network. The sequence is:
+///   1. Build the `CapturePayload` and encode it to JSON.
+///   2. Call `uploadQueue.enqueue(clientID:payload:)` — durably persists the row
+///      to SwiftData before any network call. If this succeeds the user's content
+///      is safe regardless of network state.
+///   3. Report `.success` to the UI immediately — the user sees "Saved" as soon
+///      as persistence succeeds, not when the server confirms.
+///   4. Fire a background `Task` calling `uploadQueue.tryDrain()` — attempts to
+///      flush the queue right now. If the device is offline the row stays in the
+///      queue and `NetworkMonitor` will drain it on reconnect.
+///
+/// If `enqueue` itself fails (e.g. disk full) the error is surfaced to the user
+/// so they know the capture was NOT saved.
 @Observable
 @MainActor
 final class CaptureViewModel {
+
+  // MARK: - Dependencies
+
+  private let uploadQueue: UploadQueue
+
+  // MARK: - Init
+
+  /// Designated initialiser.
+  ///
+  /// - Parameter uploadQueue: The shared `UploadQueue` instance. Defaults to
+  ///   `OracleApp.uploadQueue` for production use. Tests inject a stub queue
+  ///   backed by an in-memory `ModelContainer`.
+  init(uploadQueue: UploadQueue = OracleApp.uploadQueue) {
+    self.uploadQueue = uploadQueue
+  }
 
   // MARK: - Inputs
 
@@ -46,8 +78,9 @@ final class CaptureViewModel {
 
     saveStatus = .loading
 
+    let clientID = UUID()
     let payload = CapturePayload(
-      clientID: UUID(),
+      clientID: clientID,
       content: trimmed,
       sourceModality: "text",
       sourceDevice: "iphone",
@@ -55,30 +88,67 @@ final class CaptureViewModel {
       capturedAt: Date()
     )
 
+    // Encode the payload to the same bytes the queue will POST, so there is a
+    // single encoding path used for both persistence and upload.
+    let payloadData: Data
     do {
-      let response = try await OracleAPI.shared.postCapture(payload)
-      _ = response  // id available if needed for future use
-      saveStatus = .success
-      content = ""
-
-      // Dismiss the success indicator after 1.5 s then return to idle.
-      try? await Task.sleep(for: .seconds(1.5))
-      saveStatus = .idle
+      payloadData = try CaptureViewModel.encodePayload(payload)
     } catch {
-      // TODO(offline): V2 should persist this payload locally in SwiftData,
-      // retry when NWPathMonitor reports "satisfied", and reuse the same
-      // client_id — the server deduplicates via its UNIQUE constraint on
-      // memories.client_id, so retries are safe no-ops.
-      let message: String
-      if let apiError = error as? APIError {
-        message = apiError.localizedDescription
-      } else {
-        message = error.localizedDescription
-      }
       saveStatus = .idle
-      errorMessage = message
+      errorMessage = error.localizedDescription
       showErrorAlert = true
-      // Content is deliberately NOT cleared on failure — preserving user input.
+      return
     }
+
+    // Step 1 — durable persist. If this fails (disk full, etc.) surface the
+    // error immediately. Content is deliberately NOT cleared on failure.
+    do {
+      try await uploadQueue.enqueue(
+        clientID: clientID.uuidString,
+        payload: payloadData
+      )
+    } catch {
+      saveStatus = .idle
+      errorMessage = error.localizedDescription
+      showErrorAlert = true
+      return
+    }
+
+    // Step 2 — report success to the UI. The capture is now safe on disk.
+    saveStatus = .success
+    content = ""
+
+    // Step 3 — fire-and-forget drain. Attempt an immediate upload; if the
+    // network is unavailable the row stays in the queue and NetworkMonitor
+    // will drain on reconnect.
+    Task {
+      await uploadQueue.tryDrain()
+    }
+
+    // Dismiss the success indicator after 1.5 s then return to idle.
+    try? await Task.sleep(for: .seconds(1.5))
+    saveStatus = .idle
+  }
+
+  // MARK: - Payload encoding helper
+
+  /// Encode a `CapturePayload` to JSON bytes (the wire format for the queue).
+  ///
+  /// Extracted as a static helper so the same encoding path is used by both
+  /// `CaptureViewModel.save()` (populating the queue) and `UploadQueue.drainRow`
+  /// (posting to the server). If the schema ever changes, this is the single
+  /// place to update.
+  static func encodePayload(_ payload: CapturePayload) throws -> Data {
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    let body = CaptureRequestBody(
+      clientID: payload.clientID,
+      content: payload.content,
+      sourceModality: payload.sourceModality,
+      sourceDevice: payload.sourceDevice,
+      language: payload.language,
+      capturedAt: payload.capturedAt
+    )
+    return try encoder.encode(body)
   }
 }
