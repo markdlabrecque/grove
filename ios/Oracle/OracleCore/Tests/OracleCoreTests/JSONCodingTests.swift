@@ -86,8 +86,8 @@ struct JSONCodingTests {
     #expect(abs(capturedAt.timeIntervalSince1970 - 1_778_321_700) < 1.0)
   }
 
-  @Test("QueryRequestBody encodes to server-expected JSON keys")
-  func queryRequestBodyEncodesCorrectly() throws {
+  @Test("QueryRequestBody default omits min_similarity key")
+  func queryRequestBodyDefaultOmitsMinSimilarity() throws {
     let body = QueryRequestBody(query: "what did I capture about SwiftData?", limit: 10)
     let encoder = JSONEncoder()
     let data = try encoder.encode(body)
@@ -95,8 +95,28 @@ struct JSONCodingTests {
     let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
     #expect(json["query"] as? String == "what did I capture about SwiftData?")
     #expect(json["limit"] as? Int == 10)
-    // Ensure no unexpected extra fields.
+    // min_similarity must be absent (not null) when nil — server treats absent
+    // and null identically, but omitting the key is cleaner on the wire.
+    #expect(json["min_similarity"] == nil)
     #expect(json.count == 2)
+  }
+
+  @Test("QueryRequestBody encodes min_similarity when provided")
+  func queryRequestBodyEncodesMinSimilarity() throws {
+    let body = QueryRequestBody(
+      query: "what did I capture about SwiftData?",
+      limit: 10,
+      minSimilarity: 0.6
+    )
+    let encoder = JSONEncoder()
+    let data = try encoder.encode(body)
+
+    let json = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
+    #expect(json["query"] as? String == "what did I capture about SwiftData?")
+    #expect(json["limit"] as? Int == 10)
+    let similarity = try #require(json["min_similarity"] as? Double)
+    #expect(abs(similarity - 0.6) < 0.000001)
+    #expect(json.count == 3)
   }
 
   // MARK: - Helpers
