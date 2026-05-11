@@ -43,6 +43,35 @@ struct OracleApp: App {
     return UploadQueue(modelContext: context, api: OracleAPI.shared)
   }()
 
+  // MARK: - Network monitor
+
+  /// Observes `NWPathMonitor` and calls `uploadQueue.tryDrain()` on reconnect.
+  ///
+  /// `nonisolated(unsafe)` for the same reason as `uploadQueue` — declaration
+  /// happens at struct-init time (before `body` runs on the main actor) and
+  /// `NetworkMonitor` is thread-safe via its internal serial queue.
+  nonisolated(unsafe) static let networkMonitor: NetworkMonitor = {
+    NetworkMonitor(uploadQueue: OracleApp.uploadQueue)
+  }()
+
+  // MARK: - App init
+
+  init() {
+    // Start network monitoring for the lifetime of the app.
+    OracleApp.networkMonitor.start()
+
+    // Eager launch drain: flush any rows that were enqueued in a previous
+    // session (force-kill, offline-at-save, etc.). We do this unconditionally
+    // on launch — if the network is down `tryDrain()` will iterate rows, fail
+    // each one gracefully, and update their `lastError` fields. When the network
+    // comes back `NetworkMonitor` will trigger a second drain via the rising-edge
+    // handler; the two drains are safe to overlap because `UploadQueue` is an
+    // actor (mutations serialised) and the server is idempotent on `client_id`.
+    Task {
+      await OracleApp.uploadQueue.tryDrain()
+    }
+  }
+
   var body: some Scene {
     WindowGroup {
       RootView()
