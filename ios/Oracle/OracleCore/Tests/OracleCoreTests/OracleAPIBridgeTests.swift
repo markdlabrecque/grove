@@ -26,6 +26,14 @@ import Foundation
 /// therefore verified in the dedicated `TempFileLifecycle` section, which does
 /// not use live continuations.
 ///
+/// # Per-test timeout
+///
+/// Every test that parks on `withCheckedThrowingContinuation` is wrapped in
+/// `withBridgeTimeout` (5 s). If `completeTask` fails to resume the
+/// continuation for any reason — mis-keyed ID, actor isolation race, missing
+/// code path — the test throws `BridgeTimeoutError` and fails fast instead of
+/// consuming the entire runner budget.
+///
 /// Serialised to prevent concurrent access to shared static state.
 @Suite("OracleAPI delegate bridge", .serialized)
 struct OracleAPIBridgeTests {
@@ -64,24 +72,26 @@ struct OracleAPIBridgeTests {
     let chunk1 = jsonData.prefix(half)
     let chunk2 = jsonData.suffix(from: half)
 
-    let result = try await withCheckedThrowingContinuation {
-      (cont: CheckedContinuation<CaptureResponseBody, Error>) in
-      Task {
-        await api.insertTestPendingUploadWithContinuation(
-          taskID: fakeID,
-          tempFileURL: tmpURL,
-          continuation: cont
-        )
-        // Deliver in two chunks — simulates OS splitting the response body.
-        await api.appendData(Data(chunk1), forTaskIdentifier: fakeID)
-        await api.appendData(Data(chunk2), forTaskIdentifier: fakeID)
-        let response = HTTPURLResponse(
-          url: Self.baseURL,
-          statusCode: 201,
-          httpVersion: nil,
-          headerFields: nil
-        )!
-        await api.completeTask(identifier: fakeID, response: response, error: nil)
+    let result = try await withBridgeTimeout {
+      try await withCheckedThrowingContinuation {
+        (cont: CheckedContinuation<CaptureResponseBody, Error>) in
+        Task {
+          await api.insertTestPendingUploadWithContinuation(
+            taskID: fakeID,
+            tempFileURL: tmpURL,
+            continuation: cont
+          )
+          // Deliver in two chunks — simulates OS splitting the response body.
+          await api.appendData(Data(chunk1), forTaskIdentifier: fakeID)
+          await api.appendData(Data(chunk2), forTaskIdentifier: fakeID)
+          let response = HTTPURLResponse(
+            url: Self.baseURL,
+            statusCode: 201,
+            httpVersion: nil,
+            headerFields: nil
+          )!
+          await api.completeTask(identifier: fakeID, response: response, error: nil)
+        }
       }
     }
 
@@ -106,19 +116,21 @@ struct OracleAPIBridgeTests {
        "captured_at":"2026-05-10T14:30:00Z","enriched":false}
       """.data(using: .utf8)!
 
-    let result = try await withCheckedThrowingContinuation {
-      (cont: CheckedContinuation<CaptureResponseBody, Error>) in
-      Task {
-        await api.insertTestPendingUploadWithContinuation(
-          taskID: fakeID,
-          tempFileURL: tmpURL,
-          continuation: cont
-        )
-        await api.appendData(json, forTaskIdentifier: fakeID)
-        let response = HTTPURLResponse(
-          url: Self.baseURL, statusCode: 201, httpVersion: nil, headerFields: nil
-        )!
-        await api.completeTask(identifier: fakeID, response: response, error: nil)
+    let result = try await withBridgeTimeout {
+      try await withCheckedThrowingContinuation {
+        (cont: CheckedContinuation<CaptureResponseBody, Error>) in
+        Task {
+          await api.insertTestPendingUploadWithContinuation(
+            taskID: fakeID,
+            tempFileURL: tmpURL,
+            continuation: cont
+          )
+          await api.appendData(json, forTaskIdentifier: fakeID)
+          let response = HTTPURLResponse(
+            url: Self.baseURL, statusCode: 201, httpVersion: nil, headerFields: nil
+          )!
+          await api.completeTask(identifier: fakeID, response: response, error: nil)
+        }
       }
     }
 
@@ -142,19 +154,21 @@ struct OracleAPIBridgeTests {
        "captured_at":"2026-05-10T14:30:00Z","enriched":true}
       """.data(using: .utf8)!
 
-    let result = try await withCheckedThrowingContinuation {
-      (cont: CheckedContinuation<CaptureResponseBody, Error>) in
-      Task {
-        await api.insertTestPendingUploadWithContinuation(
-          taskID: fakeID,
-          tempFileURL: tmpURL,
-          continuation: cont
-        )
-        await api.appendData(json, forTaskIdentifier: fakeID)
-        let response = HTTPURLResponse(
-          url: Self.baseURL, statusCode: 200, httpVersion: nil, headerFields: nil
-        )!
-        await api.completeTask(identifier: fakeID, response: response, error: nil)
+    let result = try await withBridgeTimeout {
+      try await withCheckedThrowingContinuation {
+        (cont: CheckedContinuation<CaptureResponseBody, Error>) in
+        Task {
+          await api.insertTestPendingUploadWithContinuation(
+            taskID: fakeID,
+            tempFileURL: tmpURL,
+            continuation: cont
+          )
+          await api.appendData(json, forTaskIdentifier: fakeID)
+          let response = HTTPURLResponse(
+            url: Self.baseURL, statusCode: 200, httpVersion: nil, headerFields: nil
+          )!
+          await api.completeTask(identifier: fakeID, response: response, error: nil)
+        }
       }
     }
 
@@ -171,19 +185,21 @@ struct OracleAPIBridgeTests {
     defer { try? FileManager.default.removeItem(at: tmpURL) }
 
     do {
-      _ = try await withCheckedThrowingContinuation {
-        (cont: CheckedContinuation<CaptureResponseBody, Error>) in
-        Task {
-          await api.insertTestPendingUploadWithContinuation(
-            taskID: fakeID,
-            tempFileURL: tmpURL,
-            continuation: cont
-          )
-          await api.completeTask(
-            identifier: fakeID,
-            response: nil,
-            error: URLError(.notConnectedToInternet)
-          )
+      _ = try await withBridgeTimeout {
+        try await withCheckedThrowingContinuation {
+          (cont: CheckedContinuation<CaptureResponseBody, Error>) in
+          Task {
+            await api.insertTestPendingUploadWithContinuation(
+              taskID: fakeID,
+              tempFileURL: tmpURL,
+              continuation: cont
+            )
+            await api.completeTask(
+              identifier: fakeID,
+              response: nil,
+              error: URLError(.notConnectedToInternet)
+            )
+          }
         }
       }
       Issue.record("Expected URLError but completeTask returned successfully.")
@@ -204,19 +220,21 @@ struct OracleAPIBridgeTests {
     let errorBody = #"{"detail":"internal server error"}"#.data(using: .utf8)!
 
     do {
-      _ = try await withCheckedThrowingContinuation {
-        (cont: CheckedContinuation<CaptureResponseBody, Error>) in
-        Task {
-          await api.insertTestPendingUploadWithContinuation(
-            taskID: fakeID,
-            tempFileURL: tmpURL,
-            continuation: cont
-          )
-          await api.appendData(errorBody, forTaskIdentifier: fakeID)
-          let response = HTTPURLResponse(
-            url: Self.baseURL, statusCode: 500, httpVersion: nil, headerFields: nil
-          )!
-          await api.completeTask(identifier: fakeID, response: response, error: nil)
+      _ = try await withBridgeTimeout {
+        try await withCheckedThrowingContinuation {
+          (cont: CheckedContinuation<CaptureResponseBody, Error>) in
+          Task {
+            await api.insertTestPendingUploadWithContinuation(
+              taskID: fakeID,
+              tempFileURL: tmpURL,
+              continuation: cont
+            )
+            await api.appendData(errorBody, forTaskIdentifier: fakeID)
+            let response = HTTPURLResponse(
+              url: Self.baseURL, statusCode: 500, httpVersion: nil, headerFields: nil
+            )!
+            await api.completeTask(identifier: fakeID, response: response, error: nil)
+          }
         }
       }
       Issue.record("Expected APIError.httpError but completeTask returned successfully.")
@@ -240,15 +258,17 @@ struct OracleAPIBridgeTests {
     defer { try? FileManager.default.removeItem(at: tmpURL) }
 
     do {
-      _ = try await withCheckedThrowingContinuation {
-        (cont: CheckedContinuation<CaptureResponseBody, Error>) in
-        Task {
-          await api.insertTestPendingUploadWithContinuation(
-            taskID: fakeID,
-            tempFileURL: tmpURL,
-            continuation: cont
-          )
-          await api.completeTask(identifier: fakeID, response: nil, error: nil)
+      _ = try await withBridgeTimeout {
+        try await withCheckedThrowingContinuation {
+          (cont: CheckedContinuation<CaptureResponseBody, Error>) in
+          Task {
+            await api.insertTestPendingUploadWithContinuation(
+              taskID: fakeID,
+              tempFileURL: tmpURL,
+              continuation: cont
+            )
+            await api.completeTask(identifier: fakeID, response: nil, error: nil)
+          }
         }
       }
       Issue.record("Expected APIError.unexpectedResponse but completeTask returned successfully.")
@@ -274,11 +294,21 @@ struct OracleAPIBridgeTests {
 
   /// Verifies that `completeTask` deletes the temp file on terminal completion.
   ///
-  /// This test avoids the race condition in continuation-based tests (where
-  /// `resume()` can schedule the outer context before the `defer` completes) by
-  /// using `withCheckedContinuation` where the continuation is driven from a
-  /// sequenced task and the file-existence check happens AFTER the inner task
-  /// explicitly signals that `completeTask` has returned.
+  /// The `Signal` actor coordinates the "completeTask has returned" event
+  /// between the inner Task and the outer test body.
+  ///
+  /// # Signal actor race fix
+  ///
+  /// `fire()` is called from inside the inner Task AFTER `completeTask` resumes
+  /// the outer `withCheckedThrowingContinuation`. Because that resume causes the
+  /// outer code to unblock, there is a race between:
+  ///   - outer: returning from `withCheckedThrowingContinuation` and calling `signal.wait()`
+  ///   - inner Task: calling `signal.fire()`
+  ///
+  /// If `fire()` wins, `cont` is still nil (wait has not yet set it). The old
+  /// code did `cont?.resume()` — a no-op — then set `fired = true`. When `wait()`
+  /// subsequently ran it would set `cont` and suspend forever. Fixed by checking
+  /// `fired` at the top of `wait()`: if already fired, return immediately.
   @Test("completeTask deletes the temp file on success")
   func completeTaskDeletesTempFileOnSuccess() async throws {
     let api = makeAPI()
@@ -293,31 +323,38 @@ struct OracleAPIBridgeTests {
        "captured_at":"2026-05-10T14:30:00Z","enriched":false}
       """.data(using: .utf8)!
 
-    // Use a separate actor to synchronise the "completeTask returned" signal
-    // without relying on the outer continuation racing the defer.
+    // Signal actor coordinates "completeTask has fully returned" between the
+    // inner Task and the outer test body. Checking `fired` at the top of
+    // `wait()` prevents the hang when `fire()` races ahead of `wait()`.
     actor Signal {
       var fired = false
       var cont: CheckedContinuation<Void, Never>?
       func fire() { cont?.resume(); fired = true }
-      func wait() async { await withCheckedContinuation { cont = $0 } }
+      func wait() async {
+        // If fire() already ran before wait() was called, return immediately.
+        if fired { return }
+        await withCheckedContinuation { cont = $0 }
+      }
     }
     let signal = Signal()
 
-    _ = try await withCheckedThrowingContinuation {
-      (cont: CheckedContinuation<CaptureResponseBody, Error>) in
-      Task {
-        await api.insertTestPendingUploadWithContinuation(
-          taskID: fakeID,
-          tempFileURL: tmpURL,
-          continuation: cont
-        )
-        await api.appendData(json, forTaskIdentifier: fakeID)
-        let response = HTTPURLResponse(
-          url: Self.baseURL, statusCode: 201, httpVersion: nil, headerFields: nil
-        )!
-        await api.completeTask(identifier: fakeID, response: response, error: nil)
-        // Signal AFTER completeTask (and its defer) has returned.
-        await signal.fire()
+    _ = try await withBridgeTimeout {
+      try await withCheckedThrowingContinuation {
+        (cont: CheckedContinuation<CaptureResponseBody, Error>) in
+        Task {
+          await api.insertTestPendingUploadWithContinuation(
+            taskID: fakeID,
+            tempFileURL: tmpURL,
+            continuation: cont
+          )
+          await api.appendData(json, forTaskIdentifier: fakeID)
+          let response = HTTPURLResponse(
+            url: Self.baseURL, statusCode: 201, httpVersion: nil, headerFields: nil
+          )!
+          await api.completeTask(identifier: fakeID, response: response, error: nil)
+          // Signal AFTER completeTask (and its defer) has returned.
+          await signal.fire()
+        }
       }
     }
 
@@ -336,27 +373,34 @@ struct OracleAPIBridgeTests {
     #expect(FileManager.default.fileExists(atPath: tmpURL.path))
 
     actor Signal {
+      var fired = false
       var cont: CheckedContinuation<Void, Never>?
-      func fire() { cont?.resume() }
-      func wait() async { await withCheckedContinuation { cont = $0 } }
+      func fire() { cont?.resume(); fired = true }
+      func wait() async {
+        // If fire() already ran before wait() was called, return immediately.
+        if fired { return }
+        await withCheckedContinuation { cont = $0 }
+      }
     }
     let signal = Signal()
 
     do {
-      _ = try await withCheckedThrowingContinuation {
-        (cont: CheckedContinuation<CaptureResponseBody, Error>) in
-        Task {
-          await api.insertTestPendingUploadWithContinuation(
-            taskID: fakeID,
-            tempFileURL: tmpURL,
-            continuation: cont
-          )
-          await api.completeTask(
-            identifier: fakeID,
-            response: nil,
-            error: URLError(.notConnectedToInternet)
-          )
-          await signal.fire()
+      _ = try await withBridgeTimeout {
+        try await withCheckedThrowingContinuation {
+          (cont: CheckedContinuation<CaptureResponseBody, Error>) in
+          Task {
+            await api.insertTestPendingUploadWithContinuation(
+              taskID: fakeID,
+              tempFileURL: tmpURL,
+              continuation: cont
+            )
+            await api.completeTask(
+              identifier: fakeID,
+              response: nil,
+              error: URLError(.notConnectedToInternet)
+            )
+            await signal.fire()
+          }
         }
       }
       Issue.record("Expected URLError but completeTask returned successfully.")
@@ -465,5 +509,36 @@ struct OracleAPIBridgeTests {
     await api.sweepOrphanedTempFiles()
 
     #expect(FileManager.default.fileExists(atPath: recentURL.path))
+  }
+}
+
+// MARK: - Timeout safety
+
+/// Thrown by `withBridgeTimeout` when a delegate-bridge continuation is not
+/// resumed within the allowed window. Turns a silent hang into a fast failure.
+struct BridgeTimeoutError: Error, CustomStringConvertible {
+  let seconds: Double
+  var description: String {
+    "Bridge continuation not resumed within \(seconds) s — likely a mis-keyed task ID or missing resume path."
+  }
+}
+
+/// Run `operation` and throw `BridgeTimeoutError` if it does not complete
+/// within `seconds`. Used to guard every `withCheckedThrowingContinuation`
+/// site in `OracleAPIBridgeTests` so a stuck continuation fails the test
+/// in bounded time instead of hanging the runner.
+func withBridgeTimeout<T: Sendable>(
+  seconds: Double = 5,
+  operation: @escaping @Sendable () async throws -> T
+) async throws -> T {
+  try await withThrowingTaskGroup(of: T.self) { group in
+    group.addTask { try await operation() }
+    group.addTask {
+      try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+      throw BridgeTimeoutError(seconds: seconds)
+    }
+    let result = try await group.next()!
+    group.cancelAll()
+    return result
   }
 }

@@ -36,6 +36,12 @@ name: iOS CI
       - "ios/**"
       - ".github/workflows/ios-ci.yml"
 
+# Cancel any in-flight run for the same branch/ref when a new commit is pushed.
+# Prevents hung tests from consuming the full 6-hour runner budget across pushes.
+concurrency:
+  group: ios-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ---------------------------------------------------------------------------
   # stable: required check for develop branch protection.
