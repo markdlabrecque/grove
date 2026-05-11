@@ -244,14 +244,22 @@ public actor OracleAPI {
   /// (per #91). Background delivery of a query response is not useful — the
   /// user is staring at the Ask screen.
   ///
+  /// `minSimilarity` is forwarded to the server's optional `min_similarity`
+  /// field. When `nil` (default) the server applies no similarity floor.
+  /// Out-of-range values (< 0 or > 1) produce a 422 from the server.
+  ///
   /// TODO(offline): V2 should queue failed queries locally and retry on
   /// NWPathMonitor "satisfied", consistent with the capture offline strategy.
-  public func postQuery(_ queryText: String, limit: Int = 10) async throws -> QueryResponseBody {
+  public func postQuery(
+    _ queryText: String,
+    limit: Int = 10,
+    minSimilarity: Double? = nil
+  ) async throws -> QueryResponseBody {
     let url = baseURL.appendingPathComponent("v1/queries")
     var request = authorizedRequest(for: url)
     request.httpMethod = "POST"
 
-    let body = QueryRequestBody(query: queryText, limit: limit)
+    let body = QueryRequestBody(query: queryText, limit: limit, minSimilarity: minSimilarity)
     let encoder = JSONEncoder()
     request.httpBody = try encoder.encode(body)
 
@@ -582,13 +590,29 @@ public struct CaptureResponseBody: Codable, Sendable {
 }
 
 /// Wire format sent to POST /v1/queries.
+///
+/// `minSimilarity` maps to the server's optional `min_similarity` float field
+/// (range 0.0–1.0). When `nil` the key is omitted from the encoded JSON and
+/// the server applies no similarity floor, preserving V1 behaviour.
+///
+/// `CodingKeys` is declared explicitly (matching the pattern in
+/// `CaptureRequestBody`) so the mapping is obvious at a glance and immune to
+/// future renames or `.convertToSnakeCase` strategy changes on the encoder.
 public struct QueryRequestBody: Codable, Sendable {
   public let query: String
   public let limit: Int
+  public let minSimilarity: Double?
 
-  public init(query: String, limit: Int = 10) {
+  public init(query: String, limit: Int = 10, minSimilarity: Double? = nil) {
     self.query = query
     self.limit = limit
+    self.minSimilarity = minSimilarity
+  }
+
+  public enum CodingKeys: String, CodingKey {
+    case query
+    case limit
+    case minSimilarity = "min_similarity"
   }
 }
 
