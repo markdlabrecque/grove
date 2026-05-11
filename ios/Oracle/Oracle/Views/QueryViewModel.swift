@@ -153,6 +153,10 @@ final class QueryViewModel {
       // query is deliberately NOT cleared on failure — preserving user input
       // for editing/retry.
     }
+    // Clear the handle so activeTask is non-nil only while a request is truly
+    // in flight. Calling cancel() on a finished Task is a safe no-op, but
+    // leaving the handle set creates misleading state for future readers.
+    activeTask = nil
   }
 
   /// Returns `true` for `CancellationError` and `URLError.cancelled`, which
