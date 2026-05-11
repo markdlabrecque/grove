@@ -560,6 +560,22 @@ public struct CaptureRequestBody: Codable, Sendable {
   public let language: String
   public let capturedAt: Date
 
+  public init(
+    clientID: UUID,
+    content: String,
+    sourceModality: String,
+    sourceDevice: String,
+    language: String,
+    capturedAt: Date
+  ) {
+    self.clientID = clientID
+    self.content = content
+    self.sourceModality = sourceModality
+    self.sourceDevice = sourceDevice
+    self.language = language
+    self.capturedAt = capturedAt
+  }
+
   public enum CodingKeys: String, CodingKey {
     case clientID = "client_id"
     case content

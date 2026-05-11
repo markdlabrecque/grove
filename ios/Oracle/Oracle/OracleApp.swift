@@ -60,6 +60,15 @@ struct OracleApp: App {
     // Start network monitoring for the lifetime of the app.
     OracleApp.networkMonitor.start()
 
+    // Sweep orphaned temp files from previous sessions before enqueuing new
+    // tasks. A *.upload-body file is orphaned if the app was killed between
+    // writeBodyToTempFile and the URLSession delegate firing. Files older than
+    // one hour are removed; legitimate in-flight uploads complete or are
+    // replayed by the OS well within that window.
+    Task {
+      await OracleAPI.shared.sweepOrphanedTempFiles()
+    }
+
     // Eager launch drain: flush any rows that were enqueued in a previous
     // session (force-kill, offline-at-save, etc.). We do this unconditionally
     // on launch — if the network is down `tryDrain()` will iterate rows, fail
