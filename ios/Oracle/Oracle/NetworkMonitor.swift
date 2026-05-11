@@ -88,6 +88,18 @@ final class NetworkMonitor {
   /// needed when the test drives `pathDidUpdate` directly on one thread).
   var wasReachable: Bool = false
 
+  /// Guards against calling `NWPathMonitor.start(queue:)` more than once.
+  ///
+  /// `NWPathMonitor.start(queue:)` does NOT ignore subsequent calls — a second
+  /// call changes the delivery queue, which can produce callbacks on two queues
+  /// simultaneously and race on `wasReachable`/`isReachable`. This flag makes
+  /// `start()` idempotent.
+  ///
+  /// Concurrency contract: `start()` is called only from `OracleApp.init()`,
+  /// which runs on the main actor during single-threaded app boot. A plain
+  /// `Bool` is therefore sufficient; no lock or actor isolation is needed.
+  private var isStarted = false
+
   // MARK: - Init (production)
 
   /// Create a `NetworkMonitor` that drains `uploadQueue` on reconnect.
@@ -137,9 +149,12 @@ final class NetworkMonitor {
 
   /// Start observing network-path changes.
   ///
-  /// Safe to call once per instance. `NWPathMonitor` must be started exactly
-  /// once; subsequent calls are ignored by the OS.
+  /// Idempotent: subsequent calls are a no-op. `NWPathMonitor.start(queue:)`
+  /// does not ignore repeat calls — it changes the delivery queue, which would
+  /// race on `wasReachable`/`isReachable`. The `isStarted` guard prevents that.
   func start() {
+    guard !isStarted else { return }
+    isStarted = true
     monitor.pathUpdateHandler = { [weak self] path in
       self?.pathDidUpdate(status: path.status)
     }
