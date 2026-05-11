@@ -48,10 +48,19 @@ struct AppDelegateHandlerTests {
 
     #expect(await api.backgroundHandlerCount == 1)
 
-    await api.drainBackgroundCompletionHandlers()
-    // drainBackgroundCompletionHandlers dispatches to @MainActor via Task;
-    // sleep gives the main actor task time to execute.
-    try await Task.sleep(nanoseconds: 100_000_000) // 0.1 s
+    // Await drain completion via a sentinel continuation rather than a fixed
+    // sleep. The sentinel handler is stored alongside the real handler and
+    // resumes the continuation when the @MainActor Task inside drain dispatches
+    // all handlers — deterministic and instant.
+    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+      Task { @MainActor in
+        await api.storeBackgroundCompletionHandler(
+          { cont.resume() },
+          forIdentifier: "com.the-oracle.capture-upload-sentinel"
+        )
+        await api.drainBackgroundCompletionHandlers()
+      }
+    }
 
     #expect(box.called)
     #expect(await api.backgroundHandlerCount == 0)
@@ -71,8 +80,15 @@ struct AppDelegateHandlerTests {
       forIdentifier: "com.example.some-other-session"
     )
 
-    await api.drainBackgroundCompletionHandlers()
-    try await Task.sleep(nanoseconds: 100_000_000)
+    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+      Task { @MainActor in
+        await api.storeBackgroundCompletionHandler(
+          { cont.resume() },
+          forIdentifier: "com.the-oracle.capture-upload-sentinel"
+        )
+        await api.drainBackgroundCompletionHandlers()
+      }
+    }
 
     #expect(box.called)
   }
@@ -99,8 +115,15 @@ struct AppDelegateHandlerTests {
     // Only one entry in the map (replaced, not appended).
     #expect(await api.backgroundHandlerCount == 1)
 
-    await api.drainBackgroundCompletionHandlers()
-    try await Task.sleep(nanoseconds: 100_000_000)
+    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+      Task { @MainActor in
+        await api.storeBackgroundCompletionHandler(
+          { cont.resume() },
+          forIdentifier: "com.the-oracle.capture-upload-sentinel"
+        )
+        await api.drainBackgroundCompletionHandlers()
+      }
+    }
 
     // Only the second handler should have run (count == 1, not 11).
     #expect(counter.count == 1)
