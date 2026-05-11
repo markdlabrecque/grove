@@ -9,6 +9,7 @@ import OracleCore
 /// so the user can retry without retyping.
 struct CaptureView: View {
   @State private var viewModel = CaptureViewModel()
+  @FocusState private var isFocused: Bool
 
   var body: some View {
     NavigationStack {
@@ -18,10 +19,12 @@ struct CaptureView: View {
           .padding(8)
           .background(Color(.secondarySystemBackground))
           .clipShape(RoundedRectangle(cornerRadius: 10))
+          .focused($isFocused)
           .accessibilityLabel("Capture text")
           .accessibilityHint("Type your thought here")
 
         Button(action: {
+          isFocused = false
           Task { await viewModel.save() }
         }) {
           Label("Save", systemImage: "square.and.arrow.up")
@@ -37,6 +40,11 @@ struct CaptureView: View {
       }
       .padding()
       .navigationTitle("Save")
+      .background(
+        Color.clear
+          .contentShape(Rectangle())
+          .onTapGesture { isFocused = false }
+      )
     }
     .alert("Could Not Save", isPresented: $viewModel.showErrorAlert) {
       Button("OK", role: .cancel) {}
