@@ -434,10 +434,19 @@ struct OracleAPIBridgeTests {
       forIdentifier: "com.the-oracle.capture-upload-alt"
     )
 
-    await api.drainBackgroundCompletionHandlers()
-
-    // Allow the Task @MainActor inside drainBackgroundCompletionHandlers to run.
-    try await Task.sleep(nanoseconds: 100_000_000) // 0.1 s
+    // Store a sentinel handler that resumes a continuation when the
+    // @MainActor Task inside drainBackgroundCompletionHandlers has dispatched
+    // all handlers. This replaces the old Task.sleep(0.1 s) approach and
+    // makes the assertion deterministic.
+    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+      Task { @MainActor in
+        await api.storeBackgroundCompletionHandler(
+          { cont.resume() },
+          forIdentifier: "com.the-oracle.capture-upload-sentinel"
+        )
+        await api.drainBackgroundCompletionHandlers()
+      }
+    }
 
     #expect(box.calledA)
     #expect(box.calledB)
@@ -455,12 +464,20 @@ struct OracleAPIBridgeTests {
       forIdentifier: "com.the-oracle.capture-upload"
     )
 
-    await api.drainBackgroundCompletionHandlers()
-    try await Task.sleep(nanoseconds: 100_000_000)
+    // First drain: await via sentinel so we know the handler has actually fired
+    // before asserting counter == 1.
+    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+      Task { @MainActor in
+        await api.storeBackgroundCompletionHandler(
+          { cont.resume() },
+          forIdentifier: "com.the-oracle.capture-upload-sentinel"
+        )
+        await api.drainBackgroundCompletionHandlers()
+      }
+    }
 
-    // Drain again — handler must not fire a second time.
+    // Drain again — the map is empty so no handlers fire a second time.
     await api.drainBackgroundCompletionHandlers()
-    try await Task.sleep(nanoseconds: 100_000_000)
 
     #expect(counter.count == 1)
 

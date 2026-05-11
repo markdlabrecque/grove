@@ -47,13 +47,13 @@ public actor OracleAPI {
   private let backgroundSession: URLSession
   private let defaultSession: URLSession
 
-  // MARK: - Private state — in-flight uploads
+  // MARK: - Internal state — in-flight uploads (test-accessible)
 
   /// Keyed by `URLSessionTask.taskIdentifier`. Entries are inserted in
   /// `postCapture` and removed in `completeTask`.
   var pendingUploads: [Int: PendingUpload] = [:]
 
-  // MARK: - Private state — background completion handlers
+  // MARK: - Internal state — background completion handlers (test-accessible)
 
   /// Stored by `AppDelegate.application(_:handleEventsForBackgroundURLSession:…)`
   /// (wired in PR 2). Called on the main thread after
