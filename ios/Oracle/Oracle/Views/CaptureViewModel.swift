@@ -132,12 +132,11 @@ final class CaptureViewModel {
 
   // MARK: - Payload encoding helper
 
-  /// Encode a `CapturePayload` to JSON bytes (the wire format for the queue).
-  ///
-  /// Extracted as a static helper so the same encoding path is used by both
-  /// `CaptureViewModel.save()` (populating the queue) and `UploadQueue.drainRow`
-  /// (posting to the server). If the schema ever changes, this is the single
-  /// place to update.
+  /// Encodes the capture payload to JSON bytes for persistence in the
+  /// SwiftData queue. The bytes are decoded back to `CaptureRequestBody`
+  /// inside `UploadQueue.drainRow`, then re-encoded by
+  /// `OracleAPI.writeBodyToTempFile` before the POST. Both encoders must
+  /// agree on the wire format; if you change one, update the other.
   static func encodePayload(_ payload: CapturePayload) throws -> Data {
     let encoder = JSONEncoder()
     encoder.dateEncodingStrategy = .iso8601
