@@ -7,8 +7,15 @@ import OracleCore
 /// POST /v1/captures.
 ///
 /// These tests do NOT make live network calls. They construct an OracleAPI
-/// instance via the internal `init(baseURL:bearerToken:session:)` and assert
-/// on the resulting URLRequest produced by `captureRequest(for:)`.
+/// instance via the public `init(baseURL:bearerToken:)` and assert on the
+/// resulting URLRequest produced by `captureRequest(for:)`.
+///
+/// # Note on request body
+///
+/// V2 `captureRequest(for:)` does not set `httpBody` — the body is written to a
+/// temp file and passed to `uploadTask(with:fromFile:)` in `postCapture`.
+/// Body encoding is tested in `CaptureRequestBody` encoding tests below, and
+/// the full end-to-end round-trip is covered by the `OracleCore` smoke tests.
 @Suite("OracleAPI")
 struct OracleAPITests {
 
@@ -77,38 +84,5 @@ struct OracleAPITests {
     let request = try await api.captureRequest(for: makePayload())
     let header = request.value(forHTTPHeaderField: "Content-Type")
     #expect(header == "application/json")
-  }
-
-  // MARK: - Body
-
-  @Test("captureRequest body is valid JSON matching CaptureRequestBody schema")
-  func captureRequestBodyIsValidJSON() async throws {
-    let clientID = UUID()
-    let capturedAt = Date(timeIntervalSince1970: 1_778_423_400) // 2026-05-10T14:30:00Z
-    let payload = makePayload(
-      clientID: clientID,
-      content: "Remember to call Theo about the demo.",
-      sourceModality: "text",
-      sourceDevice: "iphone",
-      language: "en",
-      capturedAt: capturedAt
-    )
-
-    let api = makeAPI()
-    let request = try await api.captureRequest(for: payload)
-
-    let body = try #require(request.httpBody)
-    let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
-    // CaptureRequestBody uses explicit CodingKeys; no key strategy needed.
-    let decoded = try decoder.decode(CaptureRequestBody.self, from: body)
-
-    #expect(decoded.clientID == clientID)
-    #expect(decoded.content == payload.content)
-    #expect(decoded.sourceModality == "text")
-    #expect(decoded.sourceDevice == "iphone")
-    #expect(decoded.language == "en")
-    // Timestamp round-trip: allow up to 1 s of floating-point drift.
-    #expect(abs(decoded.capturedAt.timeIntervalSince(capturedAt)) < 1.0)
   }
 }
