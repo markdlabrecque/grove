@@ -438,13 +438,17 @@ struct OracleAPIBridgeTests {
     // @MainActor Task inside drainBackgroundCompletionHandlers has dispatched
     // all handlers. This replaces the old Task.sleep(0.1 s) approach and
     // makes the assertion deterministic.
-    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-      Task { @MainActor in
-        await api.storeBackgroundCompletionHandler(
-          { cont.resume() },
-          forIdentifier: "com.the-oracle.capture-upload-sentinel"
-        )
-        await api.drainBackgroundCompletionHandlers()
+    // Wrapped in withBridgeTimeout so a broken drain fails fast rather than
+    // hanging the CI runner for the full budget.
+    try await withBridgeTimeout(seconds: 2) {
+      await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+        Task { @MainActor in
+          await api.storeBackgroundCompletionHandler(
+            { cont.resume() },
+            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+          )
+          await api.drainBackgroundCompletionHandlers()
+        }
       }
     }
 
@@ -466,13 +470,17 @@ struct OracleAPIBridgeTests {
 
     // First drain: await via sentinel so we know the handler has actually fired
     // before asserting counter == 1.
-    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-      Task { @MainActor in
-        await api.storeBackgroundCompletionHandler(
-          { cont.resume() },
-          forIdentifier: "com.the-oracle.capture-upload-sentinel"
-        )
-        await api.drainBackgroundCompletionHandlers()
+    // Wrapped in withBridgeTimeout so a broken drain fails fast rather than
+    // hanging the CI runner for the full budget.
+    try await withBridgeTimeout(seconds: 2) {
+      await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+        Task { @MainActor in
+          await api.storeBackgroundCompletionHandler(
+            { cont.resume() },
+            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+          )
+          await api.drainBackgroundCompletionHandlers()
+        }
       }
     }
 
@@ -529,33 +537,3 @@ struct OracleAPIBridgeTests {
   }
 }
 
-// MARK: - Timeout safety
-
-/// Thrown by `withBridgeTimeout` when a delegate-bridge continuation is not
-/// resumed within the allowed window. Turns a silent hang into a fast failure.
-struct BridgeTimeoutError: Error, CustomStringConvertible {
-  let seconds: Double
-  var description: String {
-    "Bridge continuation not resumed within \(seconds) s — likely a mis-keyed task ID or missing resume path."
-  }
-}
-
-/// Run `operation` and throw `BridgeTimeoutError` if it does not complete
-/// within `seconds`. Used to guard every `withCheckedThrowingContinuation`
-/// site in `OracleAPIBridgeTests` so a stuck continuation fails the test
-/// in bounded time instead of hanging the runner.
-func withBridgeTimeout<T: Sendable>(
-  seconds: Double = 5,
-  operation: @escaping @Sendable () async throws -> T
-) async throws -> T {
-  try await withThrowingTaskGroup(of: T.self) { group in
-    group.addTask { try await operation() }
-    group.addTask {
-      try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-      throw BridgeTimeoutError(seconds: seconds)
-    }
-    let result = try await group.next()!
-    group.cancelAll()
-    return result
-  }
-}

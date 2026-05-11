@@ -52,13 +52,17 @@ struct AppDelegateHandlerTests {
     // sleep. The sentinel handler is stored alongside the real handler and
     // resumes the continuation when the @MainActor Task inside drain dispatches
     // all handlers — deterministic and instant.
-    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-      Task { @MainActor in
-        await api.storeBackgroundCompletionHandler(
-          { cont.resume() },
-          forIdentifier: "com.the-oracle.capture-upload-sentinel"
-        )
-        await api.drainBackgroundCompletionHandlers()
+    // Wrapped in withBridgeTimeout so a broken drain fails fast rather than
+    // hanging the CI runner for the full budget.
+    try await withBridgeTimeout(seconds: 2) {
+      await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+        Task { @MainActor in
+          await api.storeBackgroundCompletionHandler(
+            { cont.resume() },
+            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+          )
+          await api.drainBackgroundCompletionHandlers()
+        }
       }
     }
 
@@ -80,13 +84,15 @@ struct AppDelegateHandlerTests {
       forIdentifier: "com.example.some-other-session"
     )
 
-    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-      Task { @MainActor in
-        await api.storeBackgroundCompletionHandler(
-          { cont.resume() },
-          forIdentifier: "com.the-oracle.capture-upload-sentinel"
-        )
-        await api.drainBackgroundCompletionHandlers()
+    try await withBridgeTimeout(seconds: 2) {
+      await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+        Task { @MainActor in
+          await api.storeBackgroundCompletionHandler(
+            { cont.resume() },
+            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+          )
+          await api.drainBackgroundCompletionHandlers()
+        }
       }
     }
 
@@ -115,13 +121,15 @@ struct AppDelegateHandlerTests {
     // Only one entry in the map (replaced, not appended).
     #expect(await api.backgroundHandlerCount == 1)
 
-    await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-      Task { @MainActor in
-        await api.storeBackgroundCompletionHandler(
-          { cont.resume() },
-          forIdentifier: "com.the-oracle.capture-upload-sentinel"
-        )
-        await api.drainBackgroundCompletionHandlers()
+    try await withBridgeTimeout(seconds: 2) {
+      await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+        Task { @MainActor in
+          await api.storeBackgroundCompletionHandler(
+            { cont.resume() },
+            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+          )
+          await api.drainBackgroundCompletionHandlers()
+        }
       }
     }
 
