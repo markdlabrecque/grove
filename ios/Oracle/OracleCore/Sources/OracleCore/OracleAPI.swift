@@ -357,7 +357,7 @@ public actor OracleAPI {
   /// The stored handler is called from `drainBackgroundCompletionHandlers()` after
   /// `urlSessionDidFinishEvents(forBackgroundURLSession:)` signals that all
   /// pending events have been delivered.
-  func storeBackgroundCompletionHandler(
+  public func storeBackgroundCompletionHandler(
     _ handler: @escaping @Sendable () -> Void,
     forIdentifier identifier: String
   ) {
@@ -369,7 +369,7 @@ public actor OracleAPI {
   /// Called by `UploadSessionDelegate.urlSessionDidFinishEvents(…)` via
   /// `Task { await api?.drainBackgroundCompletionHandlers() }`. Apple's docs
   /// require the handler to be called on the main thread.
-  func drainBackgroundCompletionHandlers() {
+  public func drainBackgroundCompletionHandlers() {
     let handlers = Array(backgroundCompletionHandlers.values)
     backgroundCompletionHandlers.removeAll()
     // Apple's documentation requires the completion handler to be called on
