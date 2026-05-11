@@ -71,7 +71,10 @@ final class QueryViewModel {
 
   /// The currently running ask `Task`, if any. Stored so `cancel()` can drop
   /// the in-flight URLSession request. Assigned and cleared on `@MainActor`.
-  private var activeTask: Task<Void, Never>?
+  ///
+  /// `internal` (not `private`) so `@testable` imports can assert it is `nil`
+  /// after `ask()` completes — locking the regression introduced in #100.
+  var activeTask: Task<Void, Never>?
 
   /// The last successfully returned results. Preserved across loading cycles
   /// so that when a new request is cancelled, the prior results are restored

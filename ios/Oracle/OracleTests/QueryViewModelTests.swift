@@ -222,4 +222,77 @@ struct QueryViewModelTests {
     #expect(vm.errorMessage.contains("internal server error"))
     #expect(vm.isLoading == false)
   }
+
+  // MARK: - activeTask regression (#100 / #112)
+
+  /// After a successful query completes, `activeTask` must be `nil`.
+  ///
+  /// Regression lock for #100: `performQuery` was not clearing the handle on
+  /// the success path, leaving a stale `Task` reference until the next call to
+  /// `ask()` or `cancel()`.
+  @Test("activeTask is nil after ask() completes successfully")
+  func activeTaskIsNilAfterSuccess() async throws {
+    let vm = QueryViewModel { _ in
+      self.makeResponse(results: self.makeResults())
+    }
+
+    vm.query = "test query"
+    vm.ask()
+
+    // Give the fast provider time to complete.
+    try await Task.sleep(nanoseconds: 50_000_000)  // 50 ms
+
+    #expect(vm.activeTask == nil)
+  }
+
+  /// After a real (non-cancellation) error, `activeTask` must be `nil`.
+  ///
+  /// Regression lock for #100: the error path must also clear the handle so
+  /// the next `ask()` call does not operate on a stale task reference.
+  @Test("activeTask is nil after ask() completes with a real error")
+  func activeTaskIsNilAfterError() async throws {
+    let vm = QueryViewModel { _ in
+      throw APIError.httpError(statusCode: 503, detail: "service unavailable")
+    }
+
+    vm.query = "test query"
+    vm.ask()
+
+    // Give the provider time to throw and the catch block to run.
+    try await Task.sleep(nanoseconds: 50_000_000)  // 50 ms
+
+    #expect(vm.activeTask == nil)
+  }
+
+  /// After `cancel()` is called, `activeTask` must be `nil`.
+  ///
+  /// The existing cancel-in-flight suite verifies spinner/results state but
+  /// does not directly assert the handle is cleared. This test locks that
+  /// contract explicitly (regression companion to `activeTaskIsNilAfterSuccess`
+  /// and `activeTaskIsNilAfterError`).
+  @Test("activeTask is nil after cancel()")
+  func activeTaskIsNilAfterCancel() async throws {
+    let started = AsyncStream<Void>.makeStream()
+
+    let vm = QueryViewModel { _ in
+      started.continuation.yield(())
+      // Block until cancelled.
+      try await Task.sleep(nanoseconds: 999_000_000_000)
+      return self.makeResponse()
+    }
+
+    vm.query = "slow query"
+    vm.ask()
+
+    // Wait until the provider has started so we know activeTask is set.
+    var iter = started.stream.makeAsyncIterator()
+    _ = await iter.next()
+
+    // activeTask must be non-nil while in flight.
+    #expect(vm.activeTask != nil)
+
+    // Cancel clears the handle synchronously.
+    vm.cancel()
+    #expect(vm.activeTask == nil)
+  }
 }
