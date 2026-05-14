@@ -528,7 +528,9 @@ async def test_query_log_inserted_with_result_count_and_memory_ids(
         assert log_row.result_count == result_count
         assert memory_id in (log_row.returned_memory_ids or [])
         assert log_row.query_text == "log test query"
-        assert log_row.tables_searched == ["memories", "memory_chunks"]
+        # tables_searched is now a JSONB dict (migrated from ARRAY in #175).
+        assert isinstance(log_row.tables_searched, dict)
+        assert log_row.tables_searched.get("vector") is True
         # Synthesis fields are NULL in this phase.
         assert log_row.synthesis_model is None
         assert log_row.synthesis_input_tokens is None

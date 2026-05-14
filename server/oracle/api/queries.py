@@ -1,11 +1,19 @@
-"""POST /v1/queries — vector search over memories with LLM synthesis.
+"""POST /v1/queries — hybrid retrieval over memories with LLM synthesis.
 
-Embeds the query, runs cosine similarity over memories and memory_chunks,
-merges results by memory_id keeping the best score, then calls OpenRouter to
-compose a natural-language answer with inline [#memory_id] citations.
+Flow:
+  1. Embed the query via OpenAI text-embedding-3-small.
+  2. Run cosine similarity over memories and memory_chunks (vector path).
+  3. Classify query intent via a cheap OpenRouter call (intent router).
+  4. For each non-general intent, run a structured query against the matching
+     specialised table (decisions / people_interactions / tasks / appointments).
+     Empty tables are skipped efficiently via an EXISTS check.
+  5. Merge vector and specialised hits, dedup by memory_id keeping highest score.
+     Specialised hits receive a small score boost (intent_match_score_boost).
+  6. Synthesise a natural-language answer with inline [#memory_id] citations.
 
-Synthesis failure is handled gracefully: the endpoint returns answer=null
-and the ranked sources so the iOS client can still render results.
+Both synthesis and intent-router failures degrade gracefully:
+  - Intent router failure → falls through to vector-only results.
+  - Synthesis failure → returns answer=null with ranked sources.
 """
 
 from __future__ import annotations
@@ -69,7 +77,7 @@ class SourceItem(BaseModel):
     memory_id: uuid.UUID
     excerpt: str
     score: float
-    matched_via: Literal["whole", "chunk"]
+    matched_via: Literal["whole", "chunk", "specialised"]
     matched_chunk_index: int | None
 
 
@@ -209,7 +217,15 @@ def _merge_hits(
 # Query log helpers (best-effort — failures must not surface to the caller)
 # ---------------------------------------------------------------------------
 
-_TABLES_SEARCHED = ["memories", "memory_chunks"]
+# Initial tables_searched placeholder written before the search starts.
+# The update call replaces this with the actual per-table outcomes.
+_TABLES_SEARCHED_INITIAL: dict = {
+    "vector": True,
+    "decisions": "skipped",
+    "people_interactions": "skipped",
+    "tasks": "skipped",
+    "appointments": "skipped",
+}
 
 
 async def _insert_query_log(
@@ -226,7 +242,7 @@ async def _insert_query_log(
                     id=log_id,
                     query_text=query_text,
                     query_embedding=query_embedding,
-                    tables_searched=_TABLES_SEARCHED,
+                    tables_searched=_TABLES_SEARCHED_INITIAL,
                     # result_count is NOT NULL — use 0 as a placeholder until the
                     # update call fills in the real value after search completes.
                     result_count=0,
@@ -244,6 +260,7 @@ async def _update_query_log(
     log_id: uuid.UUID,
     result_count: int,
     returned_memory_ids: list[uuid.UUID],
+    tables_searched: dict,
 ) -> None:
     """Update the query_log row with post-search result data. Best-effort."""
     try:
@@ -252,6 +269,7 @@ async def _update_query_log(
             if row is not None:
                 row.result_count = result_count
                 row.returned_memory_ids = returned_memory_ids
+                row.tables_searched = tables_searched
                 await log_session.commit()
     except Exception as exc:
         logger.warning("query_log_update_failed", query_log_id=str(log_id), error=str(exc))
@@ -279,6 +297,28 @@ async def _stamp_synthesis(
         logger.warning("synthesis_log_stamp_failed", query_log_id=str(log_id), error=str(exc))
 
 
+async def _stamp_intent_router(
+    session_factory: async_sessionmaker[AsyncSession],
+    log_id: uuid.UUID,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cost_usd: float | None,
+) -> None:
+    """Stamp intent-router telemetry onto the query_log row. Best-effort."""
+    try:
+        async with session_factory() as log_session:
+            row = await log_session.get(QueryLog, log_id)
+            if row is not None:
+                row.intent_router_model = model
+                row.intent_router_input_tokens = input_tokens
+                row.intent_router_output_tokens = output_tokens
+                row.intent_router_cost = Decimal(str(cost_usd)) if cost_usd is not None else None
+                await log_session.commit()
+    except Exception as exc:
+        logger.warning("intent_router_log_stamp_failed", query_log_id=str(log_id), error=str(exc))
+
+
 # ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
@@ -295,6 +335,11 @@ async def post_query(
     log_factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_log_session_factory)],
 ) -> QueryResponse:
     from oracle.core.config import settings
+    from oracle.retrieval.intent_router import (
+        classify_intent,
+        merge_with_specialised,
+        run_specialised_queries,
+    )
     from oracle.retrieval.synthesizer import synthesize
 
     total_start = time.monotonic()
@@ -324,7 +369,87 @@ async def post_query(
     chunk_hits = await _search_chunks(session, query_vec, body.limit)
     search_latency_ms = (time.monotonic() - search_start) * 1000
 
-    sources, truncated = _merge_hits(whole_hits, chunk_hits, body.limit, body.min_similarity)
+    # ---------------------------------------------------------------------------
+    # Intent router — classify query intent and run specialised-table retrieval.
+    # On failure: degrade gracefully to vector-only results.
+    # ---------------------------------------------------------------------------
+    api_key = settings.openrouter_api_key.get_secret_value() if settings.openrouter_api_key else ""
+
+    # tables_searched records the per-table outcome for every query.
+    tables_searched: dict = {"vector": True}
+    all_hits = whole_hits + chunk_hits
+
+    if api_key:
+        try:
+            intent_result = await classify_intent(
+                body.query,
+                api_key=api_key,
+                model=settings.intent_router_model,
+            )
+            if log_id is not None:
+                await _stamp_intent_router(
+                    log_factory,
+                    log_id,
+                    model=intent_result.model,
+                    input_tokens=intent_result.prompt_tokens,
+                    output_tokens=intent_result.completion_tokens,
+                    cost_usd=intent_result.cost_usd,
+                )
+
+            specialised = await run_specialised_queries(session, intent_result.intents, body.query)
+            tables_searched.update(specialised.tables_searched)
+
+            if specialised.hits:
+                all_hits = merge_with_specialised(
+                    all_hits,
+                    specialised.hits,
+                    settings.intent_match_score_boost,
+                )
+            else:
+                # No specialised hits — still record the per-table outcomes.
+                # all_hits stays as the pure vector result.
+                pass
+
+        except Exception as exc:
+            # Intent router failure is non-fatal — degrade to vector-only.
+            logger.warning(
+                "intent_router_failed",
+                query_log_id=str(log_id) if log_id else None,
+                error=str(exc),
+            )
+            # Ensure tables_searched is still populated even on failure.
+            for tbl in ("decisions", "people_interactions", "tasks", "appointments"):
+                tables_searched.setdefault(tbl, "skipped")
+    else:
+        logger.warning("intent_router_skipped_no_api_key")
+        for tbl in ("decisions", "people_interactions", "tasks", "appointments"):
+            tables_searched[tbl] = "skipped"
+
+    # Load content for specialised-only hits that have no snippet from vector search.
+    # These are memories that appeared only via the specialised-table path.
+    specialised_only_ids = [
+        h["memory_id"]
+        for h in all_hits
+        if h.get("matched_via") == "specialised" and not h.get("snippet")
+    ]
+    if specialised_only_ids:
+        content_rows = await session.execute(
+            select(Memory.id, Memory.content, Memory.captured_at, Memory.source_modality).where(
+                Memory.id.in_(specialised_only_ids)
+            )
+        )
+        content_map = {row.id: row for row in content_rows}
+        all_hits = [
+            {
+                **h,
+                "snippet": _snippet(content_map[h["memory_id"]].content)
+                if h.get("matched_via") == "specialised" and h["memory_id"] in content_map
+                else h.get("snippet", ""),
+            }
+            for h in all_hits
+        ]
+
+    sources, truncated = _merge_hits(all_hits, [], body.limit, body.min_similarity)
 
     # Update the query log with result data (best-effort).
     if log_id is not None:
@@ -333,6 +458,7 @@ async def post_query(
             log_id,
             result_count=len(sources),
             returned_memory_ids=[s.memory_id for s in sources],
+            tables_searched=tables_searched,
         )
 
     # ---------------------------------------------------------------------------
@@ -340,7 +466,6 @@ async def post_query(
     # On failure: degrade gracefully to answer=None, keep sources populated.
     # ---------------------------------------------------------------------------
     answer: str | None = None
-    api_key = settings.openrouter_api_key.get_secret_value() if settings.openrouter_api_key else ""
 
     if sources and api_key:
         try:
@@ -384,6 +509,7 @@ async def post_query(
         min_similarity=body.min_similarity,
         query_log_id=str(log_id) if log_id else None,
         synthesis_answer_present=answer is not None,
+        intents=tables_searched,
     )
 
     return QueryResponse(

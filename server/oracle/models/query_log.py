@@ -5,7 +5,7 @@ from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, Text
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TIMESTAMP
 
@@ -21,7 +21,9 @@ class QueryLog(Base):
     )
     query_text: Mapped[str] = mapped_column(Text, nullable=False)
     query_embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
-    tables_searched: Mapped[list[str]] = mapped_column(ARRAY(Text), nullable=False)
+    # Structured JSON recording which tables participated in the query and the outcome
+    # per table: {"vector": true, "decisions": "matched"|"empty"|"skipped", ...}
+    tables_searched: Mapped[dict] = mapped_column(JSONB, nullable=False)
     result_count: Mapped[int] = mapped_column(Integer, nullable=False)
     # No FK constraint on returned_memory_ids — query logs survive memory
     # deletion by design (PRD §6.6). UUIDs may reference deleted memories.
@@ -30,6 +32,10 @@ class QueryLog(Base):
     synthesis_input_tokens: Mapped[int | None] = mapped_column(Integer)
     synthesis_output_tokens: Mapped[int | None] = mapped_column(Integer)
     synthesis_cost: Mapped[float | None] = mapped_column(Numeric(precision=12, scale=8))
+    intent_router_model: Mapped[str | None] = mapped_column(Text)
+    intent_router_input_tokens: Mapped[int | None] = mapped_column(Integer)
+    intent_router_output_tokens: Mapped[int | None] = mapped_column(Integer)
+    intent_router_cost: Mapped[float | None] = mapped_column(Numeric(precision=12, scale=8))
     user_feedback: Mapped[str | None] = mapped_column(Text)
     feedback_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     is_refinement: Mapped[bool | None] = mapped_column(Boolean, server_default="false")
