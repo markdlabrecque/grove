@@ -90,43 +90,50 @@ async def run(
         session.add(state)
         await session.commit()
 
-    # --- Fetch batch (held open so the locks persist across the batch loop) ---
+    # --- Fetch batch ---
     processed = 0
     errors = 0
 
     async with factory() as batch_session:
         memories = await _fetch_batch(batch_session, batch_size)
-        log.info("enrichment_run.batch_fetched", count=len(memories))
+        memory_ids = [m.id for m in memories]
+        # Release FOR UPDATE locks immediately. The purpose of SKIP LOCKED is to
+        # prevent a *concurrent* worker from claiming the same rows during the
+        # fetch. Once we hold the IDs we own, we don't need the locks — the rapid
+        # enriched=True write per memory prevents re-claim on the next run.
+        await batch_session.commit()
 
-        for memory in memories:
-            memory_log = log.bind(memory_id=str(memory.id))
+    log.info("enrichment_run.batch_fetched", count=len(memory_ids))
 
-            # Each memory gets its own nested session so a failure is isolated.
-            async with factory() as mem_session:
-                try:
-                    classify_and_write(memory)
+    for memory_id in memory_ids:
+        memory_log = log.bind(memory_id=str(memory_id))
+
+        # Each memory gets its own session so a failure is isolated.
+        async with factory() as mem_session:
+            try:
+                mem = await mem_session.get(Memory, memory_id)
+                if mem is not None:
+                    classify_and_write(mem)
 
                     # Mark memory enriched on success.
-                    mem = await mem_session.get(Memory, memory.id)
+                    mem.enriched = True
+                    mem.enriched_at = datetime.now(tz=UTC)
+                    mem.enriched_version = PIPELINE_VERSION
+                    mem.enrichment_error = None
+                await mem_session.commit()
+                processed += 1
+                memory_log.info("enrichment_run.memory.ok")
+            except Exception as exc:
+                await mem_session.rollback()
+                # Surface the error on the memory row so the next run retries.
+                async with factory() as err_session:
+                    mem = await err_session.get(Memory, memory_id)
                     if mem is not None:
-                        mem.enriched = True
-                        mem.enriched_at = datetime.now(tz=UTC)
-                        mem.enriched_version = PIPELINE_VERSION
-                        mem.enrichment_error = None
-                    await mem_session.commit()
-                    processed += 1
-                    memory_log.info("enrichment_run.memory.ok")
-                except Exception as exc:
-                    await mem_session.rollback()
-                    # Surface the error on the memory row so the next run retries.
-                    async with factory() as err_session:
-                        mem = await err_session.get(Memory, memory.id)
-                        if mem is not None:
-                            mem.enrichment_error = str(exc)
-                        await err_session.commit()
-                    errors += 1
-                    processed += 1
-                    memory_log.warning("enrichment_run.memory.error", error=str(exc))
+                        mem.enrichment_error = str(exc)
+                    await err_session.commit()
+                errors += 1
+                processed += 1
+                memory_log.warning("enrichment_run.memory.error", error=str(exc))
 
     # --- Update enrichment_state row with completion ---
     finished_at = datetime.now(tz=UTC)
