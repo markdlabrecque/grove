@@ -336,8 +336,8 @@ struct UploadQueueTests {
     // Arm the save counter for the 10th (cap-hit) drain only.
     final class Counter: @unchecked Sendable { var value = 0 }
     let saveCounter = Counter()
-    await queue.setOnModelContextSave { saveCounter.value += 1 }
-    defer { Task { await queue.setOnModelContextSave(nil) } }
+    await queue.setTestHooks(UploadQueueTestHooks(onModelContextSave: { saveCounter.value += 1 }))
+    defer { Task { await queue.setTestHooks(nil) } }
 
     // 10th drain — hits the cap, row is deleted.
     await queue.tryDrain()
