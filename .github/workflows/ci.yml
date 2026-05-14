@@ -131,7 +131,19 @@ jobs:
 
       - name: Run tests
         if: needs.changes.outputs.server == 'true'
-        run: pytest server/tests/
+        run: |
+          pytest server/tests/ \
+            --cov=oracle \
+            --cov-report=term \
+            --cov-report=xml:coverage-server.xml
+
+      - name: Upload server coverage report
+        if: needs.changes.outputs.server == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-server
+          path: coverage-server.xml
+          retention-days: 14
 
   migrations:
     name: Migrations
