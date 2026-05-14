@@ -58,12 +58,22 @@ If a label doesn't exist yet, the agent that needs it creates it via
 
 For every ticket that requires implementation work:
 
-1. **Triage in the orchestrator session.** Confirm the ticket is
-   well-formed. Pick the right specialist (Margot or Kai). Margot
-   handles `server/`-only and ops-adjacent Python work; Kai handles
-   `ios/`-only work. Cross-cutting tickets that touch both halves are
-   split into two tickets and worked sequentially, server first by
-   default so the iOS side can integrate against a real endpoint.
+1. **Triage in the orchestrator session.**
+   - **Pre-flight check (required before touching any ticket).**
+     Confirm the working copy is on `develop`, fast-forwarded to the
+     latest merge (`git pull --ff-only origin develop`), and clean
+     (`git status --short` is empty). If a previous ticket's PR is
+     open, in CI, under review, or merged-by-Theo-but-not-yet-pulled
+     locally, the previous ticket completes first — see the
+     Concurrency section for the strict pipeline rule. The only
+     exception is a dependency-resolution ticket whose sole purpose is
+     to unblock a parked PR.
+   - Confirm the ticket is well-formed. Pick the right specialist
+     (Margot or Kai). Margot handles `server/`-only and ops-adjacent
+     Python work; Kai handles `ios/`-only work. Cross-cutting tickets
+     that touch both halves are split into two tickets and worked
+     sequentially, server first by default so the iOS side can
+     integrate against a real endpoint.
 
 2. **Specialist picks up the ticket.**
    - Reads the issue: `gh issue view <N>`.
@@ -99,7 +109,16 @@ For every ticket that requires implementation work:
    - Commits in the project's conventional-commit style, ticket
      number leading: `#42 feat: add capture endpoint`. Group commits
      by concern.
-   - Pushes the branch: `git push -u origin <branch>`.
+   - **Pushes the branch and verifies the push landed.** Run
+     `git push -u origin <branch>` (or `git push --force-with-lease`
+     after a rebase) and **read the full output** — do not pipe through
+     `tail`, `head`, or otherwise truncate it, since a failure line
+     can sit anywhere in the output. If the result is ambiguous, run
+     `git ls-remote origin <branch>` and confirm the SHA matches local
+     `HEAD`. The remote tip must equal the implementer's last commit
+     before the handoff is safe. This rule exists because an
+     unverified push was a likely cause of the #131 squash-loss
+     regression.
    - Opens a PR into `develop`: `gh pr create --base develop`. The PR
      body includes `Closes #42` so GitHub auto-closes on merge.
    - Hands off to Theo and stops touching the branch.
@@ -171,9 +190,33 @@ intervene at any step.
 ## Concurrency
 
 Agents work **in serial on a single working copy** — no worktrees, no
-parallel branches. Whichever agent currently holds the ticket has
-exclusive control over the repo state. The orchestrator enforces this
-by not invoking another agent until the current one returns.
+parallel branches.
+
+The serial discipline applies to two things, not just one:
+
+1. **Working-copy access.** Whichever agent currently holds the ticket
+   has exclusive control over the repo state. The orchestrator enforces
+   this by not invoking another agent until the current one returns.
+
+2. **Ticket pipeline.** A ticket is *in flight* from `git checkout -b`
+   through Theo's merge commit on `develop` and the post-merge reset to
+   a clean working copy. The orchestrator must not dispatch a new
+   ticket — to any agent, in any background, foreground or otherwise —
+   while another ticket is in flight. The pipeline is strict:
+
+   `implement → push (verified) → PR → CI → review → merge → reset to clean develop → next ticket`
+
+   This rule exists because skipping it once already cost the team a
+   regression: a fix commit was lost in a squash merge (see #131 — the
+   originating ticket whose squash dropped the fix), which then took
+   follow-up tickets #135 and #137 to clean up.
+
+**Dependency-resolution exception.** A ticket whose sole purpose is to
+unblock a parked PR (e.g., #137 unblocking #136) is *not* parallel
+work — it is the next step in a strictly sequential dependency chain.
+Pick it up as the new "current ticket," let the original PR sit, and
+return to the original PR only after the unblocker has merged and the
+working copy is back on a clean `develop`.
 
 ## Branch and commit conventions
 
