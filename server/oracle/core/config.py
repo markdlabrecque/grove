@@ -1,5 +1,16 @@
-from pydantic import SecretStr
+from pydantic import BaseModel, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class RefinementConfig(BaseModel):
+    """Thresholds for query-refinement detection (§3.8).
+
+    Both values are kept here so they can be tuned via settings without
+    touching query-handling code.
+    """
+
+    window_minutes: int = 5
+    similarity_threshold: float = 0.85
 
 
 class Settings(BaseSettings):
@@ -21,6 +32,8 @@ class Settings(BaseSettings):
     intent_router_model: str = "openai/gpt-4o-mini"
     # Score boost applied to specialised-table hits before merging with vector results.
     intent_match_score_boost: float = 0.05
+    # Refinement-detection thresholds — tunable without code changes.
+    refinement: RefinementConfig = RefinementConfig()
 
 
 settings = Settings()  # type: ignore[call-arg]

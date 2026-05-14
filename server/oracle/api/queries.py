@@ -232,6 +232,8 @@ async def _insert_query_log(
     session_factory: async_sessionmaker[AsyncSession],
     query_text: str,
     query_embedding: list[float],
+    is_refinement: bool = False,
+    parent_query_id: uuid.UUID | None = None,
 ) -> uuid.UUID | None:
     """Insert a query_log row before the search. Returns the new row id or None on failure."""
     log_id = uuid.uuid4()
@@ -246,6 +248,8 @@ async def _insert_query_log(
                     # result_count is NOT NULL — use 0 as a placeholder until the
                     # update call fills in the real value after search completes.
                     result_count=0,
+                    is_refinement=is_refinement,
+                    parent_query_id=parent_query_id,
                 )
             )
             await log_session.commit()
@@ -357,8 +361,22 @@ async def post_query(
     embedding_latency_ms = (time.monotonic() - embed_start) * 1000
     query_vec: list[float] = vectors[0]
 
+    # Detect whether this query refines a recent prior query (best-effort, pre-search).
+    # Runs before synthesis/intent-router so it does not add to user-facing latency.
+    from oracle.retrieval.refinement import detect_refinement
+
+    refinement_result = await detect_refinement(log_factory, query_vec)
+    is_refinement = refinement_result is not None
+    parent_query_id: uuid.UUID | None = refinement_result[1] if refinement_result else None
+
     # Insert the query log row before the search (best-effort).
-    log_id = await _insert_query_log(log_factory, body.query, query_vec)
+    log_id = await _insert_query_log(
+        log_factory,
+        body.query,
+        query_vec,
+        is_refinement=is_refinement,
+        parent_query_id=parent_query_id,
+    )
 
     # Run whole-memory and chunk searches sequentially on the shared session.
     # asyncio.gather over the same SQLAlchemy AsyncSession is unsafe — the
