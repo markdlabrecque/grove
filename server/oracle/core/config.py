@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
     log_level: str = "INFO"
+    # Separate enrichment_model from any intent-router model so each can be
+    # tuned independently without coupling the two call-sites.
+    enrichment_model: str = "openai/gpt-4o-mini"
 
 
 settings = Settings()  # type: ignore[call-arg]
