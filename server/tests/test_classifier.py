@@ -27,7 +27,6 @@ from oracle.enrichment.classifier import (
 from oracle.enrichment.schemas import (
     Classification,
     PromptBundle,
-    TypeDefinition,
     load_classification_prompts,
 )
 
