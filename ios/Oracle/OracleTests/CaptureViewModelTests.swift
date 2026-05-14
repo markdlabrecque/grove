@@ -98,12 +98,20 @@ struct CaptureViewModelTests {
 
     // Wire up the drain-completion callback before triggering save so the
     // continuation is in place when the fire-and-forget drain task fires.
+    // `ContinuationHolder` bridges the async setTestHooks call (which must
+    // complete before save() fires) with the CheckedContinuation that is only
+    // created inside the synchronous withCheckedThrowingContinuation body.
+    final class ContinuationHolder: @unchecked Sendable {
+      var continuation: CheckedContinuation<Void, Error>?
+    }
+    let holder = ContinuationHolder()
+    await queue.setTestHooks(UploadQueueTestHooks(onDrainRowComplete: { result in
+      Task { await queue.setTestHooks(nil) }
+      holder.continuation?.resume(with: result)
+    }))
     try await withBridgeTimeout(seconds: 5) {
       try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-        queue.testHooks = UploadQueueTestHooks(onDrainRowComplete: { result in
-          queue.testHooks = nil
-          continuation.resume(with: result)
-        })
+        holder.continuation = continuation
 
         Task { @MainActor in
           vm.content = "Hello from the test"
