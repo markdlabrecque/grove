@@ -2,6 +2,27 @@ import Foundation
 import SwiftData
 import OracleCore
 
+// MARK: - UploadQueueTestHooks
+
+/// Test-only callbacks for observing internal `UploadQueue` events.
+///
+/// Production code never populates this struct. Tests assign an instance to
+/// `UploadQueue.testHooks` before triggering any actor work. All hooks are
+/// read exclusively from within the actor's serial executor (`drainRow`), and
+/// tests never mutate `testHooks` concurrently — the `nonisolated(unsafe)`
+/// annotation on the containing property is therefore safe.
+internal struct UploadQueueTestHooks {
+  /// Called once per row after every drain-row completion path (success,
+  /// transient failure, permanent failure, retry-cap eviction, decode error).
+  /// Inject to synchronise on drain completion without `Task.sleep`.
+  var onDrainRowComplete: ((Result<Void, Error>) -> Void)?
+
+  /// Called each time `modelContext.save()` is invoked inside `drainRow`.
+  /// Inject a counter closure to assert that `drainRow` performs exactly one
+  /// SwiftData write per call, even on the retry-cap eviction path.
+  var onModelContextSave: (() -> Void)?
+}
+
 // MARK: - UploadQueue
 
 /// A `@ModelActor` that provides a durable, offline-safe queue for capture uploads.
@@ -85,27 +106,18 @@ public actor UploadQueue {
 
   // MARK: - Test hooks
 
-  /// Called once per row after every drain-row completion path (success,
-  /// transient failure, permanent failure, retry-cap eviction, decode error).
+  /// Callbacks injected by tests to observe internal `drainRow` events.
   ///
-  /// Production code never sets this. Tests inject it to synchronise on drain
-  /// completion without `Task.sleep`. Declared `internal` so `@testable import`
-  /// can reach it; the `nonisolated(unsafe)` annotation is safe because the
-  /// property is written by the test before the drain Task starts and read only
-  /// within the actor-isolated `drainRow` — no concurrent writes occur.
-  nonisolated(unsafe) var onDrainRowComplete: ((Result<Void, Error>) -> Void)?
+  /// Production code never sets `testHooks`. Tests assign a populated struct
+  /// before triggering any actor work and never mutate it concurrently —
+  /// the actor reads the hooks only from within its serial executor, so the
+  /// `nonisolated(unsafe)` annotation is safe here.
+  nonisolated(unsafe) var testHooks: UploadQueueTestHooks?
 
-  /// Called each time `modelContext.save()` is invoked inside `drainRow`.
-  ///
-  /// Production code never sets this. Tests can inject a counter closure to
-  /// assert that `drainRow` performs exactly one SwiftData write per call,
-  /// even on the retry-cap eviction path.
-  nonisolated(unsafe) var onModelContextSave: (() -> Void)?
-
-  /// Actor-isolated setter for `onModelContextSave`, for use from async test
-  /// contexts where direct property assignment is not available.
-  func setOnModelContextSave(_ handler: (() -> Void)?) {
-    onModelContextSave = handler
+  /// Actor-isolated setter for `testHooks`, for use from async test contexts
+  /// where direct property assignment is not available.
+  func setTestHooks(_ hooks: UploadQueueTestHooks?) {
+    testHooks = hooks
   }
 
   // MARK: - Init
@@ -210,8 +222,8 @@ public actor UploadQueue {
       print("[UploadQueue] WARN permanent failure (decode error) clientID=\(row.clientID) error=\(description) — deleting")
       modelContext.delete(row)
       try? modelContext.save()
-      onModelContextSave?()
-      onDrainRowComplete?(.failure(error))
+      testHooks?.onModelContextSave?()
+      testHooks?.onDrainRowComplete?(.failure(error))
       return
     }
 
@@ -229,9 +241,9 @@ public actor UploadQueue {
       // Success — delete eagerly in this actor turn before yielding.
       modelContext.delete(row)
       try modelContext.save()
-      onModelContextSave?()
+      testHooks?.onModelContextSave?()
       print("[UploadQueue] drained clientID=\(row.clientID)")
-      onDrainRowComplete?(.success(()))
+      testHooks?.onDrainRowComplete?(.success(()))
     } catch {
       // Distinguish permanent (4xx) from transient (5xx / network) failures.
       if isPermanentFailure(error) {
@@ -240,8 +252,8 @@ public actor UploadQueue {
         print("[UploadQueue] WARN permanent failure (4xx) clientID=\(row.clientID) error=\(description) — deleting")
         modelContext.delete(row)
         try? modelContext.save()
-        onModelContextSave?()
-        onDrainRowComplete?(.failure(error))
+        testHooks?.onModelContextSave?()
+        testHooks?.onDrainRowComplete?(.failure(error))
       } else {
         // Transient failure — check cap before deciding whether to bump+keep or delete.
         // Truncate to 256 chars to avoid unbounded growth.
@@ -255,16 +267,16 @@ public actor UploadQueue {
           print("[UploadQueue] WARN retry cap reached clientID=\(row.clientID) attempt=\(prospectiveCount) lastError=\(description) — deleting")
           modelContext.delete(row)
           try? modelContext.save()
-          onModelContextSave?()
-          onDrainRowComplete?(.failure(error))
+          testHooks?.onModelContextSave?()
+          testHooks?.onDrainRowComplete?(.failure(error))
         } else {
           // Below cap — bump attemptCount, persist, and leave the row for the next drain.
           row.attemptCount = prospectiveCount
           row.lastError = description
           try? modelContext.save()
-          onModelContextSave?()
+          testHooks?.onModelContextSave?()
           print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(row.attemptCount) error=\(description)")
-          onDrainRowComplete?(.failure(error))
+          testHooks?.onDrainRowComplete?(.failure(error))
         }
       }
     }

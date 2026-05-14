@@ -100,10 +100,10 @@ struct CaptureViewModelTests {
     // continuation is in place when the fire-and-forget drain task fires.
     try await withBridgeTimeout(seconds: 5) {
       try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-        queue.onDrainRowComplete = { result in
-          queue.onDrainRowComplete = nil
+        queue.testHooks = UploadQueueTestHooks(onDrainRowComplete: { result in
+          queue.testHooks = nil
           continuation.resume(with: result)
-        }
+        })
 
         Task { @MainActor in
           vm.content = "Hello from the test"
