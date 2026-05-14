@@ -9,13 +9,15 @@ import Observation
 /// # Design: `@Observable` class, not an actor
 ///
 /// `NetworkMonitor` is `@Observable` so that SwiftUI views can bind to
-/// `isReachable` without a separate published-property wrapper. All mutable
-/// state (`isReachable`, `wasReachable`) is read/written exclusively on
-/// `monitorQueue` — the same `DispatchQueue` supplied to
-/// `NWPathMonitor.start(queue:)`. This single-queue rule provides the
-/// concurrency safety that an actor would otherwise give us; there is no
-/// concurrent access because `NWPathMonitor` serialises its callbacks on that
-/// queue.
+/// `isReachable` without a separate published-property wrapper. Mutable state
+/// is split across two execution contexts:
+///
+///  - `wasReachable` is read and written exclusively on `monitorQueue` (the
+///    same `DispatchQueue` supplied to `NWPathMonitor.start(queue:)`). Its
+///    single-queue rule provides actor-like safety for edge detection.
+///  - `isReachable` is always written on the main actor via
+///    `Task { @MainActor in … }`, so SwiftUI bindings never race with a
+///    background-queue mutation.
 ///
 /// # Launch-drain strategy: eager launch drain, no first-edge suppression
 ///
@@ -46,10 +48,15 @@ import Observation
 /// # Concurrency safety
 ///
 /// `monitorQueue` is a private serial `DispatchQueue`. `NWPathMonitor`'s
-/// `pathUpdateHandler` and all reads/writes to `isReachable` and `wasReachable`
-/// run on that queue. The `@Observable` machinery posts main-actor notifications
-/// from within the setter; this is safe because `@Observable` is designed for
-/// cross-queue property updates.
+/// `pathUpdateHandler` and all reads/writes to `wasReachable` run exclusively
+/// on that queue. `isReachable` — the `@Observable` property observed by
+/// SwiftUI — is written on the main actor via `Task { @MainActor in … }` so
+/// that there is no data race between the background monitor queue and the
+/// main-actor SwiftUI render loop. `@Observable`'s unfair-lock registrar
+/// protects change-notification bookkeeping, but does not protect the stored
+/// property itself from concurrent mutation; the explicit main-actor hop
+/// eliminates that risk and is forward-compatible with Swift 6 strict
+/// concurrency mode.
 ///
 /// # Test seam
 ///
@@ -66,8 +73,10 @@ final class NetworkMonitor {
 
   /// `true` when the most recently observed network path was `.satisfied`.
   ///
-  /// Updated on `monitorQueue`; observed by SwiftUI on the main actor.
-  /// `@Observable` handles the cross-queue notification internally.
+  /// Always written on the main actor (via `Task { @MainActor in … }` inside
+  /// `pathDidUpdate`). SwiftUI bindings observe this property on the main
+  /// actor, so keeping mutations there eliminates the data race that would
+  /// otherwise exist between `monitorQueue` writes and main-actor reads.
   private(set) var isReachable: Bool = false
 
   // MARK: - Private state
@@ -183,10 +192,17 @@ final class NetworkMonitor {
     let nowReachable = (status == .satisfied)
     let wasAlreadyReachable = wasReachable
 
-    // Update observable state (triggers SwiftUI refresh on main actor via
-    // @Observable's automatic main-actor coalescing).
-    isReachable = nowReachable
+    // `wasReachable` stays on monitorQueue — it is only ever touched inside
+    // this method, which NWPathMonitor calls serially on that queue.
     wasReachable = nowReachable
+
+    // Hop to the main actor for the @Observable property that SwiftUI reads.
+    // @Observable's unfair-lock registrar protects change-notification
+    // bookkeeping, but does NOT protect the stored property from concurrent
+    // mutation; an explicit main-actor write eliminates that race.
+    Task { @MainActor [weak self] in
+      self?.isReachable = nowReachable
+    }
 
     // Rising-edge gate: only drain on unsatisfied → satisfied.
     guard nowReachable && !wasAlreadyReachable else { return }
