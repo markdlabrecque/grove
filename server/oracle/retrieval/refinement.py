@@ -15,7 +15,10 @@ import uuid
 
 import structlog
 from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from oracle.core.config import RefinementConfig, settings
 
 logger = structlog.get_logger()
 
@@ -23,7 +26,7 @@ logger = structlog.get_logger()
 async def detect_refinement(
     session_factory: async_sessionmaker[AsyncSession],
     new_embedding: list[float],
-    config: object | None = None,
+    config: RefinementConfig | None = None,
 ) -> tuple[bool, uuid.UUID] | None:
     """Return (True, prior_id) when the new query is a refinement, else None.
 
@@ -37,8 +40,6 @@ async def detect_refinement(
         config: Optional RefinementConfig override (used in tests). When None,
                 the value from oracle.core.config.settings.refinement is used.
     """
-    from oracle.core.config import RefinementConfig, settings
-
     cfg: RefinementConfig = config if config is not None else settings.refinement
 
     try:
@@ -78,7 +79,7 @@ async def detect_refinement(
 
             return None
 
-    except Exception as exc:
+    except SQLAlchemyError as exc:
         # Detection failure must not surface to the caller — it's telemetry only.
-        logger.warning("refinement_detection_failed", error=str(exc))
+        logger.warning("refinement_detection_failed", error=repr(exc))
         return None
