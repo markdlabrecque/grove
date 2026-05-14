@@ -207,8 +207,9 @@ The serial discipline applies to two things, not just one:
    `implement → push (verified) → PR → CI → review → merge → reset to clean develop → next ticket`
 
    This rule exists because skipping it once already cost the team a
-   regression that took three follow-up tickets to clean up (see #131 /
-   #135 / #137).
+   regression: a fix commit was lost in a squash merge (see #131 — the
+   originating ticket whose squash dropped the fix), which then took
+   follow-up tickets #135 and #137 to clean up.
 
 **Dependency-resolution exception.** A ticket whose sole purpose is to
 unblock a parked PR (e.g., #137 unblocking #136) is *not* parallel
