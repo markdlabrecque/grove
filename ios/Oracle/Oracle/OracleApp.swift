@@ -32,15 +32,15 @@ struct OracleApp: App {
 
   // MARK: - Upload queue
 
-  /// The shared upload queue used by `CaptureViewModel` (wired in PR 5).
+  /// The shared upload queue used by `CaptureViewModel`.
   ///
-  /// The actor is initialised with a `ModelContext` from the shared container
-  /// and the production `OracleAPI.shared`. Stored as a `nonisolated(unsafe)` var
-  /// so it is accessible from the main actor without crossing an isolation boundary
+  /// `UploadQueue` is a `@ModelActor`; its executor is backed by the shared
+  /// `modelContainer`'s concurrency domain. No explicit `ModelContext` is needed
+  /// at the call site — the macro provides it. Stored as `nonisolated(unsafe)` so
+  /// it is accessible from the main actor without crossing an isolation boundary
   /// at declaration time. The actor's own serial executor protects all mutations.
   nonisolated(unsafe) static let uploadQueue: UploadQueue = {
-    let context = ModelContext(OracleApp.modelContainer)
-    return UploadQueue(modelContext: context, api: OracleAPI.shared)
+    UploadQueue(modelContainer: OracleApp.modelContainer, api: OracleAPI.shared)
   }()
 
   // MARK: - Network monitor

@@ -4,8 +4,7 @@ import OracleCore
 
 // MARK: - UploadQueue
 
-/// A Swift actor that wraps a SwiftData `ModelContext` to provide a durable,
-/// offline-safe queue for capture uploads.
+/// A `@ModelActor` that provides a durable, offline-safe queue for capture uploads.
 ///
 /// # Lifecycle
 ///
@@ -15,15 +14,16 @@ import OracleCore
 /// 2. `tryDrain()` iterates pending rows and calls `OracleAPI.postCapture` for
 ///    each. On success the row is deleted immediately. On failure the row is kept
 ///    with `attemptCount` and `lastError` updated.
-/// 3. PR 4 will wire `NWPathMonitor` so that `tryDrain()` is called whenever
-///    connectivity is re-established. PR 5 wires `CaptureViewModel` and sweeps
-///    on launch.
+/// 3. `NWPathMonitor` calls `tryDrain()` whenever connectivity is re-established.
+///    `OracleApp.init()` also calls it on every launch to sweep rows left from
+///    previous sessions.
 ///
 /// # Concurrency
 ///
-/// `UploadQueue` is an actor so all `ModelContext` mutations are serialised.
-/// SwiftData `ModelContext` is not `Sendable` and must not cross actor boundaries;
-/// it is created and used exclusively within this actor.
+/// `@ModelActor` gives `UploadQueue` its own serial executor backed by SwiftData's
+/// model-concurrency domain. The macro provides `modelContext` and `modelExecutor`
+/// automatically; there is no explicit `ModelContext` property. All `ModelContext`
+/// access is therefore properly isolated without any `MainActor`-bridging hops.
 ///
 /// # Idempotency on retry
 ///
@@ -34,23 +34,31 @@ import OracleCore
 ///
 /// Reference: `server/oracle/api/captures.py` — idempotency pre-check plus
 /// `insert().on_conflict_do_nothing(index_elements=["client_id"])`.
+@ModelActor
 public actor UploadQueue {
 
   // MARK: - Dependencies
 
-  private let context: ModelContext
-  private let api: OracleAPI
+  /// The API client used to post captures to the server.
+  ///
+  /// Declared `nonisolated(unsafe)` so that the `@ModelActor` macro's generated
+  /// `init(modelContainer:)` compiles without needing to initialise this property.
+  /// The property is written once during `init` before any concurrent access is
+  /// possible, so the `unsafe` annotation is safe here.
+  nonisolated(unsafe) private var api: OracleAPI!
 
   // MARK: - Init
 
-  /// Create an `UploadQueue` backed by the provided model context and API.
+  /// Create an `UploadQueue` backed by the provided model container and API.
   ///
   /// - Parameters:
-  ///   - modelContext: A SwiftData `ModelContext` scoped to the caller — the
-  ///     actor owns it exclusively and must not be shared with other contexts.
+  ///   - modelContainer: The `ModelContainer` whose concurrency domain backs
+  ///     this actor's serial executor (provided via the `@ModelActor` macro).
   ///   - api: The `OracleAPI` instance used to post captures.
-  public init(modelContext: ModelContext, api: OracleAPI) {
-    self.context = modelContext
+  public init(modelContainer: ModelContainer, api: OracleAPI) {
+    let context = ModelContext(modelContainer)
+    self.modelExecutor = DefaultSerialModelExecutor(modelContext: context)
+    self.modelContainer = modelContainer
     self.api = api
   }
 
@@ -63,8 +71,8 @@ public actor UploadQueue {
   /// ensure a single bad row never blocks the queue.
   public func enqueue(clientID: String, payload: Data) throws {
     let row = QueuedCapture(clientID: clientID, payload: payload)
-    context.insert(row)
-    try context.save()
+    modelContext.insert(row)
+    try modelContext.save()
   }
 
   // MARK: - Pending count
@@ -74,7 +82,7 @@ public actor UploadQueue {
   /// Used by tests and may be surfaced in a future debug UI.
   public func pendingCount() throws -> Int {
     let descriptor = FetchDescriptor<QueuedCapture>()
-    return try context.fetchCount(descriptor)
+    return try modelContext.fetchCount(descriptor)
   }
 
   // MARK: - Drain
@@ -95,7 +103,7 @@ public actor UploadQueue {
         sortBy: [SortDescriptor(\.createdAt, order: .forward)]
       )
       descriptor.fetchLimit = 50  // safety cap per drain cycle; queue re-drains on next trigger
-      rows = try context.fetch(descriptor)
+      rows = try modelContext.fetch(descriptor)
     } catch {
       print("[UploadQueue] fetch failed: \(error)")
       return
@@ -115,8 +123,8 @@ public actor UploadQueue {
   ///   user flows — captures that haven't reached the server will be permanently
   ///   lost.
   public func reset() throws {
-    try context.delete(model: QueuedCapture.self)
-    try context.save()
+    try modelContext.delete(model: QueuedCapture.self)
+    try modelContext.save()
   }
 
   // MARK: - Private helpers
@@ -132,7 +140,7 @@ public actor UploadQueue {
       // Malformed payload — cannot retry. Record the error and leave the row.
       row.attemptCount += 1
       row.lastError = "payload decode failed: \(error.localizedDescription)"
-      try? context.save()
+      try? modelContext.save()
       return
     }
 
@@ -148,8 +156,8 @@ public actor UploadQueue {
     do {
       _ = try await api.postCapture(payload)
       // Success — delete eagerly in this actor turn before yielding.
-      context.delete(row)
-      try context.save()
+      modelContext.delete(row)
+      try modelContext.save()
       print("[UploadQueue] drained clientID=\(row.clientID)")
     } catch {
       // Failure — keep the row, record the error.
@@ -157,7 +165,7 @@ public actor UploadQueue {
       // Truncate to 256 chars to avoid unbounded growth.
       let description = String(error.localizedDescription.prefix(256))
       row.lastError = description
-      try? context.save()
+      try? modelContext.save()
       print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(row.attemptCount) error=\(description)")
     }
   }
