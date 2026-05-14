@@ -19,7 +19,7 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from sqlalchemy import select
@@ -189,9 +189,7 @@ async def test_per_memory_isolation_failure_does_not_block_others(
         assert errored[0].enriched is False
 
         # The other 4 memories should be marked enriched.
-        result3 = await db_session.execute(
-            select(Memory).where(Memory.enriched.is_(True))
-        )
+        result3 = await db_session.execute(select(Memory).where(Memory.enriched.is_(True)))
         enriched_memories = result3.scalars().all()
         enriched_ids = {m.id for m in enriched_memories}
         # All test memories that were processed should be in the enriched set.
