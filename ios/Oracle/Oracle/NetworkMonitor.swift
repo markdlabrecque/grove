@@ -95,7 +95,7 @@ final class NetworkMonitor {
   /// rising edge (unsatisfied → satisfied). Accessed exclusively on
   /// `monitorQueue` in production; accessed synchronously in tests (no queue
   /// needed when the test drives `pathDidUpdate` directly on one thread).
-  var wasReachable: Bool = false
+  private(set) var wasReachable: Bool = false
 
   /// Guards against calling `NWPathMonitor.start(queue:)` more than once.
   ///
