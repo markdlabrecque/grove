@@ -15,7 +15,7 @@ struct OracleApp: App {
   /// the durable offline queue for captures that have not yet been uploaded.
   ///
   /// `isStoredInMemoryOnly: false` is the default (disk-backed). Tests supply
-  /// their own in-memory container via `UploadQueue(modelContext:api:)` directly.
+  /// their own in-memory container via `UploadQueue(modelContainer:api:)` directly.
   static let modelContainer: ModelContainer = {
     let schema = Schema([QueuedCapture.self])
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
