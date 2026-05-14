@@ -45,13 +45,23 @@ struct QueryViewModelTests {
   func cancelClearSpinnerPreservesResults() async throws {
     // First: put the VM in a known .results state by running a fast query.
     let priorResults = makeResults()
+
+    // Continuation signals when the fast provider's closure has returned,
+    // replacing the 10 ms sleep-as-sync that was here before.
+    let firstDone = AsyncStream<Void>.makeStream()
+
     let vm = QueryViewModel { _ in
-      self.makeResponse(results: priorResults)
+      defer { firstDone.continuation.yield(()) }
+      return self.makeResponse(results: priorResults)
     }
     vm.query = "first query"
     vm.ask()
-    // Wait for the fast provider to complete.
-    try await Task.sleep(nanoseconds: 10_000_000)  // 10 ms
+
+    // Wait until the fast provider has returned, then yield once so
+    // performQuery's remaining main-actor statements (queryStatus update) land.
+    var firstDoneIter = firstDone.stream.makeAsyncIterator()
+    _ = await firstDoneIter.next()
+    await Task.yield()
 
     guard case .results(let r) = vm.queryStatus, !r.isEmpty else {
       Issue.record("Expected .results after first fast query, got \(vm.queryStatus)")
@@ -61,8 +71,13 @@ struct QueryViewModelTests {
     // Now inject a slow provider and fire a second query.
     let slowStarted = AsyncStream<Void>.makeStream()
     let slowUnblock = AsyncStream<Void>.makeStream()
+    // slowExited fires when the slow provider's closure exits (cancelled or
+    // normally), replacing the 50 ms sleep-as-sync used to let the catch block
+    // settle.
+    let slowExited = AsyncStream<Void>.makeStream()
 
     vm.queryProvider = { _ in
+      defer { slowExited.continuation.yield(()) }
       slowStarted.continuation.yield(())
       // Block until unblocked or cancelled.
       for await _ in slowUnblock.stream {
@@ -85,8 +100,12 @@ struct QueryViewModelTests {
     // Cancel the in-flight request explicitly.
     vm.cancel()
 
-    // Give the cancelled task time to settle (catch block runs async).
-    try await Task.sleep(nanoseconds: 50_000_000)  // 50 ms
+    // Wait until the slow provider's closure has exited (i.e. the
+    // checkCancellation throw propagated out), then yield once so
+    // performQuery's catch-block main-actor statements land.
+    var slowExitedIter = slowExited.stream.makeAsyncIterator()
+    _ = await slowExitedIter.next()
+    await Task.yield()
 
     // Spinner must be gone.
     #expect(vm.isLoading == false)
@@ -138,9 +157,14 @@ struct QueryViewModelTests {
     var firstRequestCancelled = false
 
     let firstStarted = AsyncStream<Void>.makeStream()
+    // firstExited fires when the first provider's closure exits (after the
+    // catch block sets firstRequestCancelled = true), replacing the 50 ms
+    // sleep-as-sync used to wait for cancellation to propagate.
+    let firstExited = AsyncStream<Void>.makeStream()
 
     // First provider: records cancellation, blocks until cancelled.
     let firstProvider: (String) async throws -> QueryResponseBody = { _ in
+      defer { firstExited.continuation.yield(()) }
       firstStarted.continuation.yield(())
       do {
         try await Task.sleep(nanoseconds: 999_000_000_000)
@@ -161,8 +185,12 @@ struct QueryViewModelTests {
       capturedAt: nil,
       sourceModality: "text"
     )]
+    // secondDone fires when the second provider's closure has returned,
+    // replacing the 100 ms sleep-as-sync used to wait for it to complete.
+    let secondDone = AsyncStream<Void>.makeStream()
     let secondProvider: (String) async throws -> QueryResponseBody = { _ in
-      QueryResponseBody(results: secondResults, queryTokenCount: 4, latencyMs: 50)
+      defer { secondDone.continuation.yield(()) }
+      return QueryResponseBody(results: secondResults, queryTokenCount: 4, latencyMs: 50)
     }
 
     var callCount = 0
@@ -186,8 +214,11 @@ struct QueryViewModelTests {
     vm.query = "second"
     vm.ask()
 
-    // Wait for second request to complete.
-    try await Task.sleep(nanoseconds: 100_000_000)  // 100 ms
+    // Wait until the second provider has returned, then yield once so
+    // performQuery's remaining main-actor statements (queryStatus update) land.
+    var secondDoneIter = secondDone.stream.makeAsyncIterator()
+    _ = await secondDoneIter.next()
+    await Task.yield()
 
     // Second query should have produced results.
     guard case .results(let r) = vm.queryStatus else {
@@ -199,9 +230,12 @@ struct QueryViewModelTests {
     // No error alert should have fired.
     #expect(vm.showErrorAlert == false)
 
-    // First request was cancelled.
-    // (Small sleep to let the cancellation propagate through the first task.)
-    try await Task.sleep(nanoseconds: 50_000_000)
+    // First request was cancelled. Wait until firstProvider's closure has
+    // exited (defer fires after the catch sets firstRequestCancelled = true),
+    // then yield once for any remaining main-actor work in the first task.
+    var firstExitedIter = firstExited.stream.makeAsyncIterator()
+    _ = await firstExitedIter.next()
+    await Task.yield()
     #expect(firstRequestCancelled == true)
   }
 
