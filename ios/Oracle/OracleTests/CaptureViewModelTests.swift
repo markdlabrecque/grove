@@ -25,8 +25,12 @@ import OracleTestSupport
 ///    retry", not "uploaded right now". Even when `postCapture` fails the ViewModel
 ///    still reports `.success` and the row stays in the queue for the next drain.
 ///
-/// 3. `saveSucceedsWhenOffline` — simulated by returning a network-layer error
-///    from the stub. Same contract: `.success` to the UI, row stays queued.
+/// 3. `saveSucceedsWhenServerReturns503` — stub returns a 503 HTTP response.
+///    Same contract: `.success` to the UI, row stays queued.
+///
+/// 4. `saveSucceedsWhenNetworkUnavailable` — stub throws
+///    `URLError(.notConnectedToInternet)` to simulate a true offline condition.
+///    Same contract: `.success` to the UI, row stays queued.
 ///
 /// # Serialization
 ///
@@ -139,24 +143,46 @@ struct CaptureViewModelTests {
     #expect(count == 1, "Row should remain queued after failed drain")
   }
 
-  // MARK: - saveSucceedsWhenOffline
+  // MARK: - saveSucceedsWhenServerReturns503
 
-  @Test("save reports success when network returns a connection error")
-  func saveSucceedsWhenOffline() async throws {
+  @Test("save reports success when server returns 503")
+  func saveSucceedsWhenServerReturns503() async throws {
     let (queue, _) = try makeQueue()
     let vm = CaptureViewModel(uploadQueue: queue)
 
-    // Simulate an offline condition by making StubURLProtocol return a
-    // URLError (.notConnectedToInternet). We do this by pointing the responder
-    // to a 503 (the stub cannot synthesise connection-level errors; a 5xx is
-    // the closest approximation that exercises the same ViewModel code path).
-    let offlineResponse = stubResponse(statusCode: 503)
-    let offlineBody = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
+    let unavailableResponse = stubResponse(statusCode: 503)
+    let unavailableBody = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
 
-    StubURLProtocol.responder = { [offlineResponse, offlineBody] _ in
-      (offlineResponse, offlineBody)
+    StubURLProtocol.responder = { [unavailableResponse, unavailableBody] _ in
+      (unavailableResponse, unavailableBody)
     }
     defer { StubURLProtocol.responder = nil }
+
+    vm.content = "Saved while server unavailable"
+    await vm.save()
+
+    #expect(vm.showErrorAlert == false, "User should see 'saved', not an error")
+    #expect(vm.content == "", "Content cleared on enqueue success")
+
+    try await Task.sleep(for: .milliseconds(200))
+
+    let count = try await queue.pendingCount()
+    #expect(count == 1, "Row should be in queue awaiting reconnect")
+  }
+
+  // MARK: - saveSucceedsWhenNetworkUnavailable
+
+  @Test("save reports success when network layer throws URLError(.notConnectedToInternet)")
+  func saveSucceedsWhenNetworkUnavailable() async throws {
+    let (queue, _) = try makeQueue()
+    let vm = CaptureViewModel(uploadQueue: queue)
+
+    // Simulate a true offline condition: the stub fails the request at the
+    // network layer rather than returning any HTTP response.
+    StubURLProtocol.errorResponder = { _ in
+      URLError(.notConnectedToInternet)
+    }
+    defer { StubURLProtocol.errorResponder = nil }
 
     vm.content = "Saved while offline"
     await vm.save()
