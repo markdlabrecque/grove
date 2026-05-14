@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import OracleTestSupport
 @testable import OracleCore
 
 /// Unit tests for the AppDelegate background-completion-handler contract.
