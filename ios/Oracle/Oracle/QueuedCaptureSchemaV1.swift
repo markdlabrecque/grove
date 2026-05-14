@@ -21,7 +21,8 @@ import SwiftData
 /// 1. Define a new `QueuedCaptureSchemaV2` (copy V1 structure, apply the change).
 /// 2. Add a `MigrationStage` entry to `QueuedCaptureMigrationPlan.stages`
 ///    (`.lightweight` if no data transformation needed; `.custom` otherwise).
-/// 3. Bump `currentEntitiesSchema` in `QueuedCaptureMigrationPlan` to `V2`.
+/// 3. Update the `Schema(...)` call in `OracleApp.modelContainer` to pass
+///    `QueuedCaptureSchemaV2.models` as the schema's models array.
 /// 4. Run the manual test from `docs/manual-tests/123-versionedschema-migration.md`
 ///    against an existing V1 store on-device before merging.
 ///
