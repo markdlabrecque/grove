@@ -101,7 +101,7 @@ struct QueryView: View {
         Spacer()
       }
 
-    case .results(let answer, let sources):
+    case .results(let answer, let sources, let queryID):
       if answer == nil && sources.isEmpty {
         VStack {
           Spacer()
@@ -115,7 +115,7 @@ struct QueryView: View {
           List {
             // Answer card — only when the server returned a synthesised answer.
             if let answer {
-              answerCard(answer: answer, sources: sources)
+              answerCard(answer: answer, sources: sources, queryID: queryID)
                 .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 8, trailing: 16))
                 .listRowSeparator(.hidden)
 
@@ -157,7 +157,7 @@ struct QueryView: View {
 
   // MARK: - Answer card
 
-  private func answerCard(answer: String, sources: [QueryResult]) -> some View {
+  private func answerCard(answer: String, sources: [QueryResult], queryID: UUID?) -> some View {
     let segments = CitationParser.parse(answer: answer, sources: sources)
 
     return VStack(alignment: .leading, spacing: 8) {
@@ -170,6 +170,18 @@ struct QueryView: View {
 
       // Build the answer text with inline tappable citation badges.
       answerText(segments: segments, sources: sources)
+
+      // Feedback chips — only shown when the server returned a query_id.
+      if let queryID {
+        FeedbackChipsView(
+          queryID: queryID,
+          currentFeedback: viewModel.feedback(for: queryID),
+          onFeedback: { feedback in
+            viewModel.submitFeedback(feedback, for: queryID)
+          }
+        )
+        .padding(.top, 4)
+      }
     }
     .padding(12)
     .frame(maxWidth: .infinity, alignment: .leading)
@@ -357,6 +369,77 @@ private struct QueryResultRow: View {
     .background(isHighlighted ? Color.accentColor.opacity(0.12) : Color.clear)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .animation(.easeOut(duration: 0.3), value: isHighlighted)
+  }
+}
+
+// MARK: - Feedback chips
+
+/// Thumbs-up / thumbs-down feedback chips displayed beneath each answer card.
+///
+/// Tapping a chip immediately reflects the selection visually (no spinner).
+/// Tapping the alternate chip overwrites the prior selection both locally and
+/// on the server. A 5xx from the server is swallowed silently — the
+/// `QueryViewModel.submitFeedback` method handles the fire-and-forget contract.
+///
+/// The chip is hidden when the server did not return a `query_id` (older server
+/// versions) — the caller is responsible for only rendering this view when a
+/// query ID is available.
+private struct FeedbackChipsView: View {
+  let queryID: UUID
+  let currentFeedback: Feedback?
+  let onFeedback: (Feedback) -> Void
+
+  var body: some View {
+    HStack(spacing: 12) {
+      FeedbackChip(
+        symbol: "hand.thumbsup",
+        label: "Helpful",
+        isSelected: currentFeedback == .positive,
+        action: { onFeedback(.positive) }
+      )
+      FeedbackChip(
+        symbol: "hand.thumbsdown",
+        label: "Not helpful",
+        isSelected: currentFeedback == .negative,
+        action: { onFeedback(.negative) }
+      )
+      Spacer()
+    }
+  }
+}
+
+/// A single thumbs-up or thumbs-down chip button.
+private struct FeedbackChip: View {
+  let symbol: String
+  let label: String
+  let isSelected: Bool
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Label(label, systemImage: isSelected ? "\(symbol).fill" : symbol)
+        .font(.caption.weight(.medium))
+        .labelStyle(.iconOnly)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(
+          isSelected
+            ? Color.accentColor.opacity(0.15)
+            : Color(.tertiarySystemBackground)
+        )
+        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        .clipShape(Capsule())
+        .overlay(
+          Capsule()
+            .strokeBorder(
+              isSelected ? Color.accentColor.opacity(0.4) : Color.clear,
+              lineWidth: 1
+            )
+        )
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel(label)
+    .accessibilityAddTraits(isSelected ? [.isSelected] : [])
   }
 }
 

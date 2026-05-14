@@ -203,7 +203,20 @@ struct OracleAPIFeedbackTests {
     #expect(req.value(forHTTPHeaderField: "Content-Type") == "application/json")
 
     // Body must encode {"feedback": "positive"}.
-    let bodyData = try #require(req.httpBody)
+    // URLSession may convert httpBody → httpBodyStream on the delegate-session
+    // path, so read whichever is non-nil.
+    let bodyData = try #require(req.httpBody ?? req.httpBodyStream.flatMap { stream in
+      stream.open()
+      defer { stream.close() }
+      var data = Data()
+      let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 4096)
+      defer { buffer.deallocate() }
+      while stream.hasBytesAvailable {
+        let read = stream.read(buffer, maxLength: 4096)
+        if read > 0 { data.append(buffer, count: read) }
+      }
+      return data.isEmpty ? nil : data
+    })
     let json = try #require(
       try JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
     )
@@ -231,7 +244,18 @@ struct OracleAPIFeedbackTests {
     try await api.submitFeedback(queryID: Self.queryID, feedback: .negative)
 
     let req = try #require(capturedRequest)
-    let bodyData = try #require(req.httpBody)
+    let bodyData = try #require(req.httpBody ?? req.httpBodyStream.flatMap { stream in
+      stream.open()
+      defer { stream.close() }
+      var data = Data()
+      let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 4096)
+      defer { buffer.deallocate() }
+      while stream.hasBytesAvailable {
+        let read = stream.read(buffer, maxLength: 4096)
+        if read > 0 { data.append(buffer, count: read) }
+      }
+      return data.isEmpty ? nil : data
+    })
     let json = try #require(
       try JSONSerialization.jsonObject(with: bodyData) as? [String: Any]
     )
