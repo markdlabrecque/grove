@@ -329,5 +329,4 @@ class TestErrorCases:
         with pytest.raises(Exception) as exc_info:
             await classify_memory(mem, bundle, api_key="test-key")
 
-        # Should not be silently swallowed as a ClassificationError
-        assert exc_info.type is not ClassificationError or True  # propagation is key
+        assert issubclass(exc_info.type, httpx.HTTPStatusError)
