@@ -52,9 +52,14 @@ When the implementer hands back after addressing must-fix findings:
    - iOS changes: `xcodebuild test` (once the Xcode project is scaffolded; for now, confirm `xcodebuild build` succeeds)
    - Mixed: both
 3. **Verify CI is green on the latest commit.** Run `gh pr checks <PR>` and confirm every required check (Lint, Test, Migrations for server PRs) reports `pass` on the head SHA. If any check is failing, pending, or stale (ran on an older commit), do NOT merge — comment on the PR and hand back to the implementer. A green local run is not a substitute for green CI; the workflow is what protects `develop`.
-4. **Approve and merge.** `gh pr review <PR> --approve --body "LGTM"`, then `gh pr merge <PR> --squash --delete-branch`.
+4. **Approve and merge.** `gh pr review <PR> --approve --body "LGTM"`, then merge with an **explicit** squash subject:
+   ```
+   gh pr merge <PR> --squash --delete-branch --subject "#<N> <type>: <ticket title>"
+   ```
    - Squash because one ticket = one commit on `develop`.
-   - The squash commit subject should mirror a single conventional commit: `#<N> <type>: <title>`.
+   - **Always pass `--subject`.** Do not rely on the default. The TDD amendment means branches routinely carry multiple commits (red → green, plus round-2 fix iterations), and without `--subject` the squash subject drifts to whichever commit GitHub picks — typically the last one, which on a bug-fix iteration is `test:` or `fix:` rather than the feature `feat:`. The `develop` log must read as a clean ledger of tickets.
+   - **`<type>` is derived from the ticket, not from any commit on the branch.** A ticket that adds new functionality squashes as `feat:` even if its last branch commit was `test:` or `fix:`. A bug-fix ticket squashes as `fix:`. Docs-only tickets squash as `docs:`. Refactor-only tickets squash as `refactor:`.
+   - **`<ticket title>` is the feature/intent, not the commit subject.** Example: ticket #178's title was "enrichment worker entrypoint with batch fetch (FOR UPDATE SKIP LOCKED) + enrichment_state lifecycle." The right merge subject is `#178 feat: enrichment worker entrypoint` — feature-focused, shorter than the ticket title, no mention of the round-2 deadlock fix that landed during review.
    - The merge action pushes to `origin/develop` automatically.
 5. Add a completion comment on the issue summarising what shipped and any follow-up tickets you filed during review:
    ```
