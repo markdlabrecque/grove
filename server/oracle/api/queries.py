@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
@@ -56,6 +57,10 @@ _SNIPPET_LEN = 140
 # ---------------------------------------------------------------------------
 # Request / response schemas
 # ---------------------------------------------------------------------------
+
+
+class FeedbackRequest(BaseModel):
+    feedback: Literal["positive", "negative"]
 
 
 class QueryRequest(BaseModel):
@@ -536,4 +541,28 @@ async def post_query(
         query_id=log_id or uuid.uuid4(),
         query_token_count=query_token_count,
         latency_ms=round(total_latency_ms, 1),
+    )
+
+
+@router.post(
+    "/queries/{query_id}/feedback",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def post_feedback(
+    query_id: uuid.UUID,
+    body: FeedbackRequest,
+    log_factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_log_session_factory)],
+) -> None:
+    async with log_factory() as session:
+        row = await session.get(QueryLog, query_id)
+        if row is None:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="query not found")
+        row.user_feedback = body.feedback
+        row.feedback_at = datetime.now(UTC)
+        await session.commit()
+
+    logger.info(
+        "feedback_recorded",
+        query_id=str(query_id),
+        feedback=body.feedback,
     )
