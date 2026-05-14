@@ -146,9 +146,7 @@ async def test_feedback_negative_sets_columns(
 
 
 @pytest.mark.asyncio
-async def test_feedback_idempotent_overwrite(
-    client: AsyncClient, db_session: AsyncSession
-) -> None:
+async def test_feedback_idempotent_overwrite(client: AsyncClient, db_session: AsyncSession) -> None:
     log_id = await _seed_query_log(db_session)
     try:
         # First write: positive
