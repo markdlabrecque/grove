@@ -5,10 +5,12 @@ import OracleTestSupport
 
 /// Tests for `OracleAPI.deleteMemory(id:)` — DELETE /v1/memories/{id}.
 ///
-/// All tests use `StubURLProtocol` injected via the internal
-/// `OracleAPI.init(baseURL:bearerToken:configuration:)` initialiser so no
-/// live network is needed. The suite is serialised because `StubURLProtocol`
-/// carries global state.
+/// Uses `DeleteStubURLProtocol` — a dedicated protocol class that carries its
+/// own static `responder` state, isolated from `StubURLProtocol` used by other
+/// suites. This prevents inter-suite global-state contamination when Swift
+/// Testing runs multiple suites concurrently.
+///
+/// The suite is also serialised to prevent concurrent access within the suite.
 @Suite("OracleAPI deleteMemory", .serialized)
 struct OracleAPIDeleteTests {
 
@@ -20,7 +22,7 @@ struct OracleAPIDeleteTests {
 
   private func makeAPI() -> OracleAPI {
     let config = URLSessionConfiguration.default
-    config.protocolClasses = [StubURLProtocol.self]
+    config.protocolClasses = [DeleteStubURLProtocol.self]
     return OracleAPI(
       baseURL: Self.baseURL,
       bearerToken: Self.token,
@@ -38,7 +40,7 @@ struct OracleAPIDeleteTests {
   func deleteMemoryHappyPath() async throws {
     let url = deleteURL(for: Self.memoryID)
 
-    StubURLProtocol.responder = { [url] _ in
+    DeleteStubURLProtocol.responder = { [url] _ in
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 204,
@@ -47,7 +49,7 @@ struct OracleAPIDeleteTests {
       )!
       return (resp, Data())
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { DeleteStubURLProtocol.responder = nil }
 
     let api = makeAPI()
     // Should complete without throwing.
@@ -61,7 +63,7 @@ struct OracleAPIDeleteTests {
     let url = deleteURL(for: Self.memoryID)
     let body = #"{"detail":"memory not found"}"#.data(using: .utf8)!
 
-    StubURLProtocol.responder = { [url, body] _ in
+    DeleteStubURLProtocol.responder = { [url, body] _ in
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 404,
@@ -70,7 +72,7 @@ struct OracleAPIDeleteTests {
       )!
       return (resp, body)
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { DeleteStubURLProtocol.responder = nil }
 
     let api = makeAPI()
 
@@ -94,7 +96,7 @@ struct OracleAPIDeleteTests {
     let url = deleteURL(for: Self.memoryID)
     let body = #"{"detail":"unauthorized"}"#.data(using: .utf8)!
 
-    StubURLProtocol.responder = { [url, body] _ in
+    DeleteStubURLProtocol.responder = { [url, body] _ in
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 401,
@@ -103,7 +105,7 @@ struct OracleAPIDeleteTests {
       )!
       return (resp, body)
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { DeleteStubURLProtocol.responder = nil }
 
     let api = makeAPI()
 
@@ -126,7 +128,7 @@ struct OracleAPIDeleteTests {
     let url = deleteURL(for: Self.memoryID)
     let body = #"{"detail":"internal server error"}"#.data(using: .utf8)!
 
-    StubURLProtocol.responder = { [url, body] _ in
+    DeleteStubURLProtocol.responder = { [url, body] _ in
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 500,
@@ -135,7 +137,7 @@ struct OracleAPIDeleteTests {
       )!
       return (resp, body)
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { DeleteStubURLProtocol.responder = nil }
 
     let api = makeAPI()
 
@@ -159,7 +161,7 @@ struct OracleAPIDeleteTests {
     let url = deleteURL(for: Self.memoryID)
     var capturedRequest: URLRequest?
 
-    StubURLProtocol.responder = { [url] request in
+    DeleteStubURLProtocol.responder = { [url] request in
       capturedRequest = request
       let resp = HTTPURLResponse(
         url: url,
@@ -169,7 +171,7 @@ struct OracleAPIDeleteTests {
       )!
       return (resp, Data())
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { DeleteStubURLProtocol.responder = nil }
 
     let api = makeAPI()
     try await api.deleteMemory(id: Self.memoryID)
@@ -178,5 +180,44 @@ struct OracleAPIDeleteTests {
     #expect(req.httpMethod == "DELETE")
     #expect(req.url == url)
     #expect(req.value(forHTTPHeaderField: "Authorization") == "Bearer \(Self.token)")
+  }
+}
+
+// MARK: - DeleteStubURLProtocol
+
+/// A dedicated `URLProtocol` subclass for delete tests that carries its own
+/// static `responder` state, isolated from `StubURLProtocol` (which is used by
+/// `OracleAPISmokeTests` and `OracleAPIBridgeTests`). This prevents inter-suite
+/// global-state contamination when Swift Testing runs multiple suites concurrently.
+///
+/// Pattern mirrors `SlowURLProtocol` in `OracleAPICancelTests`.
+private final class DeleteStubURLProtocol: URLProtocol {
+
+  /// Configure this before each test. The suite is `.serialized` so access is
+  /// externally synchronised.
+  nonisolated(unsafe) static var responder: ((URLRequest) -> (HTTPURLResponse, Data))?
+
+  override class func canInit(with request: URLRequest) -> Bool {
+    return true
+  }
+
+  override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+    return request
+  }
+
+  override func startLoading() {
+    guard let responder = DeleteStubURLProtocol.responder else {
+      preconditionFailure(
+        "DeleteStubURLProtocol.responder must be set before making a request."
+      )
+    }
+    let (response, data) = responder(request)
+    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+    client?.urlProtocol(self, didLoad: data)
+    client?.urlProtocolDidFinishLoading(self)
+  }
+
+  override func stopLoading() {
+    // Synchronous stub — nothing to cancel.
   }
 }
