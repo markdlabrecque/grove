@@ -155,6 +155,10 @@ async def test_delete_cascades_to_all_related_rows(db_session: AsyncSession) -> 
     assert response.status_code == 204
     assert response.content == b""
 
+    # The route committed its delete in a separate session; expire the test
+    # session's identity map so the next get() hits the DB.
+    db_session.expire_all()
+
     # Assert: memory is gone.
     assert await db_session.get(Memory, memory_id) is None
 

@@ -245,6 +245,35 @@ async def list_memories(
     return MemoryListResponse(items=items, next_cursor=next_cursor)
 
 
+@router.delete(
+    "/memories/{memory_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_memory(
+    memory_id: uuid.UUID,
+    session: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    """Delete a memory and cascade to all related rows.
+
+    Cascade covers: memory_chunks, decisions, people_interactions, tasks,
+    appointments — via SQLAlchemy ORM "all, delete-orphan" which triggers the
+    DB-level ON DELETE CASCADE FKs on those tables.
+
+    query_logs rows that reference this memory via returned_memory_ids are NOT
+    touched: that column is an ARRAY(UUID) with no FK constraint by design
+    (PRD §6.6). The audit trail survives deletion; stale UUIDs remain in the
+    array unchanged.
+    """
+    memory = await session.get(Memory, memory_id)
+    if memory is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="memory not found")
+
+    await session.delete(memory)
+    await session.commit()
+
+    logger.info("memory_deleted", memory_id=str(memory_id))
+
+
 @router.get(
     "/memories/{memory_id}",
     response_model=MemoryDetailSchema,
