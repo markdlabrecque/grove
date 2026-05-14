@@ -54,6 +54,28 @@ The `regression` vs `enhancement` split lives at file-time so the queue stays sc
 If a label doesn't exist yet, the agent that needs it creates it via
 `gh label create`.
 
+## PR scope
+
+PRs should stay reasonably small — small enough that a reviewer can
+load the diff into their head in one sitting and a tester can exercise
+the change without juggling unrelated concerns. Two rules:
+
+1. **Keep PRs small to make them easier to test and review.** Smaller
+   diffs surface bugs earlier, keep CI signal focused, and make
+   `git bisect` useful when something regresses later.
+2. **Do not group related work in the interest of higher velocity.**
+   It is tempting to fold a refactor, a bug fix, and a feature into one
+   PR because they live in the same area. Don't. Each piece becomes
+   harder to review, and a single bad change blocks the rest.
+
+A ticket may produce **more than one PR** in service of these rules.
+Split when the work naturally divides (e.g., a schema migration PR,
+then a feature PR that uses the new column; or a server PR followed by
+the iOS PR that consumes the new endpoint within the same ticket).
+Interim PRs reference the ticket in their body as `Refs #N`. Only the
+final PR that completes the ticket's acceptance criteria uses
+`Closes #N` so GitHub auto-closes on merge.
+
 ## The lifecycle
 
 For every ticket that requires implementation work:
@@ -119,8 +141,11 @@ For every ticket that requires implementation work:
      before the handoff is safe. This rule exists because an
      unverified push was a likely cause of the #131 squash-loss
      regression.
-   - Opens a PR into `develop`: `gh pr create --base develop`. The PR
-     body includes `Closes #42` so GitHub auto-closes on merge.
+   - Opens a PR into `develop`: `gh pr create --base develop`. Per
+     the PR scope section above, a ticket may produce more than one
+     PR. The PR body uses `Closes #42` only when this PR completes the
+     ticket's acceptance criteria; interim PRs use `Refs #42` so the
+     ticket stays open until the final PR merges.
    - Hands off to Theo and stops touching the branch.
 
 4. **Theo reviews (round 1).**
