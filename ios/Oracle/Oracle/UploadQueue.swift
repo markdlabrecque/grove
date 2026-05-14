@@ -83,7 +83,7 @@ public actor UploadQueue {
   /// wrapper is needed.
   private var isDraining = false
 
-  // MARK: - Test hook
+  // MARK: - Test hooks
 
   /// Called once per row after every drain-row completion path (success,
   /// transient failure, permanent failure, retry-cap eviction, decode error).
@@ -94,6 +94,19 @@ public actor UploadQueue {
   /// property is written by the test before the drain Task starts and read only
   /// within the actor-isolated `drainRow` — no concurrent writes occur.
   nonisolated(unsafe) var onDrainRowComplete: ((Result<Void, Error>) -> Void)?
+
+  /// Called each time `modelContext.save()` is invoked inside `drainRow`.
+  ///
+  /// Production code never sets this. Tests can inject a counter closure to
+  /// assert that `drainRow` performs exactly one SwiftData write per call,
+  /// even on the retry-cap eviction path.
+  nonisolated(unsafe) var onModelContextSave: (() -> Void)?
+
+  /// Actor-isolated setter for `onModelContextSave`, for use from async test
+  /// contexts where direct property assignment is not available.
+  func setOnModelContextSave(_ handler: (() -> Void)?) {
+    onModelContextSave = handler
+  }
 
   // MARK: - Init
 
@@ -197,6 +210,7 @@ public actor UploadQueue {
       print("[UploadQueue] WARN permanent failure (decode error) clientID=\(row.clientID) error=\(description) — deleting")
       modelContext.delete(row)
       try? modelContext.save()
+      onModelContextSave?()
       onDrainRowComplete?(.failure(error))
       return
     }
@@ -215,6 +229,7 @@ public actor UploadQueue {
       // Success — delete eagerly in this actor turn before yielding.
       modelContext.delete(row)
       try modelContext.save()
+      onModelContextSave?()
       print("[UploadQueue] drained clientID=\(row.clientID)")
       onDrainRowComplete?(.success(()))
     } catch {
@@ -225,23 +240,30 @@ public actor UploadQueue {
         print("[UploadQueue] WARN permanent failure (4xx) clientID=\(row.clientID) error=\(description) — deleting")
         modelContext.delete(row)
         try? modelContext.save()
+        onModelContextSave?()
         onDrainRowComplete?(.failure(error))
       } else {
-        // Transient failure — bump attempt count and keep the row for the next drain.
-        row.attemptCount += 1
+        // Transient failure — check cap before deciding whether to bump+keep or delete.
         // Truncate to 256 chars to avoid unbounded growth.
         let description = String(error.localizedDescription.prefix(256))
-        row.lastError = description
-        try? modelContext.save()
-        print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(row.attemptCount) error=\(description)")
+        let prospectiveCount = row.attemptCount + 1
 
-        // Retry cap: if we've hit maxAttempts, drop the row rather than retrying forever.
-        if row.attemptCount >= maxAttempts {
-          print("[UploadQueue] WARN retry cap reached clientID=\(row.clientID) attempt=\(row.attemptCount) lastError=\(description) — deleting")
+        if prospectiveCount >= maxAttempts {
+          // Cap reached on this attempt: skip the bump+save and go straight to
+          // deletion. This collapses what was two consecutive saves into one.
+          print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(prospectiveCount) error=\(description)")
+          print("[UploadQueue] WARN retry cap reached clientID=\(row.clientID) attempt=\(prospectiveCount) lastError=\(description) — deleting")
           modelContext.delete(row)
           try? modelContext.save()
+          onModelContextSave?()
           onDrainRowComplete?(.failure(error))
         } else {
+          // Below cap — bump attemptCount, persist, and leave the row for the next drain.
+          row.attemptCount = prospectiveCount
+          row.lastError = description
+          try? modelContext.save()
+          onModelContextSave?()
+          print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(row.attemptCount) error=\(description)")
           onDrainRowComplete?(.failure(error))
         }
       }
