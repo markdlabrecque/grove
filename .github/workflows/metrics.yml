@@ -136,13 +136,23 @@ jobs:
             const body = fs.readFileSync('comment-body.md', 'utf8');
             const marker = '<!-- quality-metrics-bot -->';
 
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              per_page: 100,
-            });
-            const existing = comments.find(c => c.body && c.body.includes(marker));
+            // Paginate the comment list so the marker search works on PRs
+            // with more than 100 comments. Without pagination the bot would
+            // miss its existing comment and stack a duplicate on every push.
+            // See issue #134.
+            let existing;
+            for (let page = 1; ; page++) {
+              const { data: comments } = await github.rest.issues.listComments({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                per_page: 100,
+                page,
+              });
+              existing = comments.find(c => c.body && c.body.includes(marker));
+              if (existing) break;
+              if (comments.length < 100) break;
+            }
 
             if (existing) {
               await github.rest.issues.updateComment({
