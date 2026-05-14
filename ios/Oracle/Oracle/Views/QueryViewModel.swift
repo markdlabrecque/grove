@@ -43,7 +43,12 @@ final class QueryViewModel {
   enum QueryStatus {
     case idle
     case loading
-    case results([QueryResult])
+    /// Holds the optional RAG-synthesised answer alongside the ranked sources.
+    ///
+    /// `answer` is `nil` when the server skipped synthesis (no API key,
+    /// empty sources, etc.). `sources` may be empty when the answer is present
+    /// (e.g. synthesis ran but no sources passed the similarity threshold).
+    case results(answer: String?, sources: [QueryResult])
     case failure(String)
   }
 
@@ -52,6 +57,12 @@ final class QueryViewModel {
   var isLoading: Bool {
     if case .loading = queryStatus { return true }
     return false
+  }
+
+  /// The ranked sources from the most recent successful query, or `nil` if none.
+  var currentSources: [QueryResult]? {
+    if case .results(_, let sources) = queryStatus { return sources }
+    return nil
   }
 
   var showErrorAlert: Bool = false
@@ -78,10 +89,10 @@ final class QueryViewModel {
   /// managed in `ask()` and `cancel()`.
   private(set) var activeTask: Task<Void, Never>?
 
-  /// The last successfully returned results. Preserved across loading cycles
+  /// The last successfully returned response. Preserved across loading cycles
   /// so that when a new request is cancelled, the prior results are restored
   /// rather than blanked to `.idle`.
-  private var lastResults: [QueryResult]?
+  private var lastResponse: (answer: String?, sources: [QueryResult])?
 
   // MARK: - Cancel
 
@@ -118,16 +129,16 @@ final class QueryViewModel {
   // MARK: - Private helpers
 
   private func performQuery(_ trimmed: String) async {
-    // Snapshot the pre-flight results so we can restore on cancellation.
-    let preFlight = lastResults
+    // Snapshot the pre-flight response so we can restore on cancellation.
+    let preFlight = lastResponse
     queryStatus = .loading
 
     do {
       let response = try await queryProvider(trimmed)
       // Only update if this task wasn't cancelled between the await and here.
       guard !Task.isCancelled else { return }
-      lastResults = response.sources
-      queryStatus = .results(response.sources)
+      lastResponse = (answer: response.answer, sources: response.sources)
+      queryStatus = .results(answer: response.answer, sources: response.sources)
     } catch {
       // Cancellation is not a user-visible failure: the user deliberately
       // tapped Ask again (or the request was superseded by a new query).
@@ -137,7 +148,7 @@ final class QueryViewModel {
         // already moved us to .results or .failure, leave it alone.
         if case .loading = queryStatus {
           if let prior = preFlight {
-            queryStatus = .results(prior)
+            queryStatus = .results(answer: prior.answer, sources: prior.sources)
           } else {
             queryStatus = .idle
           }
