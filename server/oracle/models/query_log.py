@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Boolean, ForeignKey, Integer, Text
+from sqlalchemy import Boolean, ForeignKey, Integer, Numeric, Text
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TIMESTAMP
@@ -29,6 +29,7 @@ class QueryLog(Base):
     synthesis_model: Mapped[str | None] = mapped_column(Text)
     synthesis_input_tokens: Mapped[int | None] = mapped_column(Integer)
     synthesis_output_tokens: Mapped[int | None] = mapped_column(Integer)
+    synthesis_cost: Mapped[float | None] = mapped_column(Numeric(precision=12, scale=8))
     user_feedback: Mapped[str | None] = mapped_column(Text)
     feedback_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     is_refinement: Mapped[bool | None] = mapped_column(Boolean, server_default="false")

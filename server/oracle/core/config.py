@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     # Separate enrichment_model from any intent-router model so each can be
     # tuned independently without coupling the two call-sites.
     enrichment_model: str = "openai/gpt-4o-mini"
+    # synthesis_model is the cheap chat model used for RAG answer composition.
+    # Kept separate from enrichment_model so each can be swapped independently.
+    synthesis_model: str = "openai/gpt-4o-mini"
 
 
 settings = Settings()  # type: ignore[call-arg]

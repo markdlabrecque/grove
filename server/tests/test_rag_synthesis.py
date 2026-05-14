@@ -53,7 +53,9 @@ def _make_openai_response(vec: list[float]) -> dict:
     }
 
 
-def _make_openrouter_response(answer: str, prompt_tokens: int = 42, completion_tokens: int = 18) -> dict:
+def _make_openrouter_response(
+    answer: str, prompt_tokens: int = 42, completion_tokens: int = 18
+) -> dict:
     """Minimal OpenRouter chat-completion response."""
     return {
         "id": "gen-test",
@@ -84,13 +86,19 @@ def _override_get_log_session_factory() -> async_sessionmaker[AsyncSession]:
 
 
 @pytest.fixture(autouse=True)
-def override_db(monkeypatch) -> None:  # type: ignore[misc]
+def override_db_and_api_key(monkeypatch) -> None:  # type: ignore[misc]
+    from pydantic import SecretStr
+
     from oracle.api.queries import get_log_session_factory
+    from oracle.core.config import settings
     from oracle.core.db import get_session
     from oracle.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
     app.dependency_overrides[get_log_session_factory] = _override_get_log_session_factory
+    # Ensure synthesis is attempted even when OPENROUTER_API_KEY is unset or
+    # empty in the test environment. The HTTP call is intercepted by respx.
+    monkeypatch.setattr(settings, "openrouter_api_key", SecretStr("test-stub-key"))
     yield
     app.dependency_overrides.pop(get_session, None)
     app.dependency_overrides.pop(get_log_session_factory, None)
@@ -165,9 +173,7 @@ async def test_synthesis_happy_path_returns_answer_and_sources(db_session: Async
         respx.post(_OPENROUTER_URL).mock(
             return_value=httpx.Response(
                 200,
-                json=_make_openrouter_response(
-                    f"The meeting is on Tuesday at 3pm [#{memory_id}]."
-                ),
+                json=_make_openrouter_response(f"The meeting is on Tuesday at 3pm [#{memory_id}]."),
                 headers={"x-openrouter-cost": "0.000021"},
             )
         )
@@ -237,7 +243,9 @@ async def test_synthesis_columns_stamped_in_query_log(db_session: AsyncSession) 
         respx.post(_OPENROUTER_URL).mock(
             return_value=httpx.Response(
                 200,
-                json=_make_openrouter_response("Test answer.", prompt_tokens=55, completion_tokens=12),
+                json=_make_openrouter_response(
+                    "Test answer.", prompt_tokens=55, completion_tokens=12
+                ),
                 headers={"x-openrouter-cost": "0.000033"},
             )
         )
@@ -261,9 +269,9 @@ async def test_synthesis_columns_stamped_in_query_log(db_session: AsyncSession) 
         assert log_row.synthesis_model == settings.synthesis_model
         assert log_row.synthesis_input_tokens == 55
         assert log_row.synthesis_output_tokens == 12
-        # Cost rounded to 6 d.p. to match the stored NUMERIC precision.
+        # synthesis_cost is stored as NUMERIC and returned as Decimal by SQLAlchemy.
         assert log_row.synthesis_cost is not None
-        assert abs(log_row.synthesis_cost - 0.000033) < 1e-8
+        assert abs(float(log_row.synthesis_cost) - 0.000033) < 1e-8
     finally:
         await _delete_memory(db_session, memory_id)
 
