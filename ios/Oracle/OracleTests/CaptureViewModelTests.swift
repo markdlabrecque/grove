@@ -187,13 +187,12 @@ struct CaptureViewModelTests {
     vm.content = "Saved while offline"
     await vm.save()
 
-    #expect(vm.showErrorAlert == false, "User should see 'saved', not an error")
-    #expect(vm.content == "", "Content cleared on enqueue success")
-
-    try await Task.sleep(for: .milliseconds(200))
-
+    // enqueue() commits to SwiftData before save() returns, so pendingCount
+    // is already 1 here — no sleep needed to "wait" for the drain attempt.
     let count = try await queue.pendingCount()
     #expect(count == 1, "Row should be in queue awaiting reconnect")
+    #expect(vm.showErrorAlert == false, "User should see 'saved', not an error")
+    #expect(vm.content == "", "Content cleared on enqueue success")
   }
 
   // MARK: - emptyContentIsNoop
