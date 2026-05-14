@@ -4,6 +4,7 @@ Covers:
   - Happy path: synthesis returns answer + sources, synthesis_* columns populated.
   - Provider failure: returns null answer + sources, synthesis_* columns NULL.
   - Cost logging: stamped synthesis_cost readable back from query_logs.
+  - No-API-key skip: synthesis silently skipped, answer=None, no OpenRouter call.
 
 The OpenAI embedding API and OpenRouter synthesis API are both mocked at the
 HTTP boundary with respx — no live calls.
@@ -334,5 +335,72 @@ async def test_synthesis_provider_failure_returns_null_answer_with_sources(
         assert log_row.synthesis_input_tokens is None
         assert log_row.synthesis_output_tokens is None
         assert log_row.synthesis_cost is None
+    finally:
+        await _delete_memory(db_session, memory_id)
+
+
+# ---------------------------------------------------------------------------
+# Empty-key skip — no OpenRouter call, warning emitted
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_synthesis_skipped_when_no_api_key(
+    db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """When openrouter_api_key is None, synthesis is skipped silently.
+
+    Asserts:
+    - answer is None in the response (skip, not a failure).
+    - sources are still populated (retrieval proceeds normally).
+    - No HTTP request is made to the OpenRouter URL.
+    - The warning log event synthesis_skipped_no_api_key is emitted.
+    """
+    import structlog.testing
+
+    from oracle.main import app
+
+    # Override the key stub set by override_db_and_api_key to simulate absence.
+    monkeypatch.setattr(settings, "openrouter_api_key", None)
+
+    memory_id = await _seed_whole_memory(
+        db_session,
+        embedding=_QUERY_VEC,
+        content="A memory that would be synthesised if a key were present.",
+    )
+    try:
+        respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+            return_value=httpx.Response(200, json=_make_openai_response(_QUERY_VEC))
+        )
+        # Intentionally no mock for _OPENROUTER_URL — respx.mock will raise
+        # httpx.ConnectError if a request is attempted, which would fail the test.
+
+        with structlog.testing.capture_logs() as captured:
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/v1/queries",
+                    json={"query": "will this synthesise?", "limit": 10},
+                    headers=AUTH_HEADERS,
+                )
+
+        assert response.status_code == 200
+        body = response.json()
+
+        # answer is None — skip, not a failure.
+        assert body["answer"] is None
+
+        # sources still populated — retrieval is unaffected by the missing key.
+        assert isinstance(body["sources"], list)
+        assert any(s["memory_id"] == str(memory_id) for s in body["sources"])
+
+        # No HTTP request was sent to OpenRouter.
+        assert not respx.calls.filter(url__regex=r"openrouter\.ai").called
+
+        # Warning log was emitted.
+        skip_events = [e for e in captured if e.get("event") == "synthesis_skipped_no_api_key"]
+        assert skip_events, "Expected synthesis_skipped_no_api_key log event"
     finally:
         await _delete_memory(db_session, memory_id)
