@@ -1,7 +1,14 @@
 name: iOS CI
 
-# Runs only when iOS source files (or this workflow file) change, so
-# server-only PRs do not burn macOS runner minutes.
+# Fires on every PR so the `Core (stable gate)` required check always
+# reports. The heavy `swift test` step inside the job is gated on a
+# paths filter so non-iOS PRs only pay ~30 s of macOS-runner setup time.
+#
+# Background: the branch ruleset requires `Core (stable gate)` to pass.
+# A workflow that uses an `on.pull_request.paths` filter at the trigger
+# level simply does not run for excluded paths, leaving the required
+# check "expected but absent" — which GitHub treats as a block. See
+# #137 for the full diagnosis.
 
 # ---------------------------------------------------------------------------
 # CI job strategy — why there is only one job here
@@ -32,9 +39,6 @@ name: iOS CI
 
 "on":
   pull_request:
-    paths:
-      - "ios/**"
-      - ".github/workflows/ios-ci.yml"
 
 # Cancel any in-flight run for the same branch/ref when a new commit is pushed.
 # Prevents hung tests from consuming the full 6-hour runner budget across pushes.
@@ -60,20 +64,40 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Detect whether iOS-relevant files actually changed. When they have
+      # not, every subsequent step is gated off and the job completes
+      # quickly so `Core (stable gate)` reports green for non-iOS PRs
+      # without burning a full swift-test cycle.
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            ios:
+              - "ios/**"
+              - ".github/workflows/ios-ci.yml"
+
+      - name: Skip — no iOS-relevant changes
+        if: steps.filter.outputs.ios != 'true'
+        run: echo "Skipped — no iOS-relevant changes in this PR."
+
       - name: Select Xcode
+        if: steps.filter.outputs.ios == 'true'
         # Pin the Xcode version so a toolchain upgrade on the runner image does
         # not silently break the build between PRs.
         run: sudo xcode-select -s /Applications/Xcode_16.2.app/Contents/Developer
 
       - name: Show Xcode / Swift version
+        if: steps.filter.outputs.ios == 'true'
         run: |
           xcodebuild -version
           swift --version
 
       - name: swift test (OracleCore)
+        if: steps.filter.outputs.ios == 'true'
         run: swift test --package-path ios/Oracle/OracleCore --enable-code-coverage
 
       - name: Extract OracleCore coverage
+        if: steps.filter.outputs.ios == 'true'
         run: |
           set -euo pipefail
           PROF=$(find ios/Oracle/OracleCore/.build -name '*.profdata' | head -n1)
@@ -99,7 +123,10 @@ jobs:
             -ignore-filename-regex='\.build/|Tests/' | tail -n5
 
       - name: Upload OracleCore coverage report
-        if: always()
+        # always() ensures the artifact is uploaded even if `swift test`
+        # failed (useful for debugging), but only when iOS paths actually
+        # changed in this PR.
+        if: always() && steps.filter.outputs.ios == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-ios-core
