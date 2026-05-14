@@ -401,9 +401,23 @@ async def test_enriched_true_filter(mixed_enrichment_memories: list[Memory]) -> 
 
     our_ids = {str(m.id) for m in mixed_enrichment_memories}
 
+    # Scope to the fixture's time window so accumulated enriched rows from
+    # prior test sessions don't fill the page and push fixture rows out of
+    # the limit=50 window (same isolation pattern as test_enriched_false_filter).
+    sorted_by_time = sorted(mixed_enrichment_memories, key=lambda m: m.created_at)
+    window_start = (sorted_by_time[0].created_at - timedelta(seconds=1)).isoformat()
+    window_end = (sorted_by_time[-1].created_at + timedelta(seconds=1)).isoformat()
+
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(
-            "/v1/memories", headers=AUTH_HEADERS, params={"enriched": "true", "limit": 50}
+            "/v1/memories",
+            headers=AUTH_HEADERS,
+            params={
+                "enriched": "true",
+                "limit": 50,
+                "created_after": window_start,
+                "created_before": window_end,
+            },
         )
 
     assert response.status_code == 200
