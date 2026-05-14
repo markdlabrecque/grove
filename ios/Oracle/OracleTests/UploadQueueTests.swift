@@ -302,6 +302,51 @@ struct UploadQueueTests {
     #expect(try await queue.pendingCount() == 0)
   }
 
+  // MARK: - retryCapSingleSaveOnCapHit
+
+  /// Verifies that the retry-cap eviction path issues exactly one `modelContext.save()`
+  /// call (not two). A second save would indicate the redundant intermediate bump+save
+  /// that issue #153 eliminated.
+  ///
+  /// The test drives the queue to attempt 9 (below cap) and then one final drain that
+  /// hits the cap. On that 10th call `onModelContextSave` must fire exactly once.
+  @Test("retry cap eviction: exactly one modelContext.save() on cap-hit drain")
+  func retryCapSingleSaveOnCapHit() async throws {
+    let container = try makeContainer()
+    let (queue, _) = makeQueue(container: container)
+
+    let (id, data) = try makePayload()
+    let failResponse = stubResponse(statusCode: 503)
+    let errorBody = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
+
+    StubURLProtocol.responder = { [failResponse, errorBody] _ in
+      (failResponse, errorBody)
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    try await queue.enqueue(clientID: id.uuidString, payload: data)
+
+    // Drive 9 drains to reach attemptCount == 9 without triggering the cap.
+    for _ in 1..<10 {
+      await queue.tryDrain()
+    }
+    // Row still present after 9 attempts.
+    #expect(try await queue.pendingCount() == 1)
+
+    // Arm the save counter for the 10th (cap-hit) drain only.
+    final class Counter: @unchecked Sendable { var value = 0 }
+    let saveCounter = Counter()
+    await queue.setOnModelContextSave { saveCounter.value += 1 }
+    defer { Task { await queue.setOnModelContextSave(nil) } }
+
+    // 10th drain — hits the cap, row is deleted.
+    await queue.tryDrain()
+
+    #expect(try await queue.pendingCount() == 0)
+    // Exactly one save: the delete+save. No intermediate bump+save.
+    #expect(saveCounter.value == 1)
+  }
+
   // MARK: - fourXxDeletesImmediately
 
   /// A 422 response is a permanent failure. The row must be deleted after a
