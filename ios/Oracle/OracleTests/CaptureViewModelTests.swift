@@ -2,6 +2,7 @@ import Testing
 import Foundation
 import SwiftData
 import OracleCore
+import OracleTestSupport
 @testable import OracleCore
 @testable import Oracle
 

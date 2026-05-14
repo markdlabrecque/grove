@@ -3,6 +3,10 @@ import Foundation
 /// A `URLProtocol` subclass that intercepts requests and returns a caller-
 /// configured response without touching the network.
 ///
+/// Both `OracleCoreTests` and the Xcode-project-side `OracleTests` bundle
+/// import this type from the shared `OracleTestSupport` module, which is the
+/// single source of truth.
+///
 /// Usage in a test:
 ///
 /// ```swift
@@ -22,32 +26,32 @@ import Foundation
 /// ```
 ///
 /// Reset `StubURLProtocol.responder = nil` in `tearDown` / after the test so
-/// stubs don't leak between tests. The `OracleAPISmokeTests` suite is marked
+/// stubs don't leak between tests. Test suites using this class should be marked
 /// `@Suite(.serialized)` to prevent Swift Testing's parallel runner from
 /// mixing stubs across concurrent tests.
-final class StubURLProtocol: URLProtocol {
+public final class StubURLProtocol: URLProtocol {
 
   /// Configure this before each test. Returns `(response, body)` for any
   /// intercepted request. If `nil`, the stub crashes with a clear message so
   /// tests don't silently proceed with no response.
   ///
-  /// Marked `nonisolated(unsafe)` because `OracleAPISmokeTests` is
-  /// `@Suite(.serialized)` — tests never run concurrently — so accesses are
-  /// externally synchronised without a Swift concurrency primitive.
-  nonisolated(unsafe) static var responder: ((URLRequest) -> (HTTPURLResponse, Data))?
+  /// Marked `nonisolated(unsafe)` because tests using this must be serialised —
+  /// they never run concurrently — so accesses are externally synchronised
+  /// without a Swift concurrency primitive.
+  nonisolated(unsafe) public static var responder: ((URLRequest) -> (HTTPURLResponse, Data))?
 
   // MARK: - URLProtocol overrides
 
-  override class func canInit(with request: URLRequest) -> Bool {
+  override public class func canInit(with request: URLRequest) -> Bool {
     // Intercept every request routed through a session using this protocol.
     return true
   }
 
-  override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+  override public class func canonicalRequest(for request: URLRequest) -> URLRequest {
     return request
   }
 
-  override func startLoading() {
+  override public func startLoading() {
     guard let responder = StubURLProtocol.responder else {
       preconditionFailure(
         "StubURLProtocol.responder must be set before making a request."
@@ -60,7 +64,7 @@ final class StubURLProtocol: URLProtocol {
     client?.urlProtocolDidFinishLoading(self)
   }
 
-  override func stopLoading() {
+  override public func stopLoading() {
     // Nothing to cancel — responses are returned synchronously in startLoading.
   }
 }

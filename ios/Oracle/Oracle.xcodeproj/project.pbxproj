@@ -27,9 +27,9 @@
 		B1000003 /* JSONCodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* JSONCodingTests.swift */; };
 		B1000004 /* capture_response.json in Resources */ = {isa = PBXBuildFile; fileRef = B2000004 /* capture_response.json */; };
 		B1000006 /* QueryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000007 /* QueryViewModelTests.swift */; };
-		B1000007 /* StubURLProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000008 /* StubURLProtocol.swift */; };
 		B1000008 /* UploadQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000009 /* UploadQueueTests.swift */; };
 		B100000A /* OracleCore in Frameworks */ = {isa = PBXBuildFile; productRef = B200000A /* OracleCore */; };
+		B100000D /* OracleTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = B200000D /* OracleTestSupport */; };
 		C1000001 /* OracleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* OracleUITests.swift */; };
 /* End PBXBuildFile section */
 
@@ -75,7 +75,6 @@
 		B2000003 /* JSONCodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONCodingTests.swift; sourceTree = "<group>"; };
 		B2000004 /* capture_response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = capture_response.json; sourceTree = "<group>"; };
 		B2000007 /* QueryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModelTests.swift; sourceTree = "<group>"; };
-		B2000008 /* StubURLProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubURLProtocol.swift; sourceTree = "<group>"; };
 		B2000009 /* UploadQueueTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueueTests.swift; sourceTree = "<group>"; };
 		B2000005 /* OracleTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OracleTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C2000001 /* OracleUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OracleUITests.swift; sourceTree = "<group>"; };
@@ -96,6 +95,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B100000A /* OracleCore in Frameworks */,
+				B100000D /* OracleTestSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -183,7 +183,6 @@
 				B2000002 /* OracleAPITests.swift */,
 				B2000003 /* JSONCodingTests.swift */,
 				B2000007 /* QueryViewModelTests.swift */,
-				B2000008 /* StubURLProtocol.swift */,
 				B2000009 /* UploadQueueTests.swift */,
 				B200000B /* NetworkMonitorTests.swift */,
 				B200000C /* CaptureViewModelTests.swift */,
@@ -247,6 +246,7 @@
 			name = OracleTests;
 			packageProductDependencies = (
 				B200000A /* OracleCore */,
+				B200000D /* OracleTestSupport */,
 			);
 			productName = OracleTests;
 			productReference = B2000005 /* OracleTests.xctest */;
@@ -369,7 +369,6 @@
 				B1000002 /* OracleAPITests.swift in Sources */,
 				B1000003 /* JSONCodingTests.swift in Sources */,
 				B1000006 /* QueryViewModelTests.swift in Sources */,
-				B1000007 /* StubURLProtocol.swift in Sources */,
 				B1000008 /* UploadQueueTests.swift in Sources */,
 				B1000009 /* NetworkMonitorTests.swift in Sources */,
 				B100000C /* CaptureViewModelTests.swift in Sources */,
@@ -731,6 +730,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A200000E /* XCLocalSwiftPackageReference "OracleCore" */;
 			productName = OracleCore;
+		};
+		B200000D /* OracleTestSupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A200000E /* XCLocalSwiftPackageReference "OracleCore" */;
+			productName = OracleTestSupport;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
