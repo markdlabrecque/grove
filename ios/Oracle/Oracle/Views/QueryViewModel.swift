@@ -74,7 +74,9 @@ final class QueryViewModel {
   ///
   /// `internal` (not `private`) so `@testable` imports can assert it is `nil`
   /// after `ask()` completes — locking the regression introduced in #100.
-  var activeTask: Task<Void, Never>?
+  /// `private(set)` prevents external writes that would bypass the lifecycle
+  /// managed in `ask()` and `cancel()`.
+  private(set) var activeTask: Task<Void, Never>?
 
   /// The last successfully returned results. Preserved across loading cycles
   /// so that when a new request is cancelled, the prior results are restored
