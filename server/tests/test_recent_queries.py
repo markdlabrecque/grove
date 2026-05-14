@@ -206,9 +206,7 @@ async def test_recent_queries_case_insensitive_dedup(
 
 
 @pytest.mark.asyncio
-async def test_recent_queries_limit_honoured(
-    client: AsyncClient, db_session: AsyncSession
-) -> None:
+async def test_recent_queries_limit_honoured(client: AsyncClient, db_session: AsyncSession) -> None:
     """limit=2 returns at most 2 results from our seeded rows."""
     now = datetime.now(UTC)
     id_a = await _seed_query_log(db_session, "limit query one", now - timedelta(minutes=30))
