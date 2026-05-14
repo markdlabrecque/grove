@@ -16,9 +16,12 @@
 		B100000E /* MigrationPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000E /* MigrationPlanTests.swift */; };
 		B1000009 /* NetworkMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000B /* NetworkMonitorTests.swift */; };
 		B100000C /* CaptureViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000C /* CaptureViewModelTests.swift */; };
+		B1000010 /* MemoryDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000010 /* MemoryDetailViewModelTests.swift */; };
 		A1000003 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* RootView.swift */; };
 		A1000004 /* CaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004 /* CaptureView.swift */; };
 		A1000005 /* QueryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000005 /* QueryView.swift */; };
+		A1000016 /* MemoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016 /* MemoryDetailView.swift */; };
+		A1000017 /* MemoryDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* MemoryDetailViewModel.swift */; };
 		A1000006 /* CaptureViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006 /* CaptureViewModel.swift */; };
 		A1000008 /* QueryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010 /* QueryViewModel.swift */; };
 		A1000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000007 /* Assets.xcassets */; };
@@ -63,9 +66,12 @@
 		B200000E /* MigrationPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationPlanTests.swift; sourceTree = "<group>"; };
 		B200000B /* NetworkMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitorTests.swift; sourceTree = "<group>"; };
 		B200000C /* CaptureViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModelTests.swift; sourceTree = "<group>"; };
+		B2000010 /* MemoryDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDetailViewModelTests.swift; sourceTree = "<group>"; };
 		A2000003 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
 		A2000004 /* CaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureView.swift; sourceTree = "<group>"; };
 		A2000005 /* QueryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryView.swift; sourceTree = "<group>"; };
+		A2000016 /* MemoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDetailView.swift; sourceTree = "<group>"; };
+		A2000017 /* MemoryDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDetailViewModel.swift; sourceTree = "<group>"; };
 		A2000006 /* CaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModel.swift; sourceTree = "<group>"; };
 		A2000010 /* QueryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModel.swift; sourceTree = "<group>"; };
 		A2000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -161,6 +167,8 @@
 				A2000006 /* CaptureViewModel.swift */,
 				A2000005 /* QueryView.swift */,
 				A2000010 /* QueryViewModel.swift */,
+				A2000016 /* MemoryDetailView.swift */,
+				A2000017 /* MemoryDetailViewModel.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -192,6 +200,7 @@
 				B200000B /* NetworkMonitorTests.swift */,
 				B200000C /* CaptureViewModelTests.swift */,
 				B200000E /* MigrationPlanTests.swift */,
+				B2000010 /* MemoryDetailViewModelTests.swift */,
 				B3000002 /* Fixtures */,
 			);
 			path = OracleTests;
@@ -365,6 +374,8 @@
 				A1000006 /* CaptureViewModel.swift in Sources */,
 				A1000005 /* QueryView.swift in Sources */,
 				A1000008 /* QueryViewModel.swift in Sources */,
+				A1000016 /* MemoryDetailView.swift in Sources */,
+				A1000017 /* MemoryDetailViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -380,6 +391,7 @@
 				B1000009 /* NetworkMonitorTests.swift in Sources */,
 				B100000C /* CaptureViewModelTests.swift in Sources */,
 				B100000E /* MigrationPlanTests.swift in Sources */,
+				B1000010 /* MemoryDetailViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
