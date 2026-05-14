@@ -47,12 +47,16 @@ jobs:
           # Scan production source only — tests and build dirs are excluded.
           # If a directory does not exist (e.g. solo-language PR), lizard
           # silently skips it.
+          # --csv is the actual flag (lowercase). Errors are surfaced as a
+          # failed step rather than swallowed — the job is already
+          # continue-on-error so a parse failure won't gate the PR but it
+          # will be visible in the run summary.
           lizard \
-            --CSV \
+            --csv \
             server/oracle \
             ios/Oracle/Oracle \
             ios/Oracle/OracleCore/Sources \
-            > lizard.csv 2>/dev/null || true
+            > lizard.csv
 
           python3 - <<'PY' > comment-body.md
           import csv
@@ -69,19 +73,27 @@ jobs:
           try:
               with open("lizard.csv") as f:
                   for r in csv.reader(f):
-                      # lizard --CSV columns:
-                      # nloc, ccn, tokens, param, length, location,
-                      # function, long_name, start, end
-                      if len(r) < 7:
+                      # lizard --csv columns (verified against lizard 1.17):
+                      #   0: nloc
+                      #   1: ccn
+                      #   2: tokens
+                      #   3: param
+                      #   4: length
+                      #   5: full_id  ("name@start-end@path")
+                      #   6: file_path
+                      #   7: short_name
+                      #   8: long_signature
+                      #   9: start_line
+                      #  10: end_line
+                      if len(r) < 10:
                           continue
                       try:
                           ccn = int(r[1])
                       except ValueError:
                           continue
-                      location = r[5]
-                      name = r[6]
-                      # location is "path:start" — strip line for matching
-                      file_path = location.split(":", 1)[0]
+                      file_path = r[6]
+                      name = r[7]
+                      location = f"{file_path}:{r[9]}"
                       rows.append((ccn, name, file_path, location))
           except FileNotFoundError:
               pass
