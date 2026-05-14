@@ -1,0 +1,278 @@
+enrichment_version: 1
+
+system_prompt: |
+  You are an extraction assistant. Given a memory text, identify and extract
+  structured information into four categories: decisions, people_interactions,
+  tasks, and appointments. Return a JSON object with four keys — one per
+  category — each containing a list of extracted items. Return empty lists
+  for categories with nothing to extract.
+
+  For each item, include a confidence score between 0.0 and 1.0 reflecting
+  how clearly the memory text supports the extraction. Only include items with
+  genuine textual evidence; do not infer beyond what is stated.
+
+types:
+  decisions:
+    definition: |
+      A decision is a deliberate choice made by a person or group from
+      among alternatives. The memory must mention the chosen option, or at
+      minimum a clear commitment to a course of action. Background context
+      or open questions are not decisions.
+    examples:
+      - input: |
+          After weighing Hetzner, AWS, and Fly.io for the API server, I went
+          with Hetzner CX22. Price-performance is the best fit for a personal
+          project at this scale.
+        output:
+          decision_maker: null
+          context: "Choosing a cloud provider for the API server"
+          options: ["Hetzner", "AWS", "Fly.io"]
+          chosen_option: "Hetzner CX22"
+          rationale: "Best price-performance for a personal project"
+          outcome: null
+          outcome_date: null
+          confidence: 0.95
+      - input: |
+          We decided to drop SAML support from the auth service entirely.
+          Nobody in our user base needs it and it was adding complexity.
+        output:
+          decision_maker: null
+          context: "Auth service scope"
+          options: ["keep SAML", "drop SAML"]
+          chosen_option: "drop SAML support"
+          rationale: "No users need it; reducing complexity"
+          outcome: null
+          outcome_date: null
+          confidence: 0.92
+      - input: |
+          Board voted to move the company HQ to Austin by end of Q3. Toronto
+          office stays open as a satellite.
+        output:
+          decision_maker: "Board"
+          context: "Company headquarters location"
+          options: ["stay in Toronto", "move to Austin"]
+          chosen_option: "move HQ to Austin by end of Q3"
+          rationale: null
+          outcome: null
+          outcome_date: null
+          confidence: 0.90
+    fields:
+      decision_maker:
+        type: string
+        nullable: true
+        description: Person or group who made the decision.
+      context:
+        type: string
+        nullable: true
+        description: What was being decided or the surrounding situation.
+      options:
+        type: array
+        items: string
+        nullable: true
+        description: Alternatives that were considered.
+      chosen_option:
+        type: string
+        nullable: true
+        description: The option that was selected.
+      rationale:
+        type: string
+        nullable: true
+        description: Stated reason for the choice.
+      outcome:
+        type: string
+        nullable: true
+        description: Result or consequence if already known.
+      outcome_date:
+        type: string
+        format: date
+        nullable: true
+        description: "ISO 8601 date (YYYY-MM-DD) when the outcome was observed."
+      confidence:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+        description: Extraction confidence.
+
+  people_interactions:
+    definition: |
+      A people interaction is any recorded contact or communication with a
+      named individual — a meeting, call, message exchange, or encounter.
+      The person's name must be discernible from the text. Generic references
+      ("someone", "a colleague") do not qualify.
+    examples:
+      - input: |
+          Had coffee with Alice this morning. We talked through the Q3 roadmap
+          and the upcoming hiring plan. She's going to send me her draft JD by
+          Friday.
+        output:
+          person_name: "Alice"
+          interaction_medium: "in-person"
+          topics: ["Q3 roadmap", "hiring plan"]
+          next_steps: ["Alice to send draft JD by Friday"]
+          confidence: 0.94
+      - input: |
+          Quick Slack message from Raj — he flagged a bug in the payments
+          service. Told him I'd look at it tomorrow.
+        output:
+          person_name: "Raj"
+          interaction_medium: "Slack"
+          topics: ["bug in payments service"]
+          next_steps: ["look at payments bug tomorrow"]
+          confidence: 0.91
+      - input: |
+          Called Mum. She's doing well; no action items.
+        output:
+          person_name: "Mum"
+          interaction_medium: "phone call"
+          topics: []
+          next_steps: []
+          confidence: 0.88
+    fields:
+      person_name:
+        type: string
+        nullable: false
+        description: Full name or identifier of the person interacted with.
+      interaction_medium:
+        type: string
+        nullable: true
+        description: "How the interaction happened (e.g. in-person, Slack, email, phone)."
+      topics:
+        type: array
+        items: string
+        nullable: true
+        description: Subjects discussed.
+      next_steps:
+        type: array
+        items: string
+        nullable: true
+        description: Action items arising from the interaction.
+      confidence:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+        description: Extraction confidence.
+
+  tasks:
+    definition: |
+      A task is an explicit commitment to do something — a to-do item, action
+      item, or follow-up. The memory must contain a clear intention to act,
+      not just an observation or wish. Vague aspirations ("I should exercise
+      more") are borderline; concrete commitments ("Book the dentist by
+      Thursday") qualify.
+    examples:
+      - input: |
+          Need to send Alice the OAuth2 RFC draft before our meeting next
+          Tuesday.
+        output:
+          description: "Send Alice the OAuth2 RFC draft"
+          due_date: null
+          status: "open"
+          related_people: ["Alice"]
+          confidence: 0.96
+      - input: |
+          Book the venue for the company offsite — Theo wants it done by
+          June 30.
+        output:
+          description: "Book venue for company offsite"
+          due_date: "2026-06-30"
+          status: "open"
+          related_people: ["Theo"]
+          confidence: 0.93
+      - input: |
+          Renew passport before the Singapore trip in September.
+        output:
+          description: "Renew passport before Singapore trip"
+          due_date: null
+          status: "open"
+          related_people: []
+          confidence: 0.89
+    fields:
+      description:
+        type: string
+        nullable: false
+        description: What needs to be done.
+      due_date:
+        type: string
+        format: date
+        nullable: true
+        description: "ISO 8601 date (YYYY-MM-DD) when the task is due."
+      status:
+        type: string
+        nullable: true
+        description: "Task status. V1 default is 'open'."
+      related_people:
+        type: array
+        items: string
+        nullable: true
+        description: People connected to this task.
+      confidence:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+        description: Extraction confidence.
+
+  appointments:
+    definition: |
+      An appointment is a scheduled event at a specific time, or an event
+      for which a time is being arranged. The memory must reference an
+      actual or planned time slot. General intentions without a time anchor
+      ("we should grab lunch sometime") do not qualify.
+    examples:
+      - input: |
+          Quarterly review is booked for July 1st, 10–11 AM in conference
+          room B. Alice and I are both on the invite.
+        output:
+          title: "Quarterly review"
+          starts_at: "2026-07-01T10:00:00Z"
+          ends_at: "2026-07-01T11:00:00Z"
+          location: "Conference room B"
+          participants: ["Alice"]
+          confidence: 0.93
+      - input: |
+          Dentist appointment Thursday at 2 PM.
+        output:
+          title: "Dentist appointment"
+          starts_at: null
+          ends_at: null
+          location: null
+          participants: []
+          confidence: 0.85
+      - input: |
+          Team lunch next Friday noon at The Canteen. Raj, Alice, and Theo
+          are coming.
+        output:
+          title: "Team lunch"
+          starts_at: null
+          ends_at: null
+          location: "The Canteen"
+          participants: ["Raj", "Alice", "Theo"]
+          confidence: 0.87
+    fields:
+      title:
+        type: string
+        nullable: true
+        description: Short name for the appointment.
+      starts_at:
+        type: string
+        format: date-time
+        nullable: true
+        description: "ISO 8601 datetime with timezone when the appointment starts."
+      ends_at:
+        type: string
+        format: date-time
+        nullable: true
+        description: "ISO 8601 datetime with timezone when the appointment ends."
+      location:
+        type: string
+        nullable: true
+        description: Where the appointment takes place.
+      participants:
+        type: array
+        items: string
+        nullable: true
+        description: People attending besides the memory author.
+      confidence:
+        type: number
+        minimum: 0.0
+        maximum: 1.0
+        description: Extraction confidence.

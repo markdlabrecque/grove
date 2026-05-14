@@ -15,6 +15,7 @@ dependencies = [
   "pgvector>=0.3",
   "tiktoken>=0.7",
   "openai>=1.50",
+  "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]

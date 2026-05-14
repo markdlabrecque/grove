@@ -27,7 +27,6 @@ from oracle.enrichment.schemas import (
     load_classification_prompts,
 )
 
-
 # ---------------------------------------------------------------------------
 # Decision
 # ---------------------------------------------------------------------------
@@ -131,8 +130,8 @@ def test_task_nullable_fields():
 def test_appointment_valid():
     a = Appointment(
         title="Quarterly review",
-        starts_at=datetime.datetime(2026, 7, 1, 10, 0, tzinfo=datetime.timezone.utc),
-        ends_at=datetime.datetime(2026, 7, 1, 11, 0, tzinfo=datetime.timezone.utc),
+        starts_at=datetime.datetime(2026, 7, 1, 10, 0, tzinfo=datetime.UTC),
+        ends_at=datetime.datetime(2026, 7, 1, 11, 0, tzinfo=datetime.UTC),
         location="Conference room B",
         participants=["Alice", "Mark"],
         confidence=0.82,
