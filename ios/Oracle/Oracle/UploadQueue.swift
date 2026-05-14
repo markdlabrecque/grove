@@ -83,6 +83,18 @@ public actor UploadQueue {
   /// wrapper is needed.
   private var isDraining = false
 
+  // MARK: - Test hook
+
+  /// Called once per row after every drain-row completion path (success,
+  /// transient failure, permanent failure, retry-cap eviction, decode error).
+  ///
+  /// Production code never sets this. Tests inject it to synchronise on drain
+  /// completion without `Task.sleep`. Declared `internal` so `@testable import`
+  /// can reach it; the `nonisolated(unsafe)` annotation is safe because the
+  /// property is written by the test before the drain Task starts and read only
+  /// within the actor-isolated `drainRow` — no concurrent writes occur.
+  nonisolated(unsafe) var onDrainRowComplete: ((Result<Void, Error>) -> Void)?
+
   // MARK: - Init
 
   /// Create an `UploadQueue` backed by the provided model container and API.
@@ -185,6 +197,7 @@ public actor UploadQueue {
       print("[UploadQueue] WARN permanent failure (decode error) clientID=\(row.clientID) error=\(description) — deleting")
       modelContext.delete(row)
       try? modelContext.save()
+      onDrainRowComplete?(.failure(error))
       return
     }
 
@@ -203,6 +216,7 @@ public actor UploadQueue {
       modelContext.delete(row)
       try modelContext.save()
       print("[UploadQueue] drained clientID=\(row.clientID)")
+      onDrainRowComplete?(.success(()))
     } catch {
       // Distinguish permanent (4xx) from transient (5xx / network) failures.
       if isPermanentFailure(error) {
@@ -211,6 +225,7 @@ public actor UploadQueue {
         print("[UploadQueue] WARN permanent failure (4xx) clientID=\(row.clientID) error=\(description) — deleting")
         modelContext.delete(row)
         try? modelContext.save()
+        onDrainRowComplete?(.failure(error))
       } else {
         // Transient failure — bump attempt count and keep the row for the next drain.
         row.attemptCount += 1
@@ -225,6 +240,9 @@ public actor UploadQueue {
           print("[UploadQueue] WARN retry cap reached clientID=\(row.clientID) attempt=\(row.attemptCount) lastError=\(description) — deleting")
           modelContext.delete(row)
           try? modelContext.save()
+          onDrainRowComplete?(.failure(error))
+        } else {
+          onDrainRowComplete?(.failure(error))
         }
       }
     }

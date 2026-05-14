@@ -96,8 +96,21 @@ struct CaptureViewModelTests {
     }
     defer { StubURLProtocol.responder = nil }
 
-    vm.content = "Hello from the test"
-    await vm.save()
+    // Wire up the drain-completion callback before triggering save so the
+    // continuation is in place when the fire-and-forget drain task fires.
+    try await withBridgeTimeout(seconds: 5) {
+      try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        queue.onDrainRowComplete = { result in
+          queue.onDrainRowComplete = nil
+          continuation.resume(with: result)
+        }
+
+        Task { @MainActor in
+          vm.content = "Hello from the test"
+          await vm.save()
+        }
+      }
+    }
 
     // ViewModel should report success immediately after enqueue.
     // (save() waits 1.5s then sets idle — we check just before that here,
@@ -106,9 +119,7 @@ struct CaptureViewModelTests {
     #expect(vm.showErrorAlert == false)
     #expect(vm.content == "")
 
-    // Allow the fire-and-forget drain Task a moment to complete.
-    try await Task.sleep(for: .milliseconds(200))
-
+    // Continuation was already signalled by onDrainRowComplete — row is gone.
     let count = try await queue.pendingCount()
     #expect(count == 0, "Row should have been deleted after successful drain")
   }
@@ -136,9 +147,8 @@ struct CaptureViewModelTests {
     #expect(vm.showErrorAlert == false)
     #expect(vm.content == "")
 
-    // Allow the drain Task to finish.
-    try await Task.sleep(for: .milliseconds(200))
-
+    // enqueue() commits to SwiftData before save() returns, so pendingCount
+    // is already 1 here — no sleep needed to wait for the drain attempt.
     let count = try await queue.pendingCount()
     #expect(count == 1, "Row should remain queued after failed drain")
   }
@@ -164,8 +174,8 @@ struct CaptureViewModelTests {
     #expect(vm.showErrorAlert == false, "User should see 'saved', not an error")
     #expect(vm.content == "", "Content cleared on enqueue success")
 
-    try await Task.sleep(for: .milliseconds(200))
-
+    // enqueue() commits to SwiftData before save() returns, so pendingCount
+    // is already 1 here — no sleep needed to wait for the drain attempt.
     let count = try await queue.pendingCount()
     #expect(count == 1, "Row should be in queue awaiting reconnect")
   }
