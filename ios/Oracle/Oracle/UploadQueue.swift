@@ -47,6 +47,21 @@ public actor UploadQueue {
   /// possible, so the `unsafe` annotation is safe here.
   nonisolated(unsafe) private var api: OracleAPI!
 
+  // MARK: - Drain guard
+
+  /// Guards against redundant concurrent drain calls.
+  ///
+  /// At launch, `OracleApp.init()` enqueues an eager `Task { await tryDrain() }`
+  /// and `NWPathMonitor` may fire a `.satisfied` callback before that task
+  /// completes (if the device is already connected). Without this guard both
+  /// callers would snapshot the same pending rows, post each one twice, and rely
+  /// on `ON CONFLICT DO NOTHING` to absorb the duplicates. The guard eliminates
+  /// the extra network round-trips.
+  ///
+  /// Actor isolation serialises reads and writes to this property; no atomic
+  /// wrapper is needed.
+  private var isDraining = false
+
   // MARK: - Init
 
   /// Create an `UploadQueue` backed by the provided model container and API.
@@ -96,7 +111,14 @@ public actor UploadQueue {
   ///
   /// This method never throws. All errors are absorbed per-row so a network
   /// disruption mid-drain does not unwind work already completed.
+  ///
+  /// Concurrent callers receive a fast no-op return while a drain is already
+  /// in flight. See `isDraining`.
   public func tryDrain() async {
+    guard !isDraining else { return }
+    isDraining = true
+    defer { isDraining = false }
+
     let rows: [QueuedCapture]
     do {
       var descriptor = FetchDescriptor<QueuedCapture>(

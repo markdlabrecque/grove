@@ -209,6 +209,62 @@ struct UploadQueueTests {
     #expect(try await queue.pendingCount() == 1)
   }
 
+  // MARK: - concurrentDrainIsCollapsed
+
+  /// Fires two `tryDrain()` calls concurrently and verifies that only N network
+  /// requests are made (not 2×N).
+  ///
+  /// # How the guard works under `@ModelActor`
+  ///
+  /// `@ModelActor` gives `UploadQueue` a serial executor. When two tasks race to
+  /// call `tryDrain()`, the first enters the actor and sets `isDraining = true`
+  /// before suspending at the initial `await drainRow(...)`. The second task gets
+  /// its turn at that suspension point, sees `isDraining == true`, and returns
+  /// immediately. The total number of HTTP requests therefore equals N, not 2×N.
+  ///
+  /// # Synchronisation
+  ///
+  /// `async let` concurrent binding is used to start both drains simultaneously.
+  /// No `Task.sleep` is needed — `await (drain1, drain2)` waits on both actor
+  /// tasks to complete via Swift Concurrency's structured-concurrency graph.
+  @Test("concurrent tryDrain calls collapse to a single drain pass")
+  func concurrentDrainIsCollapsed() async throws {
+    let container = try makeContainer()
+    let (queue, _) = makeQueue(container: container)
+
+    // Enqueue 3 rows so each successful drain makes 3 HTTP calls.
+    let rowCount = 3
+    for i in 0..<rowCount {
+      let (id, data) = try makePayload(content: "concurrent-\(i)")
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+    }
+    #expect(try await queue.pendingCount() == rowCount)
+
+    let responseData = captureResponseFixture()
+    let successResponse = stubResponse(statusCode: 201)
+
+    // Count every HTTP request the stub services.
+    final class Counter: @unchecked Sendable { var value = 0 }
+    let counter = Counter()
+    StubURLProtocol.responder = { [successResponse, responseData, counter] _ in
+      counter.value += 1
+      return (successResponse, responseData)
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    // Fire two drains concurrently via async let.  Both are submitted to the
+    // actor before either completes; the second should be suppressed by isDraining.
+    async let drain1: Void = queue.tryDrain()
+    async let drain2: Void = queue.tryDrain()
+    _ = await (drain1, drain2)
+
+    // All rows should be gone (the one drain that ran succeeded).
+    #expect(try await queue.pendingCount() == 0)
+
+    // Exactly N HTTP requests — not 2×N.
+    #expect(counter.value == rowCount)
+  }
+
   // MARK: - resetClearsAll
 
   @Test("reset deletes all rows (pendingCount == 0)")
