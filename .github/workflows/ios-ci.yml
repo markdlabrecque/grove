@@ -71,4 +71,38 @@ jobs:
           swift --version
 
       - name: swift test (OracleCore)
-        run: swift test --package-path ios/Oracle/OracleCore
+        run: swift test --package-path ios/Oracle/OracleCore --enable-code-coverage
+
+      - name: Extract OracleCore coverage
+        run: |
+          set -euo pipefail
+          PROF=$(find ios/Oracle/OracleCore/.build -name '*.profdata' | head -n1)
+          BIN=$(find ios/Oracle/OracleCore/.build -name 'OracleCorePackageTests.xctest' | head -n1)
+          if [ -z "$PROF" ] || [ -z "$BIN" ]; then
+            echo "Coverage artifacts not found — skipping export." >&2
+            exit 0
+          fi
+          # Resolve the actual test binary inside the bundle (macOS layout).
+          BIN_EXEC="$BIN/Contents/MacOS/OracleCorePackageTests"
+          if [ ! -f "$BIN_EXEC" ]; then
+            BIN_EXEC="$BIN"
+          fi
+          xcrun llvm-cov export \
+            -format=lcov \
+            -instr-profile "$PROF" \
+            "$BIN_EXEC" \
+            > coverage-ios-core.lcov
+          # Summary line for the CI log.
+          xcrun llvm-cov report \
+            -instr-profile "$PROF" \
+            "$BIN_EXEC" \
+            -ignore-filename-regex='\.build/|Tests/' | tail -n5
+
+      - name: Upload OracleCore coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-ios-core
+          path: coverage-ios-core.lcov
+          if-no-files-found: ignore
+          retention-days: 14

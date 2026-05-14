@@ -80,6 +80,22 @@ For every ticket that requires implementation work:
      this change** (RUNBOOK, implementation plan, inline docs). Doc
      drift is a must-fix issue if Theo catches it later, so handle it
      up front.
+   - **Test quality bar.** Tests should match the cost of the change —
+     a one-line bug fix earns one focused regression test, not a
+     suite. The bar is "would a future regression in this area be
+     caught," not coverage percentage. Within that frame:
+     - Bug fixes include a regression test that fails on the pre-fix
+       code (revert the production change locally and confirm red
+       before claiming green).
+     - Before claiming any new test passes, confirm it fails when the
+       production change is reverted. Honour-system but worth naming.
+     - Tests must be deterministic — no wall-clock `sleep` /
+       `Task.sleep` / `DispatchQueue.asyncAfter` for synchronisation.
+       Use continuations, expectations, or injected clocks. Sleeps
+       are allowed only to simulate real user wait time, never to
+       wait for an async operation to finish.
+     - Shared test fixtures (URL protocols, factories, stubs) live in
+       one place — don't duplicate across test targets.
    - Commits in the project's conventional-commit style, ticket
      number leading: `#42 feat: add capture endpoint`. Group commits
      by concern.
@@ -93,7 +109,11 @@ For every ticket that requires implementation work:
      context demands it.
    - Categorises findings:
      - **Must-fix** — correctness bugs, security issues, regressions,
-       missing tests for new behaviour, broken doc references, plus
+       missing tests for new behaviour, missing regression tests on
+       bug fixes, tests that use `sleep` / `Task.sleep` /
+       `DispatchQueue.asyncAfter` as synchronisation primitives,
+       duplicated test fixtures that should be unified, broken doc
+       references, plus
        *cheap drive-by improvements to files already in the diff*
        (rename a confusingly-named local, fix an obvious typo in a
        changed comment, etc.). These ride along — they don't get
@@ -107,6 +127,13 @@ For every ticket that requires implementation work:
        `enhancement` when unsure. Theo does not block merge on either.
    - Posts a review comment on the PR summarising findings. If
      there are no must-fix issues, skip to step 6.
+   - **Informational metadata (not a gate).** CI posts a comment on
+     every PR with line coverage (per target) and the top-5 functions
+     by cyclomatic complexity, flagged ★ if the PR touched their
+     file. These numbers are surfaced for trend visibility; Theo does
+     not block merge on them. A coverage regression or a function
+     creeping high on the worst-list is a normal candidate for a
+     non-blocking follow-up issue under step 4 above.
 
 5. **Implementer addresses must-fix issues.** Same agent as step 3.
    New commits on the same branch. When done, hand back to Theo.

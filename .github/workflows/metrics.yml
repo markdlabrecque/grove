@@ -1,0 +1,149 @@
+name: Quality metrics
+
+# Informational-only. Posts (or updates) a single PR comment with cyclomatic
+# complexity worst-5 and coverage summary. Never fails the build — these
+# numbers are surfaced for trend visibility, not as a merge gate.
+# See AGENTS.md step 4 "Informational metadata (not a gate)".
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  complexity:
+    name: Complexity (worst-5 CCN)
+    runs-on: ubuntu-latest
+    # Never block merge on this job.
+    continue-on-error: true
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install lizard
+        run: pip install --quiet 'lizard>=1.17'
+
+      - name: Determine changed paths
+        id: changed
+        run: |
+          # Files touched in this PR, relative to the merge base.
+          BASE_SHA=$(git merge-base origin/${{ github.base_ref }} HEAD)
+          git diff --name-only "$BASE_SHA" HEAD > changed-files.txt
+          echo "Changed files:" >&2
+          cat changed-files.txt >&2
+
+      - name: Run lizard and build report
+        id: report
+        run: |
+          set -euo pipefail
+          # Scan production source only — tests and build dirs are excluded.
+          # If a directory does not exist (e.g. solo-language PR), lizard
+          # silently skips it.
+          lizard \
+            --CSV \
+            server/oracle \
+            ios/Oracle/Oracle \
+            ios/Oracle/OracleCore/Sources \
+            > lizard.csv 2>/dev/null || true
+
+          python3 - <<'PY' > comment-body.md
+          import csv
+          import os
+
+          changed = set()
+          try:
+              with open("changed-files.txt") as f:
+                  changed = {line.strip() for line in f if line.strip()}
+          except FileNotFoundError:
+              pass
+
+          rows = []
+          try:
+              with open("lizard.csv") as f:
+                  for r in csv.reader(f):
+                      # lizard --CSV columns:
+                      # nloc, ccn, tokens, param, length, location,
+                      # function, long_name, start, end
+                      if len(r) < 7:
+                          continue
+                      try:
+                          ccn = int(r[1])
+                      except ValueError:
+                          continue
+                      location = r[5]
+                      name = r[6]
+                      # location is "path:start" — strip line for matching
+                      file_path = location.split(":", 1)[0]
+                      rows.append((ccn, name, file_path, location))
+          except FileNotFoundError:
+              pass
+
+          rows.sort(key=lambda x: x[0], reverse=True)
+          top = rows[:5]
+
+          lines = ["<!-- quality-metrics-bot -->"]
+          lines.append("### Quality metrics (informational — not a merge gate)")
+          lines.append("")
+          if not top:
+              lines.append("_No complexity data — lizard returned no rows._")
+          else:
+              lines.append("**Complexity — top 5 functions by CCN** "
+                           "(★ = file touched in this PR):")
+              lines.append("")
+              lines.append("| ★ | Function | CCN | Location |")
+              lines.append("|---|---|---|---|")
+              for ccn, name, file_path, location in top:
+                  star = "★" if file_path in changed else ""
+                  # Escape pipe characters in names so the table renders.
+                  safe_name = name.replace("|", "\\|")
+                  lines.append(f"| {star} | `{safe_name}` | {ccn} | "
+                               f"`{location}` |")
+          lines.append("")
+          lines.append(
+              "_Coverage Δ reporting is a follow-up — see issue "
+              "tracker. Raw coverage artifacts (`coverage-server`, "
+              "`coverage-ios-core`) are uploaded by the other jobs._"
+          )
+
+          print("\n".join(lines))
+          PY
+
+      - name: Post or update PR comment
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('comment-body.md', 'utf8');
+            const marker = '<!-- quality-metrics-bot -->';
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
