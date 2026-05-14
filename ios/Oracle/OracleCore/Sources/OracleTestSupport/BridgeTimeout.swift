@@ -4,9 +4,13 @@ import Foundation
 
 /// Thrown by `withBridgeTimeout` when a delegate-bridge continuation is not
 /// resumed within the allowed window. Turns a silent hang into a fast failure.
-struct BridgeTimeoutError: Error, CustomStringConvertible {
-  let seconds: Double
-  var description: String {
+///
+/// Both `OracleCoreTests` and the Xcode-project-side `OracleTests` bundle
+/// import this type from the shared `OracleTestSupport` module, which is the
+/// single source of truth.
+public struct BridgeTimeoutError: Error, CustomStringConvertible {
+  public let seconds: Double
+  public var description: String {
     "Bridge continuation not resumed within \(seconds) s — likely a mis-keyed task ID or missing resume path."
   }
 }
@@ -16,7 +20,7 @@ struct BridgeTimeoutError: Error, CustomStringConvertible {
 /// `withCheckedThrowingContinuation` sentinel site in the test suite so a
 /// stuck continuation fails the test in bounded time instead of hanging the
 /// runner.
-func withBridgeTimeout<T: Sendable>(
+public func withBridgeTimeout<T: Sendable>(
   seconds: Double = 5,
   operation: @escaping @Sendable () async throws -> T
 ) async throws -> T {

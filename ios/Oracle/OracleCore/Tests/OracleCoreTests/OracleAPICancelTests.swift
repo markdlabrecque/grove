@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import OracleTestSupport
 @testable import OracleCore
 
 /// Tests for in-flight cancellation of `OracleAPI.postQuery`.

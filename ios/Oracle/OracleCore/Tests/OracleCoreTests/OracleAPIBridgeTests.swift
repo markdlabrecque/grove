@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import OracleTestSupport
 @testable import OracleCore
 
 /// Unit tests for the `OracleAPI` delegate bridge internals.

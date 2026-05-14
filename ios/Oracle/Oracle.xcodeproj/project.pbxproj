@@ -14,7 +14,6 @@
 		A1000014 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* NetworkMonitor.swift */; };
 		A1000015 /* QueuedCaptureSchemaV1.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* QueuedCaptureSchemaV1.swift */; };
 		B100000E /* MigrationPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000E /* MigrationPlanTests.swift */; };
-		B100000F /* TestHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000F /* TestHelpers.swift */; };
 		B1000009 /* NetworkMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000B /* NetworkMonitorTests.swift */; };
 		B100000C /* CaptureViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000C /* CaptureViewModelTests.swift */; };
 		A1000003 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* RootView.swift */; };
@@ -62,7 +61,6 @@
 		A2000014 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
 		A2000015 /* QueuedCaptureSchemaV1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedCaptureSchemaV1.swift; sourceTree = "<group>"; };
 		B200000E /* MigrationPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationPlanTests.swift; sourceTree = "<group>"; };
-		B200000F /* TestHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHelpers.swift; sourceTree = "<group>"; };
 		B200000B /* NetworkMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitorTests.swift; sourceTree = "<group>"; };
 		B200000C /* CaptureViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModelTests.swift; sourceTree = "<group>"; };
 		A2000003 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
@@ -194,7 +192,6 @@
 				B200000B /* NetworkMonitorTests.swift */,
 				B200000C /* CaptureViewModelTests.swift */,
 				B200000E /* MigrationPlanTests.swift */,
-				B200000F /* TestHelpers.swift */,
 				B3000002 /* Fixtures */,
 			);
 			path = OracleTests;
@@ -383,7 +380,6 @@
 				B1000009 /* NetworkMonitorTests.swift in Sources */,
 				B100000C /* CaptureViewModelTests.swift in Sources */,
 				B100000E /* MigrationPlanTests.swift in Sources */,
-				B100000F /* TestHelpers.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
