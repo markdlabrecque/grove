@@ -17,6 +17,7 @@ RUN pip install -e .
 COPY oracle ./oracle
 COPY alembic ./alembic
 COPY alembic.ini ./
+COPY prompts ./prompts
 COPY tests ./tests
 
 EXPOSE 8000
