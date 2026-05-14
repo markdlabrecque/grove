@@ -226,6 +226,30 @@ struct CitationParserTests {
     #expect(idx == 0)
   }
 
+  // MARK: - Duplicate citation
+
+  @Test("two citations to the same source both produce citation segments")
+  func multipleCitationsSameSource() {
+    let src = source(id: memoryA)
+    let answer = "First [#\(memoryA.uuidString)] and again [#\(memoryA.uuidString)]."
+
+    let segments = CitationParser.parse(answer: answer, sources: [src])
+
+    // text + citation(0) + text + citation(0) + text
+    #expect(segments.count == 5)
+
+    guard case .citation(let first) = segments[1] else {
+      Issue.record("Expected .citation at 1, got \(segments[1])")
+      return
+    }
+    guard case .citation(let second) = segments[3] else {
+      Issue.record("Expected .citation at 3, got \(segments[3])")
+      return
+    }
+    #expect(first == 0)
+    #expect(second == 0)
+  }
+
   // MARK: - QueryResponseBody answer field decoding
 
   @Test("QueryResponseBody decodes answer field when present")
