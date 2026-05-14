@@ -1,16 +1,18 @@
-"""POST /v1/queries — vector search over memories.
+"""POST /v1/queries — vector search over memories with LLM synthesis.
 
-Pure search: embed the query string, run cosine similarity against both
-memories.embedding (whole-memory) and memory_chunks.embedding (chunked),
-merge by memory_id keeping the best score per memory, and return ranked
-results. No LLM synthesis — that is a follow-up ticket.
+Embeds the query, runs cosine similarity over memories and memory_chunks,
+merges results by memory_id keeping the best score, then calls OpenRouter to
+compose a natural-language answer with inline [#memory_id] citations.
+
+Synthesis failure is handled gracefully: the endpoint returns answer=null
+and the ranked sources so the iOS client can still render results.
 """
 
 from __future__ import annotations
 
 import time
 import uuid
-from datetime import datetime
+from decimal import Decimal
 from typing import Annotated, Literal
 
 import structlog
@@ -61,18 +63,24 @@ class QueryRequest(BaseModel):
         return v
 
 
-class QueryResult(BaseModel):
+class SourceItem(BaseModel):
+    """Per-memory source entry in the synthesis response."""
+
     memory_id: uuid.UUID
+    excerpt: str
     score: float
     matched_via: Literal["whole", "chunk"]
     matched_chunk_index: int | None
-    snippet: str
-    captured_at: datetime | None
-    source_modality: str | None
 
 
 class QueryResponse(BaseModel):
-    results: list[QueryResult]
+    # Synthesis answer — null when synthesis failed or no sources were found.
+    answer: str | None
+    # Ranked sources used to compose the answer (replaces the old `results` list).
+    # iOS code that reads `results` must migrate to `sources`; the field is
+    # intentionally renamed to signal the shape change.
+    sources: list[SourceItem]
+    query_id: uuid.UUID
     query_token_count: int
     latency_ms: float
 
@@ -160,10 +168,10 @@ def _merge_hits(
     chunk_hits: list[dict],
     limit: int,
     min_similarity: float | None,
-) -> tuple[list[QueryResult], bool]:
+) -> tuple[list[SourceItem], bool]:
     """Merge whole-memory and chunk hits by memory_id, keeping best score.
 
-    Returns (ranked_results, truncated) where truncated is True when we had
+    Returns (ranked_sources, truncated) where truncated is True when we had
     more candidates than limit before re-ranking.
     """
     # memory_id → best hit dict
@@ -184,19 +192,17 @@ def _merge_hits(
     candidates.sort(key=lambda h: h["score"], reverse=True)
     page = candidates[:limit]
 
-    results = [
-        QueryResult(
+    sources = [
+        SourceItem(
             memory_id=h["memory_id"],
+            excerpt=h["snippet"],
             score=round(h["score"], 6),
             matched_via=h["matched_via"],
             matched_chunk_index=h["matched_chunk_index"],
-            snippet=h["snippet"],
-            captured_at=h["captured_at"],
-            source_modality=h["source_modality"],
         )
         for h in page
     ]
-    return results, truncated
+    return sources, truncated
 
 
 # ---------------------------------------------------------------------------
@@ -251,6 +257,28 @@ async def _update_query_log(
         logger.warning("query_log_update_failed", query_log_id=str(log_id), error=str(exc))
 
 
+async def _stamp_synthesis(
+    session_factory: async_sessionmaker[AsyncSession],
+    log_id: uuid.UUID,
+    model: str,
+    input_tokens: int,
+    output_tokens: int,
+    cost_usd: float | None,
+) -> None:
+    """Stamp synthesis telemetry onto the query_log row. Best-effort."""
+    try:
+        async with session_factory() as log_session:
+            row = await log_session.get(QueryLog, log_id)
+            if row is not None:
+                row.synthesis_model = model
+                row.synthesis_input_tokens = input_tokens
+                row.synthesis_output_tokens = output_tokens
+                row.synthesis_cost = Decimal(str(cost_usd)) if cost_usd is not None else None
+                await log_session.commit()
+    except Exception as exc:
+        logger.warning("synthesis_log_stamp_failed", query_log_id=str(log_id), error=str(exc))
+
+
 # ---------------------------------------------------------------------------
 # Route
 # ---------------------------------------------------------------------------
@@ -266,6 +294,9 @@ async def post_query(
     session: Annotated[AsyncSession, Depends(get_session)],
     log_factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_log_session_factory)],
 ) -> QueryResponse:
+    from oracle.core.config import settings
+    from oracle.retrieval.synthesizer import synthesize
+
     total_start = time.monotonic()
 
     query_token_count = count_tokens(body.query)
@@ -293,23 +324,58 @@ async def post_query(
     chunk_hits = await _search_chunks(session, query_vec, body.limit)
     search_latency_ms = (time.monotonic() - search_start) * 1000
 
-    results, truncated = _merge_hits(whole_hits, chunk_hits, body.limit, body.min_similarity)
+    sources, truncated = _merge_hits(whole_hits, chunk_hits, body.limit, body.min_similarity)
 
     # Update the query log with result data (best-effort).
     if log_id is not None:
         await _update_query_log(
             log_factory,
             log_id,
-            result_count=len(results),
-            returned_memory_ids=[r.memory_id for r in results],
+            result_count=len(sources),
+            returned_memory_ids=[s.memory_id for s in sources],
         )
+
+    # ---------------------------------------------------------------------------
+    # RAG synthesis — compose an answer over the retrieved sources.
+    # On failure: degrade gracefully to answer=None, keep sources populated.
+    # ---------------------------------------------------------------------------
+    answer: str | None = None
+    api_key = settings.openrouter_api_key.get_secret_value() if settings.openrouter_api_key else ""
+
+    if sources and api_key:
+        try:
+            synthesis_result = await synthesize(
+                body.query,
+                [{"memory_id": str(s.memory_id), "excerpt": s.excerpt} for s in sources],
+                api_key=api_key,
+                model=settings.synthesis_model,
+            )
+            answer = synthesis_result.answer
+            if log_id is not None:
+                await _stamp_synthesis(
+                    log_factory,
+                    log_id,
+                    model=settings.synthesis_model,
+                    input_tokens=synthesis_result.prompt_tokens,
+                    output_tokens=synthesis_result.completion_tokens,
+                    cost_usd=synthesis_result.cost_usd,
+                )
+        except Exception as exc:
+            # Synthesis failure is non-fatal — log it and fall through with answer=None.
+            logger.warning(
+                "synthesis_failed",
+                query_log_id=str(log_id) if log_id else None,
+                error=str(exc),
+            )
+    elif not api_key:
+        logger.warning("synthesis_skipped_no_api_key")
 
     total_latency_ms = (time.monotonic() - total_start) * 1000
 
     logger.info(
         "query_executed",
         query_token_count=query_token_count,
-        result_count=len(results),
+        result_count=len(sources),
         embedding_latency_ms=round(embedding_latency_ms, 1),
         search_latency_ms=round(search_latency_ms, 1),
         total_latency_ms=round(total_latency_ms, 1),
@@ -317,10 +383,13 @@ async def post_query(
         limit=body.limit,
         min_similarity=body.min_similarity,
         query_log_id=str(log_id) if log_id else None,
+        synthesis_answer_present=answer is not None,
     )
 
     return QueryResponse(
-        results=results,
+        answer=answer,
+        sources=sources,
+        query_id=log_id or uuid.uuid4(),
         query_token_count=query_token_count,
         latency_ms=round(total_latency_ms, 1),
     )

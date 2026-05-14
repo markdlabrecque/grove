@@ -281,7 +281,7 @@ public actor OracleAPI {
     }
 
     let result = try decoder.decode(QueryResponseBody.self, from: data)
-    print("[query] sent query_chars=\(queryText.count) status=\(status) results=\(result.results.count)")
+    print("[query] sent query_chars=\(queryText.count) status=\(status) sources=\(result.sources.count)")
     return result
   }
 
@@ -642,7 +642,7 @@ public struct QueryResult: Codable, Sendable {
   public let score: Float
   public let matchedVia: String         // "whole" | "chunk"
   public let matchedChunkIndex: Int?    // 0-based; nil when matchedVia == "whole"
-  public let snippet: String
+  public let excerpt: String
   public let capturedAt: Date?
   public let sourceModality: String?
 
@@ -651,7 +651,7 @@ public struct QueryResult: Codable, Sendable {
     score: Float,
     matchedVia: String,
     matchedChunkIndex: Int?,
-    snippet: String,
+    excerpt: String,
     capturedAt: Date?,
     sourceModality: String?
   ) {
@@ -659,7 +659,7 @@ public struct QueryResult: Codable, Sendable {
     self.score = score
     self.matchedVia = matchedVia
     self.matchedChunkIndex = matchedChunkIndex
-    self.snippet = snippet
+    self.excerpt = excerpt
     self.capturedAt = capturedAt
     self.sourceModality = sourceModality
   }
@@ -669,7 +669,7 @@ public struct QueryResult: Codable, Sendable {
     case score
     case matchedVia = "matched_via"
     case matchedChunkIndex = "matched_chunk_index"
-    case snippet
+    case excerpt
     case capturedAt = "captured_at"
     case sourceModality = "source_modality"
   }
@@ -679,18 +679,18 @@ public struct QueryResult: Codable, Sendable {
 ///
 /// Matches the server's `QueryResponse` Pydantic model.
 public struct QueryResponseBody: Codable, Sendable {
-  public let results: [QueryResult]
+  public let sources: [QueryResult]
   public let queryTokenCount: Int
   public let latencyMs: Double
 
-  public init(results: [QueryResult], queryTokenCount: Int, latencyMs: Double) {
-    self.results = results
+  public init(sources: [QueryResult], queryTokenCount: Int, latencyMs: Double) {
+    self.sources = sources
     self.queryTokenCount = queryTokenCount
     self.latencyMs = latencyMs
   }
 
   public enum CodingKeys: String, CodingKey {
-    case results
+    case sources
     case queryTokenCount = "query_token_count"
     case latencyMs = "latency_ms"
   }

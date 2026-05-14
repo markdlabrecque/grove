@@ -199,20 +199,20 @@ async def test_whole_memory_hit(db_session: AsyncSession) -> None:
 
         assert response.status_code == 200
         body = response.json()
-        assert "results" in body
+        assert "sources" in body
         assert "query_token_count" in body
         assert "latency_ms" in body
 
-        hit_ids = [r["memory_id"] for r in body["results"]]
+        hit_ids = [r["memory_id"] for r in body["sources"]]
         assert str(memory_id) in hit_ids
 
-        hit = next(r for r in body["results"] if r["memory_id"] == str(memory_id))
+        hit = next(r for r in body["sources"] if r["memory_id"] == str(memory_id))
         assert hit["matched_via"] == "whole"
         assert hit["matched_chunk_index"] is None
         # Identical vectors → similarity very close to 1.0
         assert hit["score"] > 0.99
-        # Snippet is capped at 140 chars, not an empty string.
-        assert 0 < len(hit["snippet"]) <= 140
+        # Excerpt is capped at 140 chars, not an empty string.
+        assert 0 < len(hit["excerpt"]) <= 140
     finally:
         await _delete_memory(db_session, memory_id)
 
@@ -242,10 +242,10 @@ async def test_chunk_hit(db_session: AsyncSession) -> None:
 
         assert response.status_code == 200
         body = response.json()
-        hit_ids = [r["memory_id"] for r in body["results"]]
+        hit_ids = [r["memory_id"] for r in body["sources"]]
         assert str(memory_id) in hit_ids
 
-        hit = next(r for r in body["results"] if r["memory_id"] == str(memory_id))
+        hit = next(r for r in body["sources"] if r["memory_id"] == str(memory_id))
         assert hit["matched_via"] == "chunk"
         # Best chunk is index 0 (the one with _QUERY_VEC).
         assert hit["matched_chunk_index"] == 0
@@ -309,7 +309,7 @@ async def test_dedup_whole_and_chunk(db_session: AsyncSession) -> None:
         assert response.status_code == 200
         body = response.json()
 
-        matching = [r for r in body["results"] if r["memory_id"] == str(memory_id)]
+        matching = [r for r in body["sources"] if r["memory_id"] == str(memory_id)]
         # Exactly one entry per memory_id.
         assert len(matching) == 1
         # The chunk hit wins because it has the higher score.
@@ -349,18 +349,18 @@ async def test_limit_and_ordering(db_session: AsyncSession) -> None:
 
         assert response.status_code == 200
         body = response.json()
-        results = body["results"]
+        sources = body["sources"]
 
         # limit=3 means at most 3 results.
-        assert len(results) <= 3
+        assert len(sources) <= 3
 
         # Results are in descending score order regardless of what else is in DB.
-        result_scores = [r["score"] for r in results]
+        result_scores = [r["score"] for r in sources]
         assert result_scores == sorted(result_scores, reverse=True)
 
         # All returned scores should be at least as high as the lowest seeded score
         # (0.6), since the seeded scores span 1.0..0.6 and top-3 should all be ≥0.6.
-        for r in results:
+        for r in sources:
             assert r["score"] >= 0.0  # basic sanity: no negative similarities
     finally:
         for mid in memory_ids:
@@ -392,7 +392,7 @@ async def test_min_similarity_filter(db_session: AsyncSession) -> None:
 
         assert response.status_code == 200
         body = response.json()
-        returned_ids = {r["memory_id"] for r in body["results"]}
+        returned_ids = {r["memory_id"] for r in body["sources"]}
 
         # High-similarity result should be present.
         assert str(high_id) in returned_ids
@@ -400,7 +400,7 @@ async def test_min_similarity_filter(db_session: AsyncSession) -> None:
         assert str(low_id) not in returned_ids
 
         # All returned scores meet the threshold.
-        for r in body["results"]:
+        for r in body["sources"]:
             assert r["score"] >= 0.5
     finally:
         await _delete_memory(db_session, high_id)
@@ -446,10 +446,10 @@ async def test_no_matches_returns_200_with_response_envelope(db_session: AsyncSe
         assert response.status_code == 200
         body = response.json()
         # The orthogonal memory must not appear.
-        returned_ids = {r["memory_id"] for r in body["results"]}
+        returned_ids = {r["memory_id"] for r in body["sources"]}
         assert str(far_id) not in returned_ids
         # All results that do appear must meet the threshold.
-        for r in body["results"]:
+        for r in body["sources"]:
             assert r["score"] >= 0.99
         assert "query_token_count" in body
         assert "latency_ms" in body
@@ -511,7 +511,7 @@ async def test_query_log_inserted_with_result_count_and_memory_ids(
 
         assert response.status_code == 200
         body = response.json()
-        result_count = len(body["results"])
+        result_count = len(body["sources"])
         assert result_count >= 1
 
         # Fetch the most recent query_log row. There may be others from parallel

@@ -122,11 +122,11 @@ struct OracleAPISmokeTests {
     let api = makeAPI()
     let result = try await api.postQuery("SwiftData local store")
 
-    #expect(result.results.count == 2)
+    #expect(result.sources.count == 2)
     #expect(result.queryTokenCount == 7)
     #expect(result.latencyMs == 612.4)
 
-    let first = try #require(result.results.first)
+    let first = try #require(result.sources.first)
     #expect(first.matchedVia == "whole")
     #expect(first.score > 0.9)
   }
