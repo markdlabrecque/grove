@@ -45,8 +45,7 @@ struct UploadQueueTests {
       bearerToken: Self.token,
       configuration: config
     )
-    let context = ModelContext(container)
-    let queue = UploadQueue(modelContext: context, api: api)
+    let queue = UploadQueue(modelContainer: container, api: api)
     return (queue, api)
   }
 
