@@ -16,6 +16,11 @@ class Settings(BaseSettings):
     # synthesis_model is the cheap chat model used for RAG answer composition.
     # Kept separate from enrichment_model so each can be swapped independently.
     synthesis_model: str = "openai/gpt-4o-mini"
+    # intent_router_model classifies query intent before specialised-table retrieval.
+    # Defaults to the same cheap model class as synthesis; configurable independently.
+    intent_router_model: str = "openai/gpt-4o-mini"
+    # Score boost applied to specialised-table hits before merging with vector results.
+    intent_match_score_boost: float = 0.05
 
 
 settings = Settings()  # type: ignore[call-arg]
