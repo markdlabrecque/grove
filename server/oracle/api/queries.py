@@ -25,9 +25,9 @@ from decimal import Decimal
 from typing import Annotated, Literal
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from oracle.core.db import SessionLocal, get_session
@@ -96,6 +96,12 @@ class QueryResponse(BaseModel):
     query_id: uuid.UUID
     query_token_count: int
     latency_ms: float
+
+
+class RecentQueryItem(BaseModel):
+    id: uuid.UUID
+    query_text: str
+    created_at: datetime
 
 
 # ---------------------------------------------------------------------------
@@ -566,3 +572,50 @@ async def post_feedback(
         query_id=str(query_id),
         feedback=body.feedback,
     )
+
+
+@router.get(
+    "/queries/recent",
+    response_model=list[RecentQueryItem],
+    status_code=status.HTTP_200_OK,
+)
+async def get_recent_queries(
+    log_factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_log_session_factory)],
+    limit: Annotated[int, Query(ge=1, le=50)] = 10,
+) -> list[RecentQueryItem]:
+    """Return the user's most recent distinct queries ordered by recency.
+
+    Deduplication is case-insensitive on query_text. When the same text appears
+    multiple times, only the most recent occurrence is kept. Empty/null query_text
+    rows are excluded.
+
+    Uses DISTINCT ON (Postgres-specific) to collapse duplicates in a single pass.
+    The inner DISTINCT ON orders by (LOWER(query_text), created_at DESC) so that for
+    each unique lowercased text the most-recent row wins. The outer query re-sorts
+    the deduped rows by created_at DESC and applies LIMIT in a single SQL pass.
+    No post-processing happens in Python.
+    """
+    sql = text(
+        """
+        SELECT id, query_text, created_at
+        FROM (
+            SELECT DISTINCT ON (LOWER(query_text))
+                id, query_text, created_at
+            FROM query_logs
+            WHERE query_text IS NOT NULL AND query_text != ''
+            ORDER BY LOWER(query_text), created_at DESC
+        ) deduped
+        ORDER BY created_at DESC
+        LIMIT :limit
+        """
+    )
+    async with log_factory() as session:
+        result = await session.execute(sql, {"limit": limit})
+        rows = result.all()
+
+    items = [
+        RecentQueryItem(id=row.id, query_text=row.query_text, created_at=row.created_at)
+        for row in rows
+    ]
+    logger.info("recent_queries_fetched", count=len(items), limit=limit)
+    return items
