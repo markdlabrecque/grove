@@ -373,33 +373,55 @@ struct UploadQueueTests {
     #expect(try await queue.pendingCount() == 0)
   }
 
-  // MARK: - fiveXxRetriesAndIncrementsAttemptCount
+  // MARK: - fiveXxThenFourXxDeletesRow
 
-  /// A 503 response is transient. After one `tryDrain()` the row must still be
-  /// present with `attemptCount == 1`.
-  @Test("5xx (503): row kept, attemptCount incremented to 1")
-  func fiveXxRetriesAndIncrementsAttemptCount() async throws {
+  /// Exercises the interplay between the transient (5xx) and permanent (4xx)
+  /// routing paths in `drainRow`.
+  ///
+  /// A 503 on the first drain must leave the row alive with `attemptCount == 1`.
+  /// A subsequent 422 must trigger the permanent-failure path and delete the row,
+  /// so `pendingCount == 0` after the second drain.
+  ///
+  /// Red-on-revert confirmation: reverting `isPermanentFailure` so that 422 falls
+  /// through to the transient path (i.e. removing the 4xx branch) causes the
+  /// `pendingCount == 0` assertion to fail, because the row is kept for retry
+  /// instead of deleted.
+  @Test("5xx then 4xx: row retried on 503, then deleted immediately on 422")
+  func fiveXxThenFourXxDeletesRow() async throws {
     let container = try makeContainer()
     let (queue, _) = makeQueue(container: container)
 
     let (id, data) = try makePayload()
-    let failResponse = stubResponse(statusCode: 503)
-    let errorBody = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
+    let transientResponse = stubResponse(statusCode: 503)
+    let permanentResponse = stubResponse(statusCode: 422)
+    let errorBody503 = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
+    let errorBody422 = #"{"detail":"unprocessable entity"}"#.data(using: .utf8)!
 
-    StubURLProtocol.responder = { [failResponse, errorBody] _ in
-      (failResponse, errorBody)
+    // --- First drain: 503 (transient) ---
+    StubURLProtocol.responder = { [transientResponse, errorBody503] _ in
+      (transientResponse, errorBody503)
     }
-    defer { StubURLProtocol.responder = nil }
 
     try await queue.enqueue(clientID: id.uuidString, payload: data)
     await queue.tryDrain()
 
+    // Row must still be present with attemptCount == 1.
     #expect(try await queue.pendingCount() == 1)
-
     let readContext = ModelContext(container)
-    let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
-    let row = try #require(rows.first)
+    let rowsAfterTransient = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+    let row = try #require(rowsAfterTransient.first)
     #expect(row.attemptCount == 1)
+
+    // --- Second drain: 422 (permanent) ---
+    StubURLProtocol.responder = { [permanentResponse, errorBody422] _ in
+      (permanentResponse, errorBody422)
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    await queue.tryDrain()
+
+    // Row must be deleted — 422 is a permanent failure, no retry.
+    #expect(try await queue.pendingCount() == 0)
   }
 
   // MARK: - transientNetworkErrorRetries
