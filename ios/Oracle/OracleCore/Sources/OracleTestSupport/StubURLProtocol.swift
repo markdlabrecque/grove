@@ -7,7 +7,7 @@ import Foundation
 /// import this type from the shared `OracleTestSupport` module, which is the
 /// single source of truth.
 ///
-/// Usage in a test:
+/// Usage in a test (success path):
 ///
 /// ```swift
 /// StubURLProtocol.responder = { request in
@@ -25,7 +25,20 @@ import Foundation
 /// let api = OracleAPI(baseURL: url, bearerToken: "tok", configuration: config)
 /// ```
 ///
-/// Reset `StubURLProtocol.responder = nil` in `tearDown` / after the test so
+/// Usage in a test (error path):
+///
+/// ```swift
+/// StubURLProtocol.errorResponder = { _ in
+///   URLError(.notConnectedToInternet)
+/// }
+///
+/// let config = URLSessionConfiguration.default
+/// config.protocolClasses = [StubURLProtocol.self]
+/// let api = OracleAPI(baseURL: url, bearerToken: "tok", configuration: config)
+/// ```
+///
+/// Reset both `StubURLProtocol.responder = nil` and
+/// `StubURLProtocol.errorResponder = nil` in `tearDown` / after the test so
 /// stubs don't leak between tests. Test suites using this class should be marked
 /// `@Suite(.serialized)` to prevent Swift Testing's parallel runner from
 /// mixing stubs across concurrent tests.
