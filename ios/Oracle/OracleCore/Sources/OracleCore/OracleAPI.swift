@@ -678,18 +678,30 @@ public struct QueryResult: Codable, Sendable {
 /// Wire format returned by POST /v1/queries.
 ///
 /// Matches the server's `QueryResponse` Pydantic model.
+/// `answer` carries the RAG-synthesised answer string (added in #170). It is
+/// `nil` when the server skips synthesis (e.g., no OpenAI key configured, or
+/// the query matched no sources). The iOS client falls back to snippet-only
+/// display when `answer` is nil — see `QueryView`.
 public struct QueryResponseBody: Codable, Sendable {
+  public let answer: String?
   public let sources: [QueryResult]
   public let queryTokenCount: Int
   public let latencyMs: Double
 
-  public init(sources: [QueryResult], queryTokenCount: Int, latencyMs: Double) {
+  public init(
+    answer: String? = nil,
+    sources: [QueryResult],
+    queryTokenCount: Int,
+    latencyMs: Double
+  ) {
+    self.answer = answer
     self.sources = sources
     self.queryTokenCount = queryTokenCount
     self.latencyMs = latencyMs
   }
 
   public enum CodingKeys: String, CodingKey {
+    case answer
     case sources
     case queryTokenCount = "query_token_count"
     case latencyMs = "latency_ms"
