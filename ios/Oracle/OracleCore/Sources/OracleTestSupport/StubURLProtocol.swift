@@ -32,13 +32,20 @@ import Foundation
 public final class StubURLProtocol: URLProtocol {
 
   /// Configure this before each test. Returns `(response, body)` for any
-  /// intercepted request. If `nil`, the stub crashes with a clear message so
-  /// tests don't silently proceed with no response.
+  /// intercepted request. If `nil` and `errorResponder` is also `nil`, the stub
+  /// crashes with a clear message so tests don't silently proceed with no response.
   ///
   /// Marked `nonisolated(unsafe)` because tests using this must be serialised —
   /// they never run concurrently — so accesses are externally synchronised
   /// without a Swift concurrency primitive.
   nonisolated(unsafe) public static var responder: ((URLRequest) -> (HTTPURLResponse, Data))?
+
+  /// Alternative to `responder`. When set, `startLoading()` fails the request
+  /// with the returned error instead of returning an HTTP response. Use this to
+  /// simulate network-layer failures such as `URLError(.notConnectedToInternet)`.
+  ///
+  /// Only one of `responder` or `errorResponder` should be set at a time.
+  nonisolated(unsafe) public static var errorResponder: ((URLRequest) -> Error)?
 
   // MARK: - URLProtocol overrides
 
@@ -52,9 +59,14 @@ public final class StubURLProtocol: URLProtocol {
   }
 
   override public func startLoading() {
+    if let errorResponder = StubURLProtocol.errorResponder {
+      client?.urlProtocol(self, didFailWithError: errorResponder(request))
+      return
+    }
+
     guard let responder = StubURLProtocol.responder else {
       preconditionFailure(
-        "StubURLProtocol.responder must be set before making a request."
+        "StubURLProtocol.responder or errorResponder must be set before making a request."
       )
     }
 
