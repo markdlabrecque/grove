@@ -317,6 +317,113 @@ struct QueryViewModelTests {
     #expect(vm.activeTask == nil)
   }
 
+  // MARK: - removeSource dual-filter: cancel-and-restore must not resurface deleted sources
+
+  /// Pins the dual-filter invariant in `removeSource(memoryID:)`.
+  ///
+  /// `removeSource` filters the deleted memory from **both** `queryStatus` and
+  /// `lastResponse`. The `lastResponse` filter is the load-bearing half: when a
+  /// subsequent query is cancelled, `performQuery` restores from `lastResponse`
+  /// (snapshotted as `preFlight`). Without the `lastResponse` filter, a
+  /// cancel-and-restore would silently undelete the memory.
+  ///
+  /// Verification: revert the `lastResponse` filter in `removeSource` and this
+  /// test fails; restore it and the test passes.
+  @Test("removeSource: deleted source does not reappear after cancel-and-restore")
+  func removeSourceDoesNotReappearAfterCancelRestore() async throws {
+    // --- Step 1: put the VM in .results with two sources. ---
+    let memoryA = QueryResult(
+      memoryID: UUID(),
+      score: 0.95,
+      matchedVia: "whole",
+      matchedChunkIndex: nil,
+      excerpt: "Memory A",
+      capturedAt: nil,
+      sourceModality: "text"
+    )
+    let memoryB = QueryResult(
+      memoryID: UUID(),
+      score: 0.80,
+      matchedVia: "whole",
+      matchedChunkIndex: nil,
+      excerpt: "Memory B",
+      capturedAt: nil,
+      sourceModality: "text"
+    )
+
+    let firstDone = AsyncStream<Void>.makeStream()
+    let vm = QueryViewModel { _ in
+      defer { firstDone.continuation.yield(()) }
+      return QueryResponseBody(
+        sources: [memoryA, memoryB],
+        queryTokenCount: 2,
+        latencyMs: 10
+      )
+    }
+    vm.query = "initial query"
+    vm.ask()
+
+    var firstDoneIter = firstDone.stream.makeAsyncIterator()
+    _ = await firstDoneIter.next()
+    await Task.yield()
+
+    guard case .results(_, let initialSources) = vm.queryStatus,
+          initialSources.count == 2 else {
+      Issue.record("Expected .results with 2 sources, got \(vm.queryStatus)")
+      return
+    }
+
+    // --- Step 2: delete memoryA — assert it is gone from queryStatus and lastResponse. ---
+    vm.removeSource(memoryID: memoryA.memoryID)
+
+    guard case .results(_, let afterDelete) = vm.queryStatus else {
+      Issue.record("Expected .results after removeSource, got \(vm.queryStatus)")
+      return
+    }
+    #expect(afterDelete.count == 1)
+    #expect(!afterDelete.contains(where: { $0.memoryID == memoryA.memoryID }))
+    #expect(afterDelete.contains(where: { $0.memoryID == memoryB.memoryID }))
+
+    // --- Step 3 + 4: fire a slow query, then cancel it (triggers restore path). ---
+    let slowStarted = AsyncStream<Void>.makeStream()
+    let slowExited = AsyncStream<Void>.makeStream()
+
+    vm.queryProvider = { _ in
+      defer { slowExited.continuation.yield(()) }
+      slowStarted.continuation.yield(())
+      do {
+        try await Task.sleep(nanoseconds: 999_000_000_000)
+        return QueryResponseBody(sources: [], queryTokenCount: 0, latencyMs: 0)
+      } catch {
+        throw error
+      }
+    }
+
+    vm.query = "slow query"
+    vm.ask()
+
+    var slowStartedIter = slowStarted.stream.makeAsyncIterator()
+    _ = await slowStartedIter.next()
+
+    // Spinner is showing; cancel triggers the restore path.
+    #expect(vm.isLoading == true)
+    vm.cancel()
+
+    var slowExitedIter = slowExited.stream.makeAsyncIterator()
+    _ = await slowExitedIter.next()
+    await Task.yield()
+
+    // --- Step 5: assert memoryA does NOT reappear in the restored queryStatus. ---
+    guard case .results(_, let restored) = vm.queryStatus else {
+      Issue.record("Expected .results after cancel-restore, got \(vm.queryStatus)")
+      return
+    }
+    #expect(!restored.contains(where: { $0.memoryID == memoryA.memoryID }),
+            "Deleted memoryA must not reappear after cancel-and-restore")
+    #expect(restored.contains(where: { $0.memoryID == memoryB.memoryID }),
+            "Non-deleted memoryB must survive cancel-and-restore")
+  }
+
   /// After `cancel()` is called, `activeTask` must be `nil`.
   ///
   /// The existing cancel-in-flight suite verifies spinner/results state but

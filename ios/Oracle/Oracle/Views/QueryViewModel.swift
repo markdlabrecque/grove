@@ -65,6 +65,28 @@ final class QueryViewModel {
     return nil
   }
 
+  // MARK: - Delete source
+
+  /// Remove a source from the current results list after a successful delete.
+  ///
+  /// Called by `MemoryDetailViewModel.onDeleteSuccess` when `DELETE /v1/memories/{id}`
+  /// succeeds. Removes the matching `QueryResult` from the visible sources so the
+  /// deleted memory no longer appears in the Ask results. If there are no remaining
+  /// sources (and no synthesised answer), transitions back to `.idle`.
+  func removeSource(memoryID: UUID) {
+    guard case .results(let answer, let sources) = queryStatus else { return }
+    let updated = sources.filter { $0.memoryID != memoryID }
+    // Preserve the answer card even when all sources are removed — the RAG
+    // answer is still valid; the user just chose to delete the underlying memory.
+    queryStatus = .results(answer: answer, sources: updated)
+    // Mirror the removal in lastResponse so a cancel-and-restore after this
+    // point doesn't resurface the deleted source.
+    if var prior = lastResponse {
+      prior.sources = prior.sources.filter { $0.memoryID != memoryID }
+      lastResponse = prior
+    }
+  }
+
   var showErrorAlert: Bool = false
   var errorMessage: String = ""
 

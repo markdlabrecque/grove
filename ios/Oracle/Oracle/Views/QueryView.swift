@@ -125,15 +125,23 @@ struct QueryView: View {
                 .listRowSeparator(.hidden)
             }
 
-            // Source cards.
+            // Source cards — each navigates to MemoryDetailView on tap.
             ForEach(Array(sources.enumerated()), id: \.element.memoryID) { idx, result in
-              QueryResultRow(
-                result: result,
-                isHighlighted: highlightedSourceIndex == idx
-              )
+              NavigationLink {
+                MemoryDetailView(
+                  result: result,
+                  onDeleteSuccess: { deletedID in
+                    viewModel.removeSource(memoryID: deletedID)
+                  }
+                )
+              } label: {
+                QueryResultRow(
+                  result: result,
+                  isHighlighted: highlightedSourceIndex == idx
+                )
+              }
               .id("source-\(idx)")
               .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
-              // TODO(detail): navigate to full memory view (#207)
             }
           }
           .listStyle(.plain)

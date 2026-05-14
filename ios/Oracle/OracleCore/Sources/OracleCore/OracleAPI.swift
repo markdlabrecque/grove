@@ -285,6 +285,38 @@ public actor OracleAPI {
     return result
   }
 
+  // MARK: - Delete
+
+  /// Delete a memory by ID (DELETE /v1/memories/{id}).
+  ///
+  /// Uses the `defaultSession` — deletes are interactive (triggered from the
+  /// detail view) and must support Swift structured-concurrency cancellation.
+  /// A 404 response is re-thrown as `APIError.httpError(404, _)` so callers
+  /// can decide whether to treat it as a success (already gone) or surface it.
+  ///
+  /// On success the server returns 204 No Content with an empty body.
+  public func deleteMemory(id: UUID) async throws {
+    let url = baseURL.appendingPathComponent(
+      "v1/memories/\(id.uuidString.lowercased())"
+    )
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "DELETE"
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    print("[delete] memory_id=\(id.uuidString.lowercased()) status=\(status)")
+
+    guard status == 204 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+  }
+
   // MARK: - Delegate bridge (called from UploadSessionDelegate)
 
   /// Accumulate a chunk of response body data for a pending upload.
