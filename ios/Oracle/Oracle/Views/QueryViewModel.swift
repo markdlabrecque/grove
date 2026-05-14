@@ -126,8 +126,8 @@ final class QueryViewModel {
       let response = try await queryProvider(trimmed)
       // Only update if this task wasn't cancelled between the await and here.
       guard !Task.isCancelled else { return }
-      lastResults = response.results
-      queryStatus = .results(response.results)
+      lastResults = response.sources
+      queryStatus = .results(response.sources)
     } catch {
       // Cancellation is not a user-visible failure: the user deliberately
       // tapped Ask again (or the request was superseded by a new query).

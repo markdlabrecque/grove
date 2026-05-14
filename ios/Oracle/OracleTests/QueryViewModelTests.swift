@@ -24,15 +24,15 @@ struct QueryViewModelTests {
         score: 0.9,
         matchedVia: "whole",
         matchedChunkIndex: nil,
-        snippet: "Existing result",
+        excerpt: "Existing result",
         capturedAt: nil,
         sourceModality: "text"
       )
     ]
   }
 
-  private func makeResponse(results: [QueryResult] = []) -> QueryResponseBody {
-    QueryResponseBody(results: results, queryTokenCount: 3, latencyMs: 100)
+  private func makeResponse(sources: [QueryResult] = []) -> QueryResponseBody {
+    QueryResponseBody(sources: sources, queryTokenCount: 3, latencyMs: 100)
   }
 
   // MARK: - Cancel-in-flight: spinner clears, prior results survive
@@ -52,7 +52,7 @@ struct QueryViewModelTests {
 
     let vm = QueryViewModel { _ in
       defer { firstDone.continuation.yield(()) }
-      return self.makeResponse(results: priorResults)
+      return self.makeResponse(sources: priorResults)
     }
     vm.query = "first query"
     vm.ask()
@@ -181,7 +181,7 @@ struct QueryViewModelTests {
       score: 0.8,
       matchedVia: "whole",
       matchedChunkIndex: nil,
-      snippet: "Second result",
+      excerpt: "Second result",
       capturedAt: nil,
       sourceModality: "text"
     )]
@@ -277,7 +277,7 @@ struct QueryViewModelTests {
 
     let vm = QueryViewModel { _ in
       defer { continuation.yield(()) }
-      return self.makeResponse(results: self.makeResults())
+      return self.makeResponse(sources: self.makeResults())
     }
 
     vm.query = "test query"

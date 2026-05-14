@@ -123,10 +123,10 @@ private struct QueryResultRow: View {
 
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
-      Text(result.snippet)
+      Text(result.excerpt)
         .font(.body)
         .lineLimit(3)
-        .accessibilityLabel("Snippet: \(result.snippet)")
+        .accessibilityLabel("Snippet: \(result.excerpt)")
 
       HStack(spacing: 8) {
         // Similarity score as a percentage — visually subordinate.
