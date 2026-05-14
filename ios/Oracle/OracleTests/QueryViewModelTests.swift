@@ -209,14 +209,21 @@ struct QueryViewModelTests {
 
   @Test("real network failure surfaces error alert, not silent swallow")
   func realErrorFiresAlert() async throws {
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
+
     let vm = QueryViewModel { _ in
+      defer { continuation.yield(()) }
       throw APIError.httpError(statusCode: 500, detail: "internal server error")
     }
 
     vm.query = "anything"
     vm.ask()
 
-    try await Task.sleep(nanoseconds: 50_000_000)  // 50 ms
+    // Wait until the provider closure has returned, then yield once to let
+    // performQuery finish its remaining main-actor statements.
+    var iter = stream.makeAsyncIterator()
+    _ = await iter.next()
+    await Task.yield()
 
     #expect(vm.showErrorAlert == true)
     #expect(vm.errorMessage.contains("internal server error"))
@@ -232,15 +239,21 @@ struct QueryViewModelTests {
   /// `ask()` or `cancel()`.
   @Test("activeTask is nil after ask() completes successfully")
   func activeTaskIsNilAfterSuccess() async throws {
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
+
     let vm = QueryViewModel { _ in
-      self.makeResponse(results: self.makeResults())
+      defer { continuation.yield(()) }
+      return self.makeResponse(results: self.makeResults())
     }
 
     vm.query = "test query"
     vm.ask()
 
-    // Give the fast provider time to complete.
-    try await Task.sleep(nanoseconds: 50_000_000)  // 50 ms
+    // Wait until the provider closure has returned, then yield once to let
+    // performQuery finish its remaining main-actor statements (activeTask = nil).
+    var iter = stream.makeAsyncIterator()
+    _ = await iter.next()
+    await Task.yield()
 
     #expect(vm.activeTask == nil)
   }
@@ -251,15 +264,21 @@ struct QueryViewModelTests {
   /// the next `ask()` call does not operate on a stale task reference.
   @Test("activeTask is nil after ask() completes with a real error")
   func activeTaskIsNilAfterError() async throws {
+    let (stream, continuation) = AsyncStream<Void>.makeStream()
+
     let vm = QueryViewModel { _ in
+      defer { continuation.yield(()) }
       throw APIError.httpError(statusCode: 503, detail: "service unavailable")
     }
 
     vm.query = "test query"
     vm.ask()
 
-    // Give the provider time to throw and the catch block to run.
-    try await Task.sleep(nanoseconds: 50_000_000)  // 50 ms
+    // Wait until the provider closure has returned, then yield once to let
+    // performQuery finish its remaining main-actor statements (activeTask = nil).
+    var iter = stream.makeAsyncIterator()
+    _ = await iter.next()
+    await Task.yield()
 
     #expect(vm.activeTask == nil)
   }
