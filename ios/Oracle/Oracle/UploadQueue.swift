@@ -13,7 +13,7 @@ import OracleCore
 ///    serial executor) and the local UI confirms save.
 /// 2. `tryDrain()` iterates pending rows and calls `OracleAPI.postCapture` for
 ///    each. On success the row is deleted immediately. On failure the row is kept
-///    with `attemptCount` and `lastError` updated.
+///    with `attemptCount` and `lastError` updated, subject to the retry cap.
 /// 3. `NWPathMonitor` calls `tryDrain()` whenever connectivity is re-established.
 ///    `OracleApp.init()` also calls it on every launch to sweep rows left from
 ///    previous sessions.
@@ -34,6 +34,16 @@ import OracleCore
 ///
 /// Reference: `server/oracle/api/captures.py` — idempotency pre-check plus
 /// `insert().on_conflict_do_nothing(index_elements=["client_id"])`.
+///
+/// # Retry policy
+///
+/// `drainRow` distinguishes between permanent and transient failures:
+///
+/// - **4xx (including 401/403):** The payload or credentials are bad and won't
+///   improve with retries. The row is deleted immediately and a warning is logged.
+/// - **5xx, network errors, and other transients:** `attemptCount` is incremented
+///   and the row is kept for the next drain. Once `attemptCount` reaches
+///   `maxAttempts` the row is deleted to prevent infinite retry loops.
 @ModelActor
 public actor UploadQueue {
 
@@ -46,6 +56,17 @@ public actor UploadQueue {
   /// The property is written once during `init` before any concurrent access is
   /// possible, so the `unsafe` annotation is safe here.
   nonisolated(unsafe) private var api: OracleAPI!
+
+  // MARK: - Retry policy
+
+  /// Maximum number of drain attempts before a row is deleted.
+  ///
+  /// After `maxAttempts` consecutive failures the row is treated as permanently
+  /// unsalvageable and removed from the queue. This prevents malformed payloads
+  /// or unrecoverable server-side rejections from retrying indefinitely.
+  ///
+  /// Note: 4xx responses trigger immediate deletion regardless of this cap.
+  private let maxAttempts = 10
 
   // MARK: - Drain guard
 
@@ -159,9 +180,10 @@ public actor UploadQueue {
       decoder.dateDecodingStrategy = .iso8601
       body = try decoder.decode(CaptureRequestBody.self, from: row.payload)
     } catch {
-      // Malformed payload — cannot retry. Record the error and leave the row.
-      row.attemptCount += 1
-      row.lastError = "payload decode failed: \(error.localizedDescription)"
+      // Malformed payload — a decode failure is a permanent error; delete immediately.
+      let description = String(error.localizedDescription.prefix(256))
+      print("[UploadQueue] WARN permanent failure (decode error) clientID=\(row.clientID) error=\(description) — deleting")
+      modelContext.delete(row)
       try? modelContext.save()
       return
     }
@@ -182,13 +204,58 @@ public actor UploadQueue {
       try modelContext.save()
       print("[UploadQueue] drained clientID=\(row.clientID)")
     } catch {
-      // Failure — keep the row, record the error.
-      row.attemptCount += 1
-      // Truncate to 256 chars to avoid unbounded growth.
-      let description = String(error.localizedDescription.prefix(256))
-      row.lastError = description
-      try? modelContext.save()
-      print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(row.attemptCount) error=\(description)")
+      // Distinguish permanent (4xx) from transient (5xx / network) failures.
+      if isPermanentFailure(error) {
+        // Permanent failure — delete immediately, no retry.
+        let description = String(error.localizedDescription.prefix(256))
+        print("[UploadQueue] WARN permanent failure (4xx) clientID=\(row.clientID) error=\(description) — deleting")
+        modelContext.delete(row)
+        try? modelContext.save()
+      } else {
+        // Transient failure — bump attempt count and keep the row for the next drain.
+        row.attemptCount += 1
+        // Truncate to 256 chars to avoid unbounded growth.
+        let description = String(error.localizedDescription.prefix(256))
+        row.lastError = description
+        try? modelContext.save()
+        print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(row.attemptCount) error=\(description)")
+
+        // Retry cap: if we've hit maxAttempts, drop the row rather than retrying forever.
+        if row.attemptCount >= maxAttempts {
+          print("[UploadQueue] WARN retry cap reached clientID=\(row.clientID) attempt=\(row.attemptCount) lastError=\(description) — deleting")
+          modelContext.delete(row)
+          try? modelContext.save()
+        }
+      }
     }
+  }
+
+  // MARK: - Retry-policy helpers
+
+  /// Returns `true` when `error` indicates a permanent failure that should not
+  /// be retried. A permanent failure causes the queued row to be deleted
+  /// immediately rather than kept for the next drain.
+  ///
+  /// # Status-code mapping
+  ///
+  /// | Status | Treatment | Rationale |
+  /// |--------|-----------|-----------|
+  /// | 4xx (except 408, 429) | permanent | Bad payload or credentials; retrying won't help |
+  /// | 401, 403 | permanent | Invalid bearer token in V1 |
+  /// | 408 | transient | Request timeout — transient |
+  /// | 429 | transient | Rate-limited — transient |
+  /// | 5xx | transient | Server-side error — transient |
+  /// | Non-HTTP (URLError, etc.) | transient | Network layer error — transient |
+  private func isPermanentFailure(_ error: Error) -> Bool {
+    guard case .httpError(let statusCode, _) = error as? APIError else {
+      // Non-APIError (URLError, decode failure, etc.) — treat as transient.
+      return false
+    }
+    // 408 Request Timeout and 429 Too Many Requests are transient.
+    if statusCode == 408 || statusCode == 429 {
+      return false
+    }
+    // All other 4xx (including 401, 403, 400, 422, …) are permanent.
+    return statusCode >= 400 && statusCode < 500
   }
 }

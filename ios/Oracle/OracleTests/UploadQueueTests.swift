@@ -266,6 +266,124 @@ struct UploadQueueTests {
     #expect(counter.value == rowCount)
   }
 
+  // MARK: - retryCapDeletesRowAfterMaxAttempts
+
+  /// Verifies that a row stuck on persistent 503 responses is deleted once
+  /// `attemptCount` reaches the cap (10).
+  ///
+  /// Each `tryDrain()` call corresponds to one attempt. After 10 calls the row
+  /// must be gone. No `Task.sleep` — drain calls are driven explicitly.
+  @Test("retry cap: row deleted after 10 consecutive 5xx failures")
+  func retryCapDeletesRowAfterMaxAttempts() async throws {
+    let container = try makeContainer()
+    let (queue, _) = makeQueue(container: container)
+
+    let (id, data) = try makePayload()
+    let failResponse = stubResponse(statusCode: 503)
+    let errorBody = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
+
+    StubURLProtocol.responder = { [failResponse, errorBody] _ in
+      (failResponse, errorBody)
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    try await queue.enqueue(clientID: id.uuidString, payload: data)
+    #expect(try await queue.pendingCount() == 1)
+
+    // Drive 9 drains — row should still be present after each.
+    for attempt in 1..<10 {
+      await queue.tryDrain()
+      let count = try await queue.pendingCount()
+      #expect(count == 1, "row should still exist after attempt \(attempt)")
+    }
+
+    // 10th drain hits the cap — row must be deleted.
+    await queue.tryDrain()
+    #expect(try await queue.pendingCount() == 0)
+  }
+
+  // MARK: - fourXxDeletesImmediately
+
+  /// A 422 response is a permanent failure. The row must be deleted after a
+  /// single `tryDrain()` call, without incrementing `attemptCount`.
+  @Test("4xx (422): row deleted immediately, not retried")
+  func fourXxDeletesImmediately() async throws {
+    let container = try makeContainer()
+    let (queue, _) = makeQueue(container: container)
+
+    let (id, data) = try makePayload()
+    let failResponse = stubResponse(statusCode: 422)
+    let errorBody = #"{"detail":"unprocessable entity"}"#.data(using: .utf8)!
+
+    StubURLProtocol.responder = { [failResponse, errorBody] _ in
+      (failResponse, errorBody)
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    try await queue.enqueue(clientID: id.uuidString, payload: data)
+    #expect(try await queue.pendingCount() == 1)
+
+    await queue.tryDrain()
+
+    #expect(try await queue.pendingCount() == 0)
+  }
+
+  // MARK: - fiveXxRetriesAndIncrementsAttemptCount
+
+  /// A 503 response is transient. After one `tryDrain()` the row must still be
+  /// present with `attemptCount == 1`.
+  @Test("5xx (503): row kept, attemptCount incremented to 1")
+  func fiveXxRetriesAndIncrementsAttemptCount() async throws {
+    let container = try makeContainer()
+    let (queue, _) = makeQueue(container: container)
+
+    let (id, data) = try makePayload()
+    let failResponse = stubResponse(statusCode: 503)
+    let errorBody = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
+
+    StubURLProtocol.responder = { [failResponse, errorBody] _ in
+      (failResponse, errorBody)
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    try await queue.enqueue(clientID: id.uuidString, payload: data)
+    await queue.tryDrain()
+
+    #expect(try await queue.pendingCount() == 1)
+
+    let readContext = ModelContext(container)
+    let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+    let row = try #require(rows.first)
+    #expect(row.attemptCount == 1)
+  }
+
+  // MARK: - transientNetworkErrorRetries
+
+  /// A `URLError(.notConnectedToInternet)` is a non-HTTP transient error.
+  /// After one `tryDrain()` the row must still be present with `attemptCount == 1`.
+  @Test("non-HTTP URLError: row kept, attemptCount incremented to 1")
+  func transientNetworkErrorRetries() async throws {
+    let container = try makeContainer()
+    let (queue, _) = makeQueue(container: container)
+
+    let (id, data) = try makePayload()
+
+    StubURLProtocol.errorResponder = { _ in
+      URLError(.notConnectedToInternet)
+    }
+    defer { StubURLProtocol.errorResponder = nil }
+
+    try await queue.enqueue(clientID: id.uuidString, payload: data)
+    await queue.tryDrain()
+
+    #expect(try await queue.pendingCount() == 1)
+
+    let readContext = ModelContext(container)
+    let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+    let row = try #require(rows.first)
+    #expect(row.attemptCount == 1)
+  }
+
   // MARK: - resetClearsAll
 
   @Test("reset deletes all rows (pendingCount == 0)")
