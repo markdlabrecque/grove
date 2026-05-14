@@ -16,11 +16,30 @@ struct OracleApp: App {
   ///
   /// `isStoredInMemoryOnly: false` is the default (disk-backed). Tests supply
   /// their own in-memory container via `UploadQueue(modelContainer:api:)` directly.
+  ///
+  /// # VersionedSchema + migration plan
+  ///
+  /// This init uses `QueuedCaptureSchemaV1` and `QueuedCaptureMigrationPlan` so that
+  /// future schema changes can be performed safely. SwiftData's default lightweight
+  /// migration handles *additive* changes (new optional properties) automatically,
+  /// but any *destructive* change — removing a property, adding a non-optional field
+  /// with no default, or renaming a property — will crash here without a proper
+  /// migration mapping.
+  ///
+  /// **Rule for future changes:** any destructive schema mutation requires:
+  /// 1. A new `QueuedCaptureSchemaV2` type.
+  /// 2. A new `MigrationStage` entry in `QueuedCaptureMigrationPlan.stages`.
+  /// 3. A manual test against an existing on-device store (see
+  ///    `docs/manual-tests/123-versionedschema-migration.md` for the template).
   static let modelContainer: ModelContainer = {
-    let schema = Schema([QueuedCapture.self])
+    let schema = Schema(QueuedCaptureSchemaV1.models)
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
     do {
-      return try ModelContainer(for: schema, configurations: [config])
+      return try ModelContainer(
+        for: schema,
+        migrationPlan: QueuedCaptureMigrationPlan.self,
+        configurations: [config]
+      )
     } catch {
       // A fatal crash here is appropriate — if SwiftData cannot open its store
       // on launch there is no safe recovery path (the queue would silently drop
