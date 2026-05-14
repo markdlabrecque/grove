@@ -45,7 +45,7 @@ struct OracleAPICancelTests {
 
     // Give the URLProtocol time to start loading so the cancel races the
     // in-flight request rather than the pre-send setup.
-    await SlowURLProtocol.waitForStart()
+    try await SlowURLProtocol.waitForStart()
 
     // Cancel the wrapping Task.
     queryTask.cancel()
@@ -90,9 +90,15 @@ final class SlowURLProtocol: URLProtocol {
 
   /// Suspends the caller until `startLoading()` has been entered on any
   /// intercepted request. Must be called from an async context.
-  static func waitForStart() async {
-    await withCheckedContinuation { continuation in
-      startedContinuation = continuation
+  ///
+  /// Guarded by `withBridgeTimeout(seconds: 5)` so that if `startLoading()` is
+  /// never called (e.g. URLProtocol registration silently fails), the test fails
+  /// with a bounded `BridgeTimeoutError` rather than hanging indefinitely.
+  static func waitForStart() async throws {
+    try await withBridgeTimeout(seconds: 5) {
+      await withCheckedContinuation { continuation in
+        startedContinuation = continuation
+      }
     }
   }
 
