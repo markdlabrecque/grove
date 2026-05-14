@@ -78,6 +78,8 @@ final PR that completes the ticket's acceptance criteria uses
 
 ## The lifecycle
 
+@EXPERIMENTAL_DEV_PROCESS_AMMENDMENT.md
+
 For every ticket that requires implementation work:
 
 1. **Triage in the orchestrator session.**
