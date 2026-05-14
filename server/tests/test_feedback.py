@@ -178,6 +178,8 @@ async def test_feedback_idempotent_overwrite(client: AsyncClient, db_session: As
             assert row2.feedback_at is not None
             assert row2.feedback_at >= first_feedback_at
 
+        second_feedback_at = row2.feedback_at
+
         # Third write: back to positive
         r3 = await client.post(
             f"/v1/queries/{log_id}/feedback",
@@ -190,6 +192,8 @@ async def test_feedback_idempotent_overwrite(client: AsyncClient, db_session: As
             row3 = await s.get(QueryLog, log_id)
             assert row3 is not None
             assert row3.user_feedback == "positive"
+            assert row3.feedback_at is not None
+            assert row3.feedback_at >= second_feedback_at
     finally:
         await _delete_query_log(db_session, log_id)
 
@@ -239,3 +243,7 @@ async def test_feedback_invalid_value_returns_422(client: AsyncClient) -> None:
         headers=AUTH_HEADERS,
     )
     assert response.status_code == 422
+    body = response.json()
+    assert isinstance(body["detail"], list)
+    assert len(body["detail"]) > 0
+    assert "feedback" in body["detail"][0]["loc"]
