@@ -28,12 +28,6 @@ down_revision: str | None = "0011"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-_LEGACY_DEFAULT = sa.text(
-    """'{"vector": true, "decisions": "skipped", "people_interactions": "skipped",
-         "tasks": "skipped", "appointments": "skipped"}'::jsonb"""
-)
-
-
 def upgrade() -> None:
     # Add the new intent_router telemetry columns.
     op.add_column(
