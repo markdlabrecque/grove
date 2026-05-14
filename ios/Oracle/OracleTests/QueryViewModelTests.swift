@@ -63,7 +63,7 @@ struct QueryViewModelTests {
     _ = await firstDoneIter.next()
     await Task.yield()
 
-    guard case .results(let r) = vm.queryStatus, !r.isEmpty else {
+    guard case .results(_, let r) = vm.queryStatus, !r.isEmpty else {
       Issue.record("Expected .results after first fast query, got \(vm.queryStatus)")
       return
     }
@@ -114,7 +114,7 @@ struct QueryViewModelTests {
     #expect(vm.showErrorAlert == false)
 
     // Prior results must still be visible.
-    guard case .results(let surviving) = vm.queryStatus else {
+    guard case .results(_, let surviving) = vm.queryStatus else {
       Issue.record("Expected .results after cancel, got \(vm.queryStatus)")
       return
     }
@@ -168,7 +168,7 @@ struct QueryViewModelTests {
       firstStarted.continuation.yield(())
       do {
         try await Task.sleep(nanoseconds: 999_000_000_000)
-        return QueryResponseBody(results: [], queryTokenCount: 0, latencyMs: 0)
+        return QueryResponseBody(sources: [], queryTokenCount: 0, latencyMs: 0)
       } catch {
         firstRequestCancelled = true
         throw error
@@ -190,7 +190,7 @@ struct QueryViewModelTests {
     let secondDone = AsyncStream<Void>.makeStream()
     let secondProvider: (String) async throws -> QueryResponseBody = { _ in
       defer { secondDone.continuation.yield(()) }
-      return QueryResponseBody(results: secondResults, queryTokenCount: 4, latencyMs: 50)
+      return QueryResponseBody(sources: secondResults, queryTokenCount: 4, latencyMs: 50)
     }
 
     var callCount = 0
@@ -221,7 +221,7 @@ struct QueryViewModelTests {
     await Task.yield()
 
     // Second query should have produced results.
-    guard case .results(let r) = vm.queryStatus else {
+    guard case .results(_, let r) = vm.queryStatus else {
       Issue.record("Expected .results from second query, got \(vm.queryStatus)")
       return
     }
