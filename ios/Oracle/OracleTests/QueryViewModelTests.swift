@@ -63,7 +63,7 @@ struct QueryViewModelTests {
     _ = await firstDoneIter.next()
     await Task.yield()
 
-    guard case .results(_, let r) = vm.queryStatus, !r.isEmpty else {
+    guard case .results(_, let r, _) = vm.queryStatus, !r.isEmpty else {
       Issue.record("Expected .results after first fast query, got \(vm.queryStatus)")
       return
     }
@@ -114,7 +114,7 @@ struct QueryViewModelTests {
     #expect(vm.showErrorAlert == false)
 
     // Prior results must still be visible.
-    guard case .results(_, let surviving) = vm.queryStatus else {
+    guard case .results(_, let surviving, _) = vm.queryStatus else {
       Issue.record("Expected .results after cancel, got \(vm.queryStatus)")
       return
     }
@@ -221,7 +221,7 @@ struct QueryViewModelTests {
     await Task.yield()
 
     // Second query should have produced results.
-    guard case .results(_, let r) = vm.queryStatus else {
+    guard case .results(_, let r, _) = vm.queryStatus else {
       Issue.record("Expected .results from second query, got \(vm.queryStatus)")
       return
     }
@@ -367,7 +367,7 @@ struct QueryViewModelTests {
     _ = await firstDoneIter.next()
     await Task.yield()
 
-    guard case .results(_, let initialSources) = vm.queryStatus,
+    guard case .results(_, let initialSources, _) = vm.queryStatus,
           initialSources.count == 2 else {
       Issue.record("Expected .results with 2 sources, got \(vm.queryStatus)")
       return
@@ -376,7 +376,7 @@ struct QueryViewModelTests {
     // --- Step 2: delete memoryA — assert it is gone from queryStatus and lastResponse. ---
     vm.removeSource(memoryID: memoryA.memoryID)
 
-    guard case .results(_, let afterDelete) = vm.queryStatus else {
+    guard case .results(_, let afterDelete, _) = vm.queryStatus else {
       Issue.record("Expected .results after removeSource, got \(vm.queryStatus)")
       return
     }
@@ -414,7 +414,7 @@ struct QueryViewModelTests {
     await Task.yield()
 
     // --- Step 5: assert memoryA does NOT reappear in the restored queryStatus. ---
-    guard case .results(_, let restored) = vm.queryStatus else {
+    guard case .results(_, let restored, _) = vm.queryStatus else {
       Issue.record("Expected .results after cancel-restore, got \(vm.queryStatus)")
       return
     }

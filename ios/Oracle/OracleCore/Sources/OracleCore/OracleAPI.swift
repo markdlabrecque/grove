@@ -285,6 +285,46 @@ public actor OracleAPI {
     return result
   }
 
+  // MARK: - Feedback
+
+  /// Submit thumbs-up or thumbs-down feedback for a query result
+  /// (POST /v1/queries/{id}/feedback).
+  ///
+  /// Uses the `defaultSession` — feedback is an interactive gesture tied to
+  /// a visible answer card and benefits from Swift structured-concurrency
+  /// cancellation support.
+  ///
+  /// On success the server returns 204 No Content with an empty body. Any
+  /// non-204 status is thrown as `APIError.httpError` so the caller can decide
+  /// how to handle it. For the fire-and-forget use case, the `QueryViewModel`
+  /// swallows 5xx errors — the API method throws so the ViewModel test can
+  /// verify the swallow path independently.
+  public func submitFeedback(queryID: UUID, feedback: Feedback) async throws {
+    let url = baseURL.appendingPathComponent(
+      "v1/queries/\(queryID.uuidString.lowercased())/feedback"
+    )
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "POST"
+
+    let body = FeedbackRequestBody(feedback: feedback)
+    let encoder = JSONEncoder()
+    request.httpBody = try encoder.encode(body)
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    print("[feedback] query_id=\(queryID.uuidString.lowercased()) feedback=\(feedback.rawValue) status=\(status)")
+
+    guard status == 204 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+  }
+
   // MARK: - Delete
 
   /// Delete a memory by ID (DELETE /v1/memories/{id}).
@@ -714,22 +754,29 @@ public struct QueryResult: Codable, Sendable {
 /// `nil` when the server skips synthesis (e.g., no OpenAI key configured, or
 /// the query matched no sources). The iOS client falls back to snippet-only
 /// display when `answer` is nil — see `QueryView`.
+/// `queryID` is the server-assigned UUID for this query, used to submit
+/// feedback via POST /v1/queries/{id}/feedback (added in #209).
 public struct QueryResponseBody: Codable, Sendable {
   public let answer: String?
   public let sources: [QueryResult]
   public let queryTokenCount: Int
   public let latencyMs: Double
+  /// Server-assigned UUID for this query. Used as the target for
+  /// `OracleAPI.submitFeedback(queryID:feedback:)`.
+  public let queryID: UUID?
 
   public init(
     answer: String? = nil,
     sources: [QueryResult],
     queryTokenCount: Int,
-    latencyMs: Double
+    latencyMs: Double,
+    queryID: UUID? = nil
   ) {
     self.answer = answer
     self.sources = sources
     self.queryTokenCount = queryTokenCount
     self.latencyMs = latencyMs
+    self.queryID = queryID
   }
 
   public enum CodingKeys: String, CodingKey {
@@ -737,5 +784,26 @@ public struct QueryResponseBody: Codable, Sendable {
     case sources
     case queryTokenCount = "query_token_count"
     case latencyMs = "latency_ms"
+    case queryID = "query_id"
+  }
+}
+
+// MARK: - Feedback
+
+/// The user's thumbs-up or thumbs-down signal for a query result.
+///
+/// Raw string values match the server's expected `feedback` field values
+/// (`"positive"` / `"negative"`) in POST /v1/queries/{id}/feedback.
+public enum Feedback: String, Sendable, Codable, Equatable {
+  case positive
+  case negative
+}
+
+/// Wire format sent to POST /v1/queries/{id}/feedback.
+public struct FeedbackRequestBody: Codable, Sendable {
+  public let feedback: Feedback
+
+  public init(feedback: Feedback) {
+    self.feedback = feedback
   }
 }
