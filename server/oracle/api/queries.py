@@ -589,10 +589,11 @@ async def get_recent_queries(
     multiple times, only the most recent occurrence is kept. Empty/null query_text
     rows are excluded.
 
-    Uses DISTINCT ON (Postgres-specific) to collapse duplicates in a single pass,
-    then re-sorts by created_at DESC in Python after the LIMIT is applied. The
-    inner DISTINCT ON orders by (LOWER(query_text), created_at DESC) so that for
-    each unique lowercased text the most-recent row wins before LIMIT truncates.
+    Uses DISTINCT ON (Postgres-specific) to collapse duplicates in a single pass.
+    The inner DISTINCT ON orders by (LOWER(query_text), created_at DESC) so that for
+    each unique lowercased text the most-recent row wins. The outer query re-sorts
+    the deduped rows by created_at DESC and applies LIMIT in a single SQL pass.
+    No post-processing happens in Python.
     """
     sql = text(
         """
