@@ -15,15 +15,23 @@ let package = Package(
   ],
   products: [
     .library(name: "OracleCore", targets: ["OracleCore"]),
+    // Shared test helpers consumed by both OracleCoreTests (SPM) and
+    // OracleTests (Xcode). Declared as a regular library target so both
+    // test bundles can import it — a .testTarget cannot be shared.
+    .library(name: "OracleTestSupport", targets: ["OracleTestSupport"]),
   ],
   targets: [
     .target(
       name: "OracleCore",
       path: "Sources/OracleCore"
     ),
+    .target(
+      name: "OracleTestSupport",
+      path: "Sources/OracleTestSupport"
+    ),
     .testTarget(
       name: "OracleCoreTests",
-      dependencies: ["OracleCore"],
+      dependencies: ["OracleCore", "OracleTestSupport"],
       path: "Tests/OracleCoreTests",
       resources: [
         .process("Fixtures"),

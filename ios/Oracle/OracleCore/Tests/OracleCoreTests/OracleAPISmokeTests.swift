@@ -1,5 +1,6 @@
 import Testing
 import Foundation
+import OracleTestSupport
 @testable import OracleCore
 
 /// Smoke tests that exercise `OracleAPI` through the same `URLSession(configuration:)`
