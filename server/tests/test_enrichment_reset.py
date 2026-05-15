@@ -82,6 +82,21 @@ async def _cleanup(session: AsyncSession, ids: list[uuid.UUID]) -> None:
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+async def clean_enriched_memories() -> AsyncIterator[None]:
+    """Wipe all enriched memories before each test.
+
+    reset() operates on ALL qualifying rows in the database, so leftover
+    enriched rows from other tests would corrupt count and ID assertions.
+    """
+    async with _Session() as session:
+        result = await session.execute(select(Memory).where(Memory.enriched.is_(True)))
+        for mem in result.scalars().all():
+            await session.delete(mem)
+        await session.commit()
+    yield
+
+
 @pytest.fixture
 async def db_session() -> AsyncIterator[AsyncSession]:
     async with _Session() as session:
