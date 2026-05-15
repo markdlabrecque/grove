@@ -522,3 +522,75 @@ async def test_enrichment_check_raises_spend_cap_exceeded_error(
     # Verify it's catchable by the specific exception class (not just Exception)
     assert isinstance(exc_info.value, SpendCapExceededError)
     assert exc_info.value.cap_usd == cap
+
+
+# ---------------------------------------------------------------------------
+# 7b. classify_and_write no-ops when spend cap is exceeded
+# ---------------------------------------------------------------------------
+
+
+async def test_classify_and_write_no_ops_when_spend_cap_exceeded(
+    db_session: AsyncSession,
+) -> None:
+    """classify_and_write skips the LLM call and sets enrichment_error when
+    the spend cap is exceeded.
+
+    Patches oracle.enrichment.orchestrator.check_spend_cap to raise
+    SpendCapExceededError, then verifies:
+      - classify_memory was NOT called (LLM skipped entirely)
+      - memory.enrichment_error is set to "spend_cap_exceeded"
+      - memory.enriched remains False
+    """
+    import uuid
+    from datetime import UTC, datetime
+    from unittest.mock import AsyncMock, patch
+
+    from oracle.admin.spend import SpendCapExceededError
+    from oracle.enrichment.orchestrator import classify_and_write
+    from oracle.models import Memory
+
+    memory = Memory(
+        id=uuid.uuid4(),
+        client_id=uuid.uuid4(),
+        content="Budget review discussion.",
+        token_count=10,
+        enriched=False,
+        created_at=datetime.now(tz=UTC),
+    )
+    db_session.add(memory)
+    await db_session.commit()
+
+    mock_classify = AsyncMock()
+    exc = SpendCapExceededError(spend_usd=15.0, cap_usd=10.0)
+
+    try:
+        with (
+            patch(
+                "oracle.enrichment.orchestrator.check_spend_cap",
+                new_callable=AsyncMock,
+                side_effect=exc,
+            ),
+            patch(
+                "oracle.enrichment.orchestrator.classify_memory",
+                mock_classify,
+            ),
+        ):
+            async with _Session() as session:
+                mem = await session.get(Memory, memory.id)
+                assert mem is not None
+                await classify_and_write(mem, session)
+
+        await db_session.refresh(memory)
+        assert memory.enriched is False, "Memory must remain unenriched when cap is exceeded"
+        assert memory.enrichment_error == "spend_cap_exceeded", (
+            f"Expected enrichment_error='spend_cap_exceeded', got {memory.enrichment_error!r}"
+        )
+        assert mock_classify.call_count == 0, (
+            f"classify_memory must not be called when cap is exceeded, "
+            f"got call_count={mock_classify.call_count}"
+        )
+    finally:
+        obj = await db_session.get(Memory, memory.id)
+        if obj:
+            await db_session.delete(obj)
+        await db_session.commit()
