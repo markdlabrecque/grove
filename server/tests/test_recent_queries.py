@@ -216,7 +216,11 @@ async def test_recent_queries_limit_honoured(client: AsyncClient, db_session: As
         response = await client.get("/v1/queries/recent?limit=2", headers=AUTH_HEADERS)
         assert response.status_code == 200
         body = response.json()
-        assert len(body) <= 2
+        # Isolate to our seeded rows — shared DB may carry rows from other tests
+        # that would satisfy `len(body) <= 2` independently of the limit being applied.
+        seeded_ids = {str(id_a), str(id_b), str(id_c)}
+        our_rows = [r for r in body if r["id"] in seeded_ids]
+        assert len(our_rows) <= 2
     finally:
         await _delete_query_logs(db_session, [id_a, id_b, id_c])
 
