@@ -243,6 +243,237 @@ check-and-decrement).
 
 ---
 
+## Nightly backup (§1.6)
+
+The production Hetzner box runs a nightly `pg_dump` that writes a dated
+custom-format archive to a Hetzner Storage Box (or Backblaze B2 bucket).
+30-day retention.  The backup job is a host-level cron on the Hetzner box
+(`/etc/cron.d/oracle-backup` or equivalent) that executes roughly:
+
+```bash
+BACKUP_DIR=/mnt/storagebox/oracle-backups   # or rclone-mounted B2 bucket
+DATESTAMP=$(date -u +%Y-%m-%d)
+docker compose -f /opt/the-oracle/docker-compose.yml exec -T postgres \
+    pg_dump -U oracle -d oracle -Fc \
+    > "${BACKUP_DIR}/oracle-${DATESTAMP}.dump"
+# prune files older than 30 days
+find "${BACKUP_DIR}" -name 'oracle-*.dump' -mtime +30 -delete
+```
+
+> **Note:** The backup job itself is not committed in this repo — it lives on
+> the production host.  The paths above are the canonical convention; confirm
+> `BACKUP_DIR` with the host's actual mount point after deploy.
+
+---
+
+## Restore drill
+
+Run this drill any time you need to verify a backup, recover from data loss,
+or satisfy the §1.6 exit criterion.  All commands are copy-pasteable.
+
+### Step 1 — Pull the most recent backup to a scratch directory
+
+On the Hetzner box (or from a machine with access to the backup storage):
+
+```bash
+BACKUP_DIR=/mnt/storagebox/oracle-backups   # adjust to actual mount
+SCRATCH=/tmp/oracle-restore-$(date -u +%Y-%m-%d)
+mkdir -p "${SCRATCH}"
+
+# Copy the newest dated archive
+LATEST=$(ls -t "${BACKUP_DIR}"/oracle-*.dump | head -1)
+cp "${LATEST}" "${SCRATCH}/oracle.dump"
+echo "Working with: ${LATEST}"
+```
+
+If the backup target is remote (e.g. Backblaze B2 via rclone):
+
+```bash
+rclone copy b2:oracle-backups/"$(rclone ls b2:oracle-backups | sort -k2 | tail -1 | awk '{print $2}')" "${SCRATCH}/"
+# then rename to oracle.dump as above
+```
+
+### Step 2 — Spin up a throwaway Postgres+pgvector container
+
+Use the same image tag as the production compose stack (`pgvector/pgvector:pg16`):
+
+```bash
+docker run --rm -d \
+    --name oracle-drill \
+    -e POSTGRES_DB=oracle \
+    -e POSTGRES_USER=oracle \
+    -e POSTGRES_PASSWORD=drillpass \
+    -p 15433:5432 \
+    pgvector/pgvector:pg16
+
+# Wait until ready (usually < 5 s)
+until docker exec oracle-drill pg_isready -U oracle -d oracle -q; do sleep 1; done
+echo "Ready"
+```
+
+### Step 3 — Create the pgvector extension and load the dump
+
+```bash
+docker exec oracle-drill psql -U oracle -d oracle \
+    -c "CREATE EXTENSION IF NOT EXISTS vector;"
+
+docker cp "${SCRATCH}/oracle.dump" oracle-drill:/tmp/oracle.dump
+docker exec oracle-drill \
+    pg_restore -U oracle -d oracle --no-owner --no-privileges /tmp/oracle.dump
+
+echo "Restore complete"
+```
+
+> **Format note:** the dump is in PostgreSQL custom format (`-Fc`), so
+> `pg_restore` is correct here — do NOT use `psql <` for custom-format dumps.
+
+### Step 4 — Sanity-count queries
+
+Run these inside the throwaway container (or via `psql -h localhost -p 15433 -U oracle -d oracle`):
+
+```bash
+docker exec oracle-drill psql -U oracle -d oracle -c "
+SELECT 'memories'          AS tbl, COUNT(*) FROM memories
+UNION ALL
+SELECT 'memory_chunks',         COUNT(*) FROM memory_chunks
+UNION ALL
+SELECT 'decisions',             COUNT(*) FROM decisions
+UNION ALL
+SELECT 'people_interactions',   COUNT(*) FROM people_interactions
+UNION ALL
+SELECT 'tasks',                 COUNT(*) FROM tasks
+UNION ALL
+SELECT 'appointments',          COUNT(*) FROM appointments
+UNION ALL
+SELECT 'query_logs',            COUNT(*) FROM query_logs
+UNION ALL
+SELECT 'enrichment_state',      COUNT(*) FROM enrichment_state
+ORDER BY tbl;
+"
+```
+
+Also verify all migrations were applied (non-empty `alembic_version`):
+
+```bash
+docker exec oracle-drill psql -U oracle -d oracle \
+    -c "SELECT version_num FROM alembic_version;"
+```
+
+And confirm pgvector is present:
+
+```bash
+docker exec oracle-drill psql -U oracle -d oracle \
+    -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';"
+```
+
+### Step 5 — Compare against production counts (captured at backup time)
+
+Before running the drill on production, capture a snapshot from the live DB:
+
+```bash
+# On the production host (Hetzner box), before/during the same backup window:
+docker compose exec -T postgres psql -U oracle -d oracle -c "
+SELECT 'memories'          AS tbl, COUNT(*) FROM memories
+UNION ALL
+SELECT 'memory_chunks',         COUNT(*) FROM memory_chunks
+UNION ALL
+SELECT 'decisions',             COUNT(*) FROM decisions
+UNION ALL
+SELECT 'people_interactions',   COUNT(*) FROM people_interactions
+UNION ALL
+SELECT 'tasks',                 COUNT(*) FROM tasks
+UNION ALL
+SELECT 'appointments',          COUNT(*) FROM appointments
+UNION ALL
+SELECT 'query_logs',            COUNT(*) FROM query_logs
+UNION ALL
+SELECT 'enrichment_state',      COUNT(*) FROM enrichment_state
+ORDER BY tbl;
+" | tee "${SCRATCH}/prod-counts.txt"
+```
+
+After the restore, diff the counts:
+
+```bash
+docker exec oracle-drill psql -U oracle -d oracle -c "
+SELECT 'memories'          AS tbl, COUNT(*) FROM memories
+UNION ALL
+SELECT 'memory_chunks',         COUNT(*) FROM memory_chunks
+UNION ALL
+SELECT 'decisions',             COUNT(*) FROM decisions
+UNION ALL
+SELECT 'people_interactions',   COUNT(*) FROM people_interactions
+UNION ALL
+SELECT 'tasks',                 COUNT(*) FROM tasks
+UNION ALL
+SELECT 'appointments',          COUNT(*) FROM appointments
+UNION ALL
+SELECT 'query_logs',            COUNT(*) FROM query_logs
+UNION ALL
+SELECT 'enrichment_state',      COUNT(*) FROM enrichment_state
+ORDER BY tbl;
+" | tee "${SCRATCH}/drill-counts.txt"
+
+diff "${SCRATCH}/prod-counts.txt" "${SCRATCH}/drill-counts.txt"
+```
+
+A clean diff (no output) means all row counts match.
+
+### Step 6 — Tear down the throwaway container
+
+```bash
+docker stop oracle-drill
+# The --rm flag on docker run ensures it is deleted automatically on stop.
+```
+
+---
+
+## Restore drill — Last verified appendix
+
+Update this table each time the drill is run.  The entry below is the initial
+local dev-stack dry-run; a production drill is the operator's responsibility
+and should be recorded here when done.
+
+| Date | Environment | Who | Counts matched? | Notes |
+|------|-------------|-----|-----------------|-------|
+| 2026-05-15 | Local dev-stack dry-run | Margot (agent) | Yes — all 8 tables 0 rows (empty dev DB) | pgvector 0.8.2, image `pgvector/pgvector:pg16`, 9 tables restored incl. `alembic_version`. Production drill pending. |
+
+**Counts from 2026-05-15 local dry-run:**
+
+Source (dev DB):
+
+```
+         tbl         | count
+---------------------+-------
+ appointments        |     0
+ decisions           |     0
+ enrichment_state    |     0
+ memories            |     0
+ memory_chunks       |     0
+ people_interactions |     0
+ query_logs          |     0
+ tasks               |     0
+```
+
+Restored (throwaway container):
+
+```
+         tbl         | count
+---------------------+-------
+ appointments        |     0
+ decisions           |     0
+ enrichment_state    |     0
+ memories            |     0
+ memory_chunks       |     0
+ people_interactions |     0
+ query_logs          |     0
+ tasks               |     0
+```
+
+Diff: none (counts identical).
+
+---
+
 ## Enrichment cron (systemd timer)
 
 The hourly enrichment worker runs as a systemd timer on the host. Unit files live
