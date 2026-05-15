@@ -16,9 +16,8 @@ Single-run lifecycle:
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
-from typing import Any
+from typing import Protocol
 
 import structlog
 from sqlalchemy import select
@@ -61,9 +60,26 @@ async def _fetch_batch(
     return list(result.scalars().all())
 
 
+class _ClassifyAndWriteFn(Protocol):
+    """Structural type for the callable injected into :func:`run`.
+
+    Defined as a ``Protocol`` (rather than a bare ``Callable``) so the
+    ``report`` keyword argument is preserved at the type level — keeps
+    mypy honest at call sites and lets the suppression be dropped.
+    """
+
+    async def __call__(
+        self,
+        memory: Memory,
+        session: AsyncSession,
+        *,
+        report: RunReport | None = None,
+    ) -> None: ...
+
+
 async def run(
     batch_size: int = 50,
-    classify_and_write: Callable[[Memory, AsyncSession], Coroutine[Any, Any, None]] | None = None,
+    classify_and_write: _ClassifyAndWriteFn | None = None,
 ) -> None:
     """Execute one enrichment pass.
 
@@ -127,7 +143,7 @@ async def run(
             try:
                 mem = await mem_session.get(Memory, memory_id)
                 if mem is not None:
-                    await classify_and_write(mem, mem_session, report=report)  # type: ignore[call-arg]
+                    await classify_and_write(mem, mem_session, report=report)
                 else:
                     await mem_session.commit()
                 processed += 1
