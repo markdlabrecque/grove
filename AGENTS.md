@@ -130,6 +130,12 @@ For every ticket that requires implementation work:
        wait for an async operation to finish.
      - Shared test fixtures (URL protocols, factories, stubs) live in
        one place — don't duplicate across test targets.
+     - **Completeness is reviewed.** Theo checks the test set against
+       the ticket's acceptance criteria for assertion strength (prefer
+       value equality over `is not None` / truthiness when possible),
+       coverage of the obvious edge cases, and at least one negative /
+       failure path where the contract has one. Aim for that bar at
+       handoff rather than discovering it in round 2.
    - Commits in the project's conventional-commit style, ticket
      number leading: `#42 feat: add capture endpoint`. Group commits
      by concern.
@@ -156,10 +162,13 @@ For every ticket that requires implementation work:
    - Categorises findings:
      - **Must-fix** — correctness bugs, security issues, regressions,
        missing tests for new behaviour, missing regression tests on
-       bug fixes, tests that use `sleep` / `Task.sleep` /
-       `DispatchQueue.asyncAfter` as synchronisation primitives,
-       duplicated test fixtures that should be unified, broken doc
-       references, plus
+       bug fixes, **incomplete test sets** (weak assertions, missing
+       edge cases from the acceptance criteria, no negative path where
+       the contract has one — completeness is its own named concern,
+       not folded into "missing tests"), tests that use `sleep` /
+       `Task.sleep` / `DispatchQueue.asyncAfter` as synchronisation
+       primitives, duplicated test fixtures that should be unified,
+       broken doc references, plus
        *cheap drive-by improvements to files already in the diff*
        (rename a confusingly-named local, fix an obvious typo in a
        changed comment, etc.). These ride along — they don't get

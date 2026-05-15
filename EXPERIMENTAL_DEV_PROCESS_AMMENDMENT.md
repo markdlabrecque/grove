@@ -66,8 +66,20 @@ tickets:
    green but catches nothing.
 2. **Did the red commit actually precede the green commit?** A single
    "everything together" commit fails this check even if the tests pass.
+3. **Is the test set complete enough for the change?** Assertion
+   strength (prefer value equality over `is not None` / truthiness when
+   a value comparison is possible), coverage of the obvious edge cases
+   stated in or implied by the ticket's acceptance criteria, and at
+   least one negative / failure path where the contract has one. The
+   bar is still "would a future regression in this area be caught," not
+   coverage percentage — but a one-assertion happy-path test on a
+   classifier with five branches does not clear it. Several round-2
+   reviews during the trial window have been "your red commit was too
+   thin"; naming completeness as a separate concern keeps it from
+   slipping between rules 1 and 2.
 
-Failures on either check are must-fix in Theo's first-pass review.
+Failures on any of the three checks are must-fix in Theo's first-pass
+review.
 
 ## Cost of the experiment
 
