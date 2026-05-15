@@ -1,7 +1,7 @@
 """Intent router — classify query intent and run specialised-table retrieval.
 
 Public API:
-    classify_intent(query, *, api_key, model, prompt_path) -> IntentResult
+    classify_intent(query, *, api_key, model, intent_version) -> IntentResult
     parse_intent_response(raw_content) -> list[str]
     query_decisions(session, query_text) -> list[uuid.UUID]
     query_people(session, query_text) -> list[uuid.UUID]
@@ -31,14 +31,14 @@ from __future__ import annotations
 import json
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
-import httpx
 import structlog
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from oracle.llm.openrouter import chat_completion
+from oracle.llm.prompts import load_intent_prompts
 from oracle.models.appointment import Appointment
 from oracle.models.decision import Decision
 from oracle.models.people_interaction import PeopleInteraction
@@ -46,8 +46,7 @@ from oracle.models.task import Task
 
 logger = structlog.get_logger(__name__)
 
-_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
-_DEFAULT_PROMPT_PATH = Path(__file__).parent.parent.parent / "prompts" / "intent.v1.yaml"
+_DEFAULT_INTENT_VERSION = 1
 
 _VALID_INTENTS = frozenset(["decisions", "people_interactions", "tasks", "appointments", "general"])
 
@@ -87,22 +86,6 @@ class HybridResult:
 
     candidates: list[dict[str, Any]]
     tables_searched: dict[str, str | bool]
-
-
-# ---------------------------------------------------------------------------
-# Prompt loading (process-level cache)
-# ---------------------------------------------------------------------------
-
-_prompt_cache: dict[Path, dict[str, Any]] = {}
-
-
-def _load_prompt(path: Path) -> dict[str, Any]:
-    if path not in _prompt_cache:
-        with path.open() as f:
-            import yaml
-
-            _prompt_cache[path] = yaml.safe_load(f)
-    return _prompt_cache[path]
 
 
 # ---------------------------------------------------------------------------
@@ -146,7 +129,7 @@ async def classify_intent(
     *,
     api_key: str,
     model: str | None = None,
-    prompt_path: Path | None = None,
+    intent_version: int = _DEFAULT_INTENT_VERSION,
 ) -> IntentResult:
     """Classify the user query into one or more intent categories via OpenRouter.
 
@@ -154,7 +137,8 @@ async def classify_intent(
         query: The user's original query string.
         api_key: OpenRouter API key.
         model: OpenRouter model identifier; falls back to settings.intent_router_model.
-        prompt_path: Path to the intent prompt YAML; defaults to prompts/intent.v1.yaml.
+        intent_version: Prompt version to load (defaults to 1).  Pass a
+            different integer to load an alternate intent.v<N>.yaml file.
 
     Returns:
         IntentResult with validated intents and per-call telemetry.
@@ -168,66 +152,39 @@ async def classify_intent(
 
         model = settings.intent_router_model
 
-    if prompt_path is None:
-        prompt_path = _DEFAULT_PROMPT_PATH
-
-    bundle = _load_prompt(prompt_path)
-    user_content = bundle["user_prompt_template"].format(query=query)
+    bundle = load_intent_prompts(intent_version)
+    user_content = bundle.user_prompt_template.format(query=query)
     messages = [
-        {"role": "system", "content": bundle["system_prompt"]},
+        {"role": "system", "content": bundle.system_prompt},
         {"role": "user", "content": user_content},
     ]
 
     log = logger.bind(model=model)
     log.info("intent_router.classify.start")
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            _OPENROUTER_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://github.com/markdlabrecque/the-oracle",
-                "X-Title": "The Oracle",
-            },
-            json={
-                "model": model,
-                "messages": messages,
-                "response_format": {"type": "json_object"},
-            },
-            timeout=30.0,
-        )
-        response.raise_for_status()
+    completion = await chat_completion(
+        api_key=api_key,
+        model=model,
+        messages=messages,
+        response_format={"type": "json_object"},
+        timeout=30.0,
+    )
 
-    body: dict[str, Any] = response.json()
-    usage = body.get("usage", {})
-    prompt_tokens: int = usage.get("prompt_tokens", 0)
-    completion_tokens: int = usage.get("completion_tokens", 0)
-
-    cost_usd: float | None = None
-    raw_cost = response.headers.get("x-openrouter-cost")
-    if raw_cost is not None:
-        try:
-            cost_usd = float(raw_cost)
-        except ValueError:
-            pass
-
-    raw_content: str = body["choices"][0]["message"]["content"]
-    intents = parse_intent_response(raw_content)
+    intents = parse_intent_response(completion.content)
 
     log.info(
         "intent_router.classify.ok",
         intents=intents,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        cost_usd=cost_usd,
+        prompt_tokens=completion.prompt_tokens,
+        completion_tokens=completion.completion_tokens,
+        cost_usd=completion.cost_usd,
     )
 
     return IntentResult(
         intents=intents,
-        prompt_tokens=prompt_tokens,
-        completion_tokens=completion_tokens,
-        cost_usd=cost_usd,
+        prompt_tokens=completion.prompt_tokens,
+        completion_tokens=completion.completion_tokens,
+        cost_usd=completion.cost_usd,
         model=model,
     )
 
