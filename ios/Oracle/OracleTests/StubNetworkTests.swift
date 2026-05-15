@@ -700,4 +700,406 @@ struct StubNetworkTests {
       #expect(count == 0, "Empty/whitespace content must not enqueue a row")
     }
   }
+
+  // MARK: - AuthRequiredTests (#185)
+
+  /// Tests for 401 token-expiry handling.
+  ///
+  /// Scope:
+  ///  - A simulated 401 transitions a queued item to `isAuthRequired = true`
+  ///    (NOT deleted, NOT left as a generic transient failure).
+  ///  - `authRequiredCount()` counts only rows that are `isAuthRequired`.
+  ///  - `reenqueueAuthRequired(newToken:)` clears `isAuthRequired` on qualifying
+  ///    rows and triggers a drain sweep — but only when the token changes.
+  ///  - Idempotency: same bad token → no re-enqueue.
+  ///  - Edge cases: prior-state transition, multiple rows, non-auth rows unaffected.
+  ///
+  /// Nested here so these tests participate in the outer `.serialized` constraint
+  /// and do not race other suites on `StubURLProtocol`'s static responder.
+  @Suite("AuthRequired")
+  struct AuthRequiredTests {
+
+    // MARK: - Fixtures
+
+    private static let baseURL = URL(string: "https://oracle.example.ts.net")!
+    private static let token = "auth-test-token"
+
+    private func makeContainer() throws -> ModelContainer {
+      let schema = Schema([QueuedCapture.self])
+      let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+      return try ModelContainer(for: schema, configurations: [config])
+    }
+
+    private func makeQueue(container: ModelContainer) -> (UploadQueue, OracleAPI) {
+      let urlConfig = URLSessionConfiguration.default
+      urlConfig.protocolClasses = [StubURLProtocol.self]
+      let api = OracleAPI(
+        baseURL: Self.baseURL,
+        bearerToken: Self.token,
+        configuration: urlConfig
+      )
+      let queue = UploadQueue(
+        modelContainer: container,
+        api: api,
+        initialToken: Self.token
+      )
+      return (queue, api)
+    }
+
+    private func makePayload(
+      clientID: UUID = UUID(),
+      content: String = "test capture"
+    ) throws -> (UUID, Data) {
+      let body = CaptureRequestBody(
+        clientID: clientID,
+        content: content,
+        sourceModality: "text",
+        sourceDevice: "iphone",
+        language: "en",
+        capturedAt: Date()
+      )
+      let encoder = JSONEncoder()
+      encoder.dateEncodingStrategy = .iso8601
+      let data = try encoder.encode(body)
+      return (clientID, data)
+    }
+
+    private func stubResponse(statusCode: Int) -> HTTPURLResponse {
+      HTTPURLResponse(
+        url: Self.baseURL.appendingPathComponent("v1/captures"),
+        statusCode: statusCode,
+        httpVersion: nil,
+        headerFields: ["Content-Type": "application/json"]
+      )!
+    }
+
+    private func captureFixture() -> Data {
+      """
+      {"id":"b3d6e4f2-1a2b-4c3d-8e9f-0a1b2c3d4e5f",
+       "client_id":"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+       "captured_at":null,"enriched":false}
+      """.data(using: .utf8)!
+    }
+
+    // MARK: - 401 transitions row to auth_required (not deleted, not generic failure)
+
+    @Test("401 response: row marked isAuthRequired=true, not deleted")
+    func fourOhOneMarksAuthRequired() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let response401 = stubResponse(statusCode: 401)
+      let errorBody = #"{"detail":"Invalid authentication credentials"}"#.data(using: .utf8)!
+
+      StubURLProtocol.responder = { [response401, errorBody] _ in
+        (response401, errorBody)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      #expect(try await queue.pendingCount() == 1)
+
+      await queue.tryDrain()
+
+      // Row must still exist (not deleted like other 4xx).
+      #expect(try await queue.pendingCount() == 1)
+      #expect(try await queue.authRequiredCount() == 1)
+
+      // Verify the row itself has isAuthRequired set.
+      let readContext = ModelContext(container)
+      let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+      let row = try #require(rows.first)
+      #expect(row.isAuthRequired == true)
+      // attemptCount stays at 0 — auth_required is not a "failed attempt" in the
+      // retry-cap sense; it is a distinct state awaiting credential update.
+      #expect(row.attemptCount == 0)
+    }
+
+    // MARK: - 401 on a previously-failed row still marks isAuthRequired
+
+    @Test("401 on a previously-failed row: isAuthRequired=true overrides prior state")
+    func fourOhOneAfterTransientFailure() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+
+      // First: a 503 (transient) — row stays with attemptCount == 1.
+      StubURLProtocol.responder = { _ in
+        let r = HTTPURLResponse(
+          url: Self.baseURL.appendingPathComponent("v1/captures"),
+          statusCode: 503,
+          httpVersion: nil,
+          headerFields: nil
+        )!
+        return (r, #"{"detail":"unavailable"}"#.data(using: .utf8)!)
+      }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      await queue.tryDrain()
+
+      #expect(try await queue.pendingCount() == 1)
+      #expect(try await queue.authRequiredCount() == 0)
+
+      // Second: a 401 — row should now be isAuthRequired=true.
+      let response401 = stubResponse(statusCode: 401)
+      let body401 = #"{"detail":"Invalid authentication credentials"}"#.data(using: .utf8)!
+      StubURLProtocol.responder = { [response401, body401] _ in
+        (response401, body401)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      await queue.tryDrain()
+
+      #expect(try await queue.pendingCount() == 1)
+      #expect(try await queue.authRequiredCount() == 1)
+
+      let readContext = ModelContext(container)
+      let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+      let row = try #require(rows.first)
+      #expect(row.isAuthRequired == true)
+    }
+
+    // MARK: - tryDrain skips auth_required rows
+
+    @Test("tryDrain skips rows marked isAuthRequired (no network call, row unchanged)")
+    func drainSkipsAuthRequiredRows() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      // Enqueue a row and force it into auth_required state.
+      let (id, data) = try makePayload()
+      let response401 = stubResponse(statusCode: 401)
+      let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
+
+      StubURLProtocol.responder = { [response401, body401] _ in
+        (response401, body401)
+      }
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      await queue.tryDrain()  // Transition to auth_required.
+      StubURLProtocol.responder = nil
+
+      #expect(try await queue.authRequiredCount() == 1)
+
+      // Now drain again — auth_required rows must be skipped, no HTTP call made.
+      final class Counter: @unchecked Sendable { var value = 0 }
+      let httpCallCount = Counter()
+      StubURLProtocol.responder = { [httpCallCount] _ in
+        httpCallCount.value += 1
+        let r = HTTPURLResponse(
+          url: Self.baseURL.appendingPathComponent("v1/captures"),
+          statusCode: 201, httpVersion: nil, headerFields: nil
+        )!
+        return (r, Data())
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      await queue.tryDrain()
+
+      #expect(httpCallCount.value == 0)
+      #expect(try await queue.authRequiredCount() == 1)
+    }
+
+    // MARK: - authRequiredCount counts only flagged rows
+
+    @Test("authRequiredCount returns only rows with isAuthRequired=true")
+    func authRequiredCountIsSelective() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id1, data1) = try makePayload(content: "first")
+      let (id2, data2) = try makePayload(content: "second")
+      let (id3, data3) = try makePayload(content: "third")
+
+      try await queue.enqueue(clientID: id1.uuidString, payload: data1)
+      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
+      try await queue.enqueue(clientID: id3.uuidString, payload: data3)
+
+      #expect(try await queue.authRequiredCount() == 0)
+
+      let response401 = stubResponse(statusCode: 401)
+      let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
+      StubURLProtocol.responder = { [response401, body401] _ in
+        (response401, body401)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      await queue.tryDrain()
+
+      #expect(try await queue.pendingCount() == 3)
+      #expect(try await queue.authRequiredCount() == 3)
+    }
+
+    // MARK: - reenqueueAuthRequired clears flag and drains
+
+    @Test("reenqueueAuthRequired: clears isAuthRequired, rows re-drain successfully")
+    func reenqueueClearsAndDrains() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id1, data1) = try makePayload(content: "alpha")
+      let (id2, data2) = try makePayload(content: "beta")
+
+      let response401 = stubResponse(statusCode: 401)
+      let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
+      StubURLProtocol.responder = { [response401, body401] _ in (response401, body401) }
+
+      try await queue.enqueue(clientID: id1.uuidString, payload: data1)
+      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
+      await queue.tryDrain()
+
+      StubURLProtocol.responder = nil
+      #expect(try await queue.authRequiredCount() == 2)
+
+      let successResponse = HTTPURLResponse(
+        url: Self.baseURL.appendingPathComponent("v1/captures"),
+        statusCode: 201, httpVersion: nil,
+        headerFields: ["Content-Type": "application/json"]
+      )!
+      let fix = captureFixture()
+      StubURLProtocol.responder = { [successResponse, fix] _ in
+        (successResponse, fix)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      await queue.reenqueueAuthRequired(newToken: "new-valid-token")
+
+      #expect(try await queue.pendingCount() == 0)
+      #expect(try await queue.authRequiredCount() == 0)
+    }
+
+    // MARK: - reenqueueAuthRequired is idempotent on same-token re-call
+
+    @Test("reenqueueAuthRequired: same bad token does not re-enqueue (idempotent)")
+    func reenqueueIdempotentOnSameToken() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let response401 = stubResponse(statusCode: 401)
+      let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
+      StubURLProtocol.responder = { [response401, body401] _ in (response401, body401) }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      await queue.tryDrain()  // → auth_required; lastKnownBadToken = Self.token
+      StubURLProtocol.responder = nil
+
+      #expect(try await queue.authRequiredCount() == 1)
+
+      final class Counter: @unchecked Sendable { var value = 0 }
+      let httpCallCount = Counter()
+      StubURLProtocol.responder = { [httpCallCount, response401, body401] _ in
+        httpCallCount.value += 1
+        return (response401, body401)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      // Same token that caused the 401 — must be a no-op.
+      await queue.reenqueueAuthRequired(newToken: Self.token)
+
+      #expect(httpCallCount.value == 0)
+      #expect(try await queue.authRequiredCount() == 1)
+    }
+
+    // MARK: - multiple auth_required rows all re-enqueued
+
+    @Test("multiple auth_required rows: all re-enqueued when token changes")
+    func multipleRowsAllReenqueued() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let count = 5
+      for i in 0..<count {
+        let (id, data) = try makePayload(content: "item-\(i)")
+        try await queue.enqueue(clientID: id.uuidString, payload: data)
+      }
+
+      let response401 = stubResponse(statusCode: 401)
+      let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
+      StubURLProtocol.responder = { [response401, body401] _ in (response401, body401) }
+      await queue.tryDrain()
+      StubURLProtocol.responder = nil
+
+      #expect(try await queue.authRequiredCount() == count)
+
+      let successResponse = HTTPURLResponse(
+        url: Self.baseURL.appendingPathComponent("v1/captures"),
+        statusCode: 201, httpVersion: nil,
+        headerFields: ["Content-Type": "application/json"]
+      )!
+      let fix = captureFixture()
+      StubURLProtocol.responder = { [successResponse, fix] _ in (successResponse, fix) }
+      defer { StubURLProtocol.responder = nil }
+
+      await queue.reenqueueAuthRequired(newToken: "brand-new-valid-token")
+      #expect(try await queue.pendingCount() == 0)
+    }
+
+    // MARK: - reenqueueAuthRequired only clears auth_required rows
+
+    /// Verifies that `reenqueueAuthRequired` only clears `isAuthRequired` on
+    /// rows that are actually in the `auth_required` state, and does not touch
+    /// rows that are pending for other reasons (e.g. transient network failure).
+    ///
+    /// After `reenqueueAuthRequired`, the internal `tryDrain()` processes all
+    /// non-auth-required rows (that's correct — they were pending anyway).  This
+    /// test verifies that only the formerly-auth-required row can become
+    /// auth_required again (not the always-pending row).
+    @Test("reenqueueAuthRequired: only clears rows with isAuthRequired=true")
+    func reenqueueOnlyClearsAuthRequiredRows() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      // Row A → auth_required (401).
+      let (idA, dataA) = try makePayload(content: "auth-required row")
+      let response401 = stubResponse(statusCode: 401)
+      let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
+      StubURLProtocol.responder = { [response401, body401] _ in (response401, body401) }
+      try await queue.enqueue(clientID: idA.uuidString, payload: dataA)
+      await queue.tryDrain()
+      StubURLProtocol.responder = nil
+
+      // Row B → transient failure (503), NOT auth_required.
+      let (idB, dataB) = try makePayload(content: "transient-failure row")
+      let response503 = stubResponse(statusCode: 503)
+      let body503 = #"{"detail":"unavailable"}"#.data(using: .utf8)!
+      StubURLProtocol.responder = { [response503, body503] _ in (response503, body503) }
+      try await queue.enqueue(clientID: idB.uuidString, payload: dataB)
+      await queue.tryDrain()
+      StubURLProtocol.responder = nil
+
+      #expect(try await queue.pendingCount() == 2)
+      #expect(try await queue.authRequiredCount() == 1)  // Only row A.
+
+      // Confirm row-level state before calling reenqueueAuthRequired.
+      let ctxBefore = ModelContext(container)
+      let rowsBefore = try ctxBefore.fetch(FetchDescriptor<QueuedCapture>())
+      let rowABefore = try #require(rowsBefore.first { $0.clientID == idA.uuidString })
+      let rowBBefore = try #require(rowsBefore.first { $0.clientID == idB.uuidString })
+      #expect(rowABefore.isAuthRequired == true)
+      #expect(rowBBefore.isAuthRequired == false)  // Row B was never auth_required.
+
+      // After reenqueueAuthRequired:
+      //   - Row A's flag is cleared → drain → 503 (now transient, stays in queue)
+      //   - Row B's flag stays false → drain → 503 (stays in queue)
+      // Using 503 for both ensures neither ends up auth_required again.
+      StubURLProtocol.responder = { [response503, body503] _ in (response503, body503) }
+      defer { StubURLProtocol.responder = nil }
+
+      await queue.reenqueueAuthRequired(newToken: "new-token")
+
+      // Both rows are still in queue (both got 503).
+      #expect(try await queue.pendingCount() == 2)
+      // Neither is auth_required — 503 is transient, not auth_required.
+      #expect(try await queue.authRequiredCount() == 0)
+
+      // Verify row B's isAuthRequired is still false (it was never touched by
+      // reenqueueAuthRequired, which only clears rows that were auth_required).
+      let ctxAfter = ModelContext(container)
+      let rowsAfter = try ctxAfter.fetch(FetchDescriptor<QueuedCapture>())
+      let rowBAfter = try #require(rowsAfter.first { $0.clientID == idB.uuidString })
+      #expect(rowBAfter.isAuthRequired == false)
+    }
+  }
 }
