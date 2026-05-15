@@ -110,11 +110,11 @@ struct FillerWordCleanerTests {
     #expect(!result.lowercased().hasPrefix("um"))
   }
 
-  @Test("punctuation following fillers is cleaned up")
+  @Test("sentence-initial filler followed by comma is stripped cleanly")
   func punctuationCleanup() {
-    // "Um. Let's go." → "Let's go." (not ". Let's go.")
-    let result = FillerWordCleaner.clean("Um. Let's go.")
-    #expect(!result.hasPrefix("."))
+    // "Um, let's go." → "Let's go." (comma is consumed, next word is recapitalised)
+    let result = FillerWordCleaner.clean("Um, let's go.")
+    #expect(result == "Let's go.")
   }
 }
 
