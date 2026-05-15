@@ -13,6 +13,9 @@
 		A1000013 /* UploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000013 /* UploadQueue.swift */; };
 		A1000014 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* NetworkMonitor.swift */; };
 		A1000015 /* QueuedCaptureSchemaV1.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* QueuedCaptureSchemaV1.swift */; };
+		A1000018 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000018 /* SettingsView.swift */; };
+		A1000019 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000019 /* SettingsViewModel.swift */; };
+		B1000014 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000014 /* SettingsViewModelTests.swift */; };
 		B100000E /* MigrationPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000E /* MigrationPlanTests.swift */; };
 		B1000009 /* NetworkMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000B /* NetworkMonitorTests.swift */; };
 		B100000C /* CaptureViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000C /* CaptureViewModelTests.swift */; };
@@ -77,6 +80,9 @@
 		A2000005 /* QueryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryView.swift; sourceTree = "<group>"; };
 		A2000016 /* MemoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDetailView.swift; sourceTree = "<group>"; };
 		A2000017 /* MemoryDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDetailViewModel.swift; sourceTree = "<group>"; };
+		A2000018 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A2000019 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		B2000014 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
 		A2000006 /* CaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModel.swift; sourceTree = "<group>"; };
 		A2000010 /* QueryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModel.swift; sourceTree = "<group>"; };
 		A2000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -173,6 +179,8 @@
 				A2000010 /* QueryViewModel.swift */,
 				A2000016 /* MemoryDetailView.swift */,
 				A2000017 /* MemoryDetailViewModel.swift */,
+				A2000018 /* SettingsView.swift */,
+				A2000019 /* SettingsViewModel.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -207,6 +215,7 @@
 				B2000010 /* MemoryDetailViewModelTests.swift */,
 				B2000012 /* RecentQueriesViewModelTests.swift */,
 				B2000013 /* FeedbackViewModelTests.swift */,
+				B2000014 /* SettingsViewModelTests.swift */,
 				B3000002 /* Fixtures */,
 			);
 			path = OracleTests;
@@ -382,6 +391,8 @@
 				A1000008 /* QueryViewModel.swift in Sources */,
 				A1000016 /* MemoryDetailView.swift in Sources */,
 				A1000017 /* MemoryDetailViewModel.swift in Sources */,
+				A1000018 /* SettingsView.swift in Sources */,
+				A1000019 /* SettingsViewModel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -400,6 +411,7 @@
 				B1000010 /* MemoryDetailViewModelTests.swift in Sources */,
 				B1000012 /* RecentQueriesViewModelTests.swift in Sources */,
 				B1000013 /* FeedbackViewModelTests.swift in Sources */,
+				B1000014 /* SettingsViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
