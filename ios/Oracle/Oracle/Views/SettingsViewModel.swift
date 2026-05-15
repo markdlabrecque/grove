@@ -88,6 +88,10 @@ final class SettingsViewModel: ObservableObject {
 
   private let keychain: KeychainStore
   private let drainAction: () async -> Void
+  /// Called with the new token value after a successful `commitToken()`.
+  /// In production, delegates to `OracleApp.uploadQueue.reenqueueAuthRequired`.
+  /// Tests inject a stub to assert the call without a live queue.
+  private let reenqueueAction: (String) async -> Void
 
   // MARK: - Init
 
@@ -97,27 +101,43 @@ final class SettingsViewModel: ObservableObject {
     self.drainAction = {
       await OracleApp.uploadQueue.tryDrain()
     }
+    self.reenqueueAction = { newToken in
+      await OracleApp.uploadQueue.updateToken(newToken)
+      await OracleApp.uploadQueue.reenqueueAuthRequired(newToken: newToken)
+    }
     loadFromKeychain()
   }
 
-  /// Testing initialiser — injectable Keychain service and drain action.
+  /// Testing initialiser — injectable Keychain service, drain action, and
+  /// reenqueue action.
   ///
   /// - Parameters:
   ///   - keychainService: A unique Keychain service string for this test run.
   ///   - onDrain: Closure called instead of the real `uploadQueue.tryDrain()`.
-  init(keychainService: String, onDrain: @escaping () async -> Void) {
+  ///   - onReenqueue: Closure called with the new token instead of
+  ///     `uploadQueue.reenqueueAuthRequired(newToken:)`.
+  init(
+    keychainService: String,
+    onDrain: @escaping () async -> Void,
+    onReenqueue: @escaping (String) async -> Void = { _ in }
+  ) {
     self.keychain = KeychainStore(service: keychainService)
     self.drainAction = onDrain
+    self.reenqueueAction = onReenqueue
     loadFromKeychain()
   }
 
   // MARK: - Test factory
 
   /// Convenience factory for tests — generates a unique Keychain namespace.
-  static func makeForTest(onDrain: @escaping () async -> Void = {}) -> SettingsViewModel {
+  static func makeForTest(
+    onDrain: @escaping () async -> Void = {},
+    onReenqueue: @escaping (String) async -> Void = { _ in }
+  ) -> SettingsViewModel {
     SettingsViewModel(
       keychainService: "com.oracle.test.\(UUID().uuidString)",
-      onDrain: onDrain
+      onDrain: onDrain,
+      onReenqueue: onReenqueue
     )
   }
 
@@ -165,10 +185,14 @@ final class SettingsViewModel: ObservableObject {
 
   // MARK: - Commit bearer token
 
-  /// Persist the current `bearerTokenText` to Keychain and update the live API
-  /// actor.
+  /// Persist the current `bearerTokenText` to Keychain, update the live API
+  /// actor, and auto-resume any `auth_required` items in the upload queue.
   ///
   /// An empty token is silently ignored — the existing Keychain value is kept.
+  ///
+  /// After updating credentials, `UploadQueue.reenqueueAuthRequired(newToken:)`
+  /// is called so that captures stuck in `auth_required` state are re-enqueued
+  /// automatically — the user does not need to tap "Force Resync".
   func commitToken() {
     let raw = bearerTokenText.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !raw.isEmpty else { return }
@@ -183,11 +207,14 @@ final class SettingsViewModel: ObservableObject {
     let currentRawURL = (try? keychain.read(forKey: KeychainStore.serverURLKey)) ?? ""
     guard let currentURL = URL(string: currentRawURL) else { return }
 
+    let newToken = raw
     Task {
       await OracleAPI.shared.updateCredentials(
         baseURL: currentURL,
-        bearerToken: raw
+        bearerToken: newToken
       )
+      // Keep the queue's token tracking in sync so idempotency works correctly.
+      await reenqueueAction(newToken)
     }
   }
 

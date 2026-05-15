@@ -59,7 +59,11 @@ struct OracleApp: App {
   /// it is accessible from the main actor without crossing an isolation boundary
   /// at declaration time. The actor's own serial executor protects all mutations.
   nonisolated(unsafe) static let uploadQueue: UploadQueue = {
-    UploadQueue(modelContainer: OracleApp.modelContainer, api: OracleAPI.shared)
+    UploadQueue(
+      modelContainer: OracleApp.modelContainer,
+      api: OracleAPI.shared,
+      initialToken: Config.shared.bearerToken
+    )
   }()
 
   // MARK: - Network monitor

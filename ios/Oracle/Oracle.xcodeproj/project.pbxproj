@@ -15,6 +15,7 @@
 		A1000015 /* QueuedCaptureSchemaV1.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* QueuedCaptureSchemaV1.swift */; };
 		A1000018 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000018 /* SettingsView.swift */; };
 		A1000019 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000019 /* SettingsViewModel.swift */; };
+		A100001A /* AuthRequiredBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001A /* AuthRequiredBanner.swift */; };
 		B1000014 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000014 /* SettingsViewModelTests.swift */; };
 		B100000E /* MigrationPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000E /* MigrationPlanTests.swift */; };
 		B1000009 /* NetworkMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000B /* NetworkMonitorTests.swift */; };
@@ -82,6 +83,7 @@
 		A2000017 /* MemoryDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDetailViewModel.swift; sourceTree = "<group>"; };
 		A2000018 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		A2000019 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		A200001A /* AuthRequiredBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthRequiredBanner.swift; sourceTree = "<group>"; };
 		B2000014 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
 		A2000006 /* CaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModel.swift; sourceTree = "<group>"; };
 		A2000010 /* QueryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModel.swift; sourceTree = "<group>"; };
@@ -181,6 +183,7 @@
 				A2000017 /* MemoryDetailViewModel.swift */,
 				A2000018 /* SettingsView.swift */,
 				A2000019 /* SettingsViewModel.swift */,
+				A200001A /* AuthRequiredBanner.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -393,6 +396,7 @@
 				A1000017 /* MemoryDetailViewModel.swift in Sources */,
 				A1000018 /* SettingsView.swift in Sources */,
 				A1000019 /* SettingsViewModel.swift in Sources */,
+				A100001A /* AuthRequiredBanner.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
