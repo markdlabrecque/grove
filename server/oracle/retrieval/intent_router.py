@@ -408,6 +408,10 @@ async def run_specialised_queries(
         elif intent_name == "tasks":
             hits = await query_tasks(session, query_text)
         elif intent_name == "appointments":
+            # V1 scope: only surface upcoming appointments. Past-tense queries
+            # ("what appointments did I miss?") fall through to semantic search
+            # rather than getting a structured-table answer. Revisit once intent
+            # classification surfaces a tense / temporal-direction signal.
             hits = await query_appointments(session, query_text, forward_looking=True)
         else:
             hits = []
