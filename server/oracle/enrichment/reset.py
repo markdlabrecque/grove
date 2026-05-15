@@ -52,10 +52,10 @@ from oracle.models import Memory
 
 logger = structlog.get_logger(__name__)
 
-# Test seam: when set, called between the qualifying-row SELECT and the UPDATE
-# that resets those rows.  Used in tests to simulate a concurrent worker
-# re-enriching a row in the window between the two statements.  Must be None
-# in production; the reset() hot path never sets it.
+# Test seam: when set, called before the UPDATE … RETURNING that resets rows.
+# Used in tests to simulate a concurrent worker re-enriching a row in the
+# window that existed between the old SELECT and UPDATE statements.  Must be
+# None in production; the reset() hot path never sets it.
 _test_after_select_hook: Callable[[], Awaitable[None]] | None = None
 
 
@@ -91,24 +91,35 @@ async def reset(
     log = logger.bind(version_below=version_below, dry_run=dry_run)
 
     async def _run(s: AsyncSession) -> ResetResult:
-        # Identify qualifying rows.
-        stmt = select(Memory.id).where(
+        # Build the shared predicate used by both the dry-run SELECT and the
+        # live UPDATE.  Keeping it in one place avoids the two diverging.
+        predicate = (
             Memory.enriched.is_(True),
             # enriched_version IS NULL OR enriched_version < version_below
             (Memory.enriched_version.is_(None) | (Memory.enriched_version < version_below)),
         )
-        result = await s.execute(stmt)
-        affected_ids: list[uuid.UUID] = list(result.scalars().all())
 
-        if _test_after_select_hook is not None:
-            await _test_after_select_hook()
+        if dry_run:
+            # Dry-run: identify qualifying rows without modifying anything.
+            stmt = select(Memory.id).where(*predicate)
+            result = await s.execute(stmt)
+            affected_ids: list[uuid.UUID] = list(result.scalars().all())
+        else:
+            if _test_after_select_hook is not None:
+                await _test_after_select_hook()
 
-        if not dry_run and affected_ids:
-            await s.execute(
+            # Single atomic UPDATE … RETURNING id — the predicate is re-checked
+            # at write time, so any row a concurrent worker has already moved to
+            # enriched_version >= version_below (or set enriched=false) is
+            # automatically skipped.  No separate SELECT needed.
+            stmt = (
                 update(Memory)
-                .where(Memory.id.in_(affected_ids))
+                .where(*predicate)
                 .values(enriched=False, enriched_at=None, enrichment_error=None)
+                .returning(Memory.id)
             )
+            result = await s.execute(stmt)
+            affected_ids = list(result.scalars().all())
             await s.commit()
 
         return ResetResult(count=len(affected_ids), affected_ids=affected_ids, dry_run=dry_run)
