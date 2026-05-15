@@ -162,6 +162,14 @@ For every ticket that requires implementation work:
    - Commits in the project's conventional-commit style, ticket
      number leading: `#42 feat: add capture endpoint`. Group commits
      by concern.
+   - **iOS pre-push gate (Kai only).** Before pushing any iOS PR, run
+     `make ios-test` from the repo root. This runs three steps in
+     sequence: `ios-test-core` (SPM path), `ios-lint-pbxproj` (wiring
+     check), and `ios-test-app` (xcodebuild). The `ios-lint-pbxproj`
+     step fails fast if a new `*Tests.swift` file under `OracleTests/`
+     is not referenced in `project.pbxproj` — fix by opening
+     `Oracle.xcodeproj` in Xcode, selecting the file, and ticking the
+     OracleTests checkbox under Target Membership.
    - **Pushes the branch and verifies the push landed.** Run
      `git push -u origin <branch>` (or `git push --force-with-lease`
      after a rebase) and **read the full output** — do not pipe through

@@ -113,9 +113,10 @@ format: ## Apply ruff formatting in-place
 # ---------- iOS tests ----------
 
 # Two targets cover the full local test matrix:
-#   ios-test-core  → swift test on the OracleCore package (mirrors the stable CI gate)
-#   ios-test-app   → xcodebuild test on the Oracle scheme  (local-only; requires Xcode 26 + xcconfig)
-#   ios-test       → runs both in sequence; required pre-push check per AGENTS.md
+#   ios-test-core      → swift test on the OracleCore package (mirrors the stable CI gate)
+#   ios-lint-pbxproj   → assert every OracleTests/*.swift is wired into project.pbxproj
+#   ios-test-app       → xcodebuild test on the Oracle scheme  (local-only; requires Xcode 26 + xcconfig)
+#   ios-test           → runs all three in sequence; required pre-push check per AGENTS.md
 #
 # CI runs only ios-test-core (the stable gate) because macos-latest ships Xcode 16.2,
 # which cannot build the iOS 26 deployment target, and the xcconfig files are gitignored.
@@ -126,8 +127,12 @@ format: ## Apply ruff formatting in-place
 ios-test-core: ## Run OracleCore swift package tests (stable CI gate; no simulator needed)
 	swift test --package-path ios/Oracle/OracleCore
 
+.PHONY: ios-lint-pbxproj
+ios-lint-pbxproj: ## Assert every OracleTests/*.swift is referenced in project.pbxproj
+	./ios/scripts/check-pbxproj-wiring.sh
+
 .PHONY: ios-test-app
-ios-test-app: ## Run the full Oracle scheme tests on iPhone 17 simulator (canary CI job)
+ios-test-app: ios-lint-pbxproj ## Run the full Oracle scheme tests on iPhone 17 simulator (canary CI job)
 	xcodebuild test \
 		-project ios/Oracle/Oracle.xcodeproj \
 		-scheme Oracle \
