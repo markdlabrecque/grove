@@ -28,8 +28,9 @@ from typing import TYPE_CHECKING, Any
 import structlog
 from sqlalchemy import inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from oracle.admin.spend import SpendCapExceededError, check_spend_cap
 from oracle.enrichment.classifier import ClassificationError, SkippedReason, classify_memory
 from oracle.enrichment.schemas import load_classification_prompts
 from oracle.models import Appointment, Decision, Memory, PeopleInteraction, Task
@@ -92,12 +93,18 @@ async def classify_and_write(
     session: AsyncSession,
     *,
     report: RunReport | None = None,
+    spend_session_factory: async_sessionmaker[AsyncSession] | None = None,
 ) -> None:
     """Classify *memory* and write accepted extractions to specialised tables.
 
     Called once per memory by the enrichment worker.  All database writes
     (specialised-table inserts + memory.enriched = True) happen inside a
     single transaction that this function commits on success.
+
+    On SpendCapExceededError:
+        - Sets memory.enrichment_error = "spend_cap_exceeded".
+        - Leaves memory.enriched = False.
+        - Does not call the LLM or write any specialised rows.
 
     On SkippedReason or ClassificationError:
         - Sets memory.enrichment_error.
@@ -117,11 +124,31 @@ async def classify_and_write(
         report: Optional RunReport accumulator injected by the worker.  When
             provided, token counts, costs, accepted extractions, and errors
             are recorded here for the per-run summary.
+        spend_session_factory: Session factory used exclusively for the
+            spend-cap check.  The worker passes its own factory (same engine,
+            NullPool) so the check runs on a separate connection without
+            touching the per-memory transaction.  When None a fresh NullPool
+            engine is created from settings.database_url.
     """
     from oracle.core.config import settings
     from oracle.enrichment.run import PIPELINE_VERSION
 
     log = logger.bind(memory_id=str(memory.id))
+
+    # --- Guard: skip if monthly spend cap is exceeded ---
+    if spend_session_factory is None:
+        # Derive a factory from the caller's session engine.  This keeps the
+        # spend check on the same engine (and event loop) as the per-memory
+        # session, avoiding asyncpg "different loop" errors in test environments
+        # while still opening a separate connection for the check.
+        spend_session_factory = async_sessionmaker(session.bind, expire_on_commit=False)
+    try:
+        await check_spend_cap(spend_session_factory)
+    except SpendCapExceededError:
+        log.warning("orchestrator.spend_cap_exceeded", memory_id=str(memory.id))
+        memory.enrichment_error = "spend_cap_exceeded"
+        await session.commit()
+        return
 
     # --- Load prompt bundle ---
     prompt_bundle = load_classification_prompts(PIPELINE_VERSION)

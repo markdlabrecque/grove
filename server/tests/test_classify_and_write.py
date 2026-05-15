@@ -196,6 +196,24 @@ async def db_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
+@pytest.fixture(autouse=True)
+def stub_check_spend_cap():  # type: ignore[return]
+    """No-op the spend cap check for all tests in this file.
+
+    test_classify_and_write.py exercises orchestrator logic only.
+    Spend cap enforcement is covered in test_spend_cap.py.
+    Bypassing it here avoids asyncpg "another operation is in progress"
+    errors that arise when check_spend_cap opens a second connection on
+    the same NullPool engine while the test's session has one already open.
+    """
+    with patch(
+        "oracle.enrichment.orchestrator.check_spend_cap",
+        new_callable=AsyncMock,
+        return_value=None,
+    ):
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Test 1: Happy path — mixed confidence classification
 # ---------------------------------------------------------------------------

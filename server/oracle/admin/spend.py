@@ -21,7 +21,7 @@ oracle.api.queries.post_query — checks before calling synthesize() and
 
 oracle.enrichment.orchestrator.classify_and_write — checks before calling the
     LLM. On SpendCapExceededError the orchestrator skips the memory, sets
-    enrichment_error, and the next monthly-reset will retry.
+    enrichment_error="spend_cap_exceeded", and the next monthly-reset will retry.
 """
 
 from __future__ import annotations
