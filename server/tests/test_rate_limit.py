@@ -141,6 +141,16 @@ class TestClassifyRoute:
     def test_unknown_v1_path_is_default(self) -> None:
         assert classify_route("/v1/unknown") == RouteClass.DEFAULT
 
+    def test_captures_lookalike_path_is_default(self) -> None:
+        # Prefix-without-boundary would mis-classify "/v1/captures-foo" as CAPTURE.
+        assert classify_route("/v1/captures-foo") == RouteClass.DEFAULT
+        assert classify_route("/v1/capturesXYZ") == RouteClass.DEFAULT
+
+    def test_queries_lookalike_path_is_default(self) -> None:
+        # Prefix-without-boundary would mis-classify "/v1/queriesfoo" as QUERY.
+        assert classify_route("/v1/queriesfoo") == RouteClass.DEFAULT
+        assert classify_route("/v1/queries-admin") == RouteClass.DEFAULT
+
 
 # ---------------------------------------------------------------------------
 # Configurability tests

@@ -61,9 +61,9 @@ def classify_route(path: str) -> RouteClass:
 
     Matching is intentionally explicit to avoid clever regex surprises.
     """
-    if path.startswith("/v1/captures"):
+    if path == "/v1/captures" or path.startswith("/v1/captures/"):
         return RouteClass.CAPTURE
-    if path.startswith("/v1/queries"):
+    if path == "/v1/queries" or path.startswith("/v1/queries/"):
         return RouteClass.QUERY
     return RouteClass.DEFAULT
 
