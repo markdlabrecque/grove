@@ -285,6 +285,52 @@ public actor OracleAPI {
     return result
   }
 
+  // MARK: - Recent queries
+
+  /// Fetch the user's most-recent distinct queries (GET /v1/queries/recent).
+  ///
+  /// Returns up to `limit` items ordered newest-first. Items are deduplicated
+  /// server-side (case-insensitive on query text). The call uses the
+  /// `defaultSession` — it's interactive, and Task cancellation support is
+  /// desirable so the caller can abandon a stale in-flight fetch when the view
+  /// disappears.
+  ///
+  /// A 5xx from the server is thrown as `APIError.httpError` so the caller can
+  /// decide how to handle it. The `QueryViewModel` swallows the error silently —
+  /// the chip strip just shows empty rather than breaking the Ask flow.
+  ///
+  /// - Parameter limit: Maximum number of items to return (server validates
+  ///   `ge=1, le=50`; out-of-range produces a 422 thrown here).
+  public func recentQueries(limit: Int = 10) async throws -> [RecentQueryItem] {
+    var comps = URLComponents(
+      url: baseURL.appendingPathComponent("v1/queries/recent"),
+      resolvingAgainstBaseURL: false
+    )!
+    comps.queryItems = [URLQueryItem(name: "limit", value: "\(limit)")]
+    let url = comps.url!
+
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "GET"
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    print("[recent-queries] limit=\(limit) status=\(status)")
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode([RecentQueryItem].self, from: data)
+  }
+
   // MARK: - Feedback
 
   /// Submit thumbs-up or thumbs-down feedback for a query result
@@ -805,5 +851,34 @@ public struct FeedbackRequestBody: Codable, Sendable {
 
   public init(feedback: Feedback) {
     self.feedback = feedback
+  }
+}
+
+// MARK: - Recent query item
+
+/// A single entry returned by GET /v1/queries/recent.
+///
+/// Matches the server's `RecentQueryItem` Pydantic model. `id` is the
+/// server-assigned UUID for the query log row; `queryText` is the raw text
+/// the user submitted; `createdAt` is the UTC timestamp the query was logged.
+///
+/// The chip strip in `QueryView` uses `queryText` as the chip label and
+/// passes the same text to `QueryViewModel.tapRecentQuery(_:)` when the user
+/// taps.
+public struct RecentQueryItem: Codable, Sendable, Identifiable, Equatable {
+  public let id: UUID
+  public let queryText: String
+  public let createdAt: Date
+
+  public init(id: UUID, queryText: String, createdAt: Date) {
+    self.id = id
+    self.queryText = queryText
+    self.createdAt = createdAt
+  }
+
+  public enum CodingKeys: String, CodingKey {
+    case id
+    case queryText = "query_text"
+    case createdAt = "created_at"
   }
 }
