@@ -398,9 +398,7 @@ private struct SourceCardRow: View {
         // the text content above (which may receive highlight flashes from
         // citation taps) never accidentally toggles expansion.
         Button {
-          withAnimation(.easeInOut(duration: 0.25)) {
-            isExpanded.toggle()
-          }
+          isExpanded.toggle()
         } label: {
           Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
             .font(.caption.weight(.semibold))
