@@ -68,7 +68,7 @@ class ClassificationResult:
 # ---------------------------------------------------------------------------
 
 
-class _MemoryLike(Protocol):
+class MemoryLike(Protocol):
     content: str
     token_count: int | None
 
@@ -79,7 +79,7 @@ class _MemoryLike(Protocol):
 
 
 async def classify_memory(
-    memory: _MemoryLike,
+    memory: MemoryLike,
     prompt_bundle: PromptBundle,
     *,
     api_key: str,
