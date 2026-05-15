@@ -49,6 +49,15 @@ struct JSONCodingTests {
     #expect(abs(response.latencyMs - 612.4) < 0.01)
   }
 
+  @Test("QueryResponseBody decodes query_id into queryID")
+  func queryResponseBodyDecodesQueryID() throws {
+    let data = try loadFixture(named: "query_response")
+    let decoder = makeDecoder()
+    let response = try decoder.decode(QueryResponseBody.self, from: data)
+
+    #expect(response.queryID == UUID(uuidString: "feedb000-0000-0000-0000-000000000001"))
+  }
+
   @Test("QueryResponseBody first result is a whole-memory match")
   func queryResponseBodyFirstResultIsWholeMatch() throws {
     let data = try loadFixture(named: "query_response")
