@@ -173,7 +173,7 @@ struct FeedbackViewModelTests {
       feedbackProvider: { _, _ in
         let index = callIndex
         callIndex += 1
-        feedbackCallCount.increment()
+        await feedbackCallCount.increment()
 
         if index == 0 {
           defer { firstFeedbackDone.continuation.yield(()) }
@@ -219,7 +219,7 @@ struct FeedbackViewModelTests {
     await Task.yield()
 
     // Both feedback calls must have fired.
-    #expect(feedbackCallCount.value == 2)
+    #expect(await feedbackCallCount.value == 2)
 
     // Final chip state is .negative (the last tap).
     #expect(vm.feedback(for: Self.queryID) == .negative)

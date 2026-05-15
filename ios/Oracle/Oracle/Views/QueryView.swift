@@ -32,6 +32,11 @@ struct QueryView: View {
         queryInputArea
           .padding()
 
+        // Recent-queries chip strip — only shown when the list is non-empty.
+        if !viewModel.recentQueries.isEmpty {
+          recentQueriesStrip
+        }
+
         Divider()
 
         resultArea
@@ -48,6 +53,40 @@ struct QueryView: View {
     } message: {
       Text(viewModel.errorMessage)
     }
+    .task {
+      // Fetch on view appear. `.task` cancels and re-runs when the view is
+      // re-presented, so the strip is always fresh without manual lifecycle
+      // management. The fetch itself is fire-and-forget inside the ViewModel.
+      viewModel.refreshRecentQueries()
+    }
+  }
+
+  // MARK: - Recent-queries chip strip
+
+  /// Horizontally scrolling strip of the user's most-recent distinct queries.
+  ///
+  /// Each chip, when tapped, populates the query field and immediately fires a
+  /// fresh submit via `QueryViewModel.tapRecentQuery(_:)` — it does not just
+  /// show cached results.
+  ///
+  /// The strip is hidden when `viewModel.recentQueries` is empty (on first
+  /// install, or when the strip fetch fails). It refreshes after every
+  /// successful ask so the most-recent query floats to the front.
+  private var recentQueriesStrip: some View {
+    ScrollView(.horizontal, showsIndicators: false) {
+      HStack(spacing: 8) {
+        ForEach(viewModel.recentQueries) { item in
+          RecentQueryChip(queryText: item.queryText) {
+            isFocused = false
+            viewModel.tapRecentQuery(item)
+          }
+        }
+      }
+      .padding(.horizontal, 16)
+      .padding(.vertical, 8)
+    }
+    .accessibilityLabel("Recent queries")
+    .accessibilityHint("Double-tap a chip to re-run that query")
   }
 
   // MARK: - Query input
@@ -440,6 +479,39 @@ private struct FeedbackChip: View {
     .buttonStyle(.plain)
     .accessibilityLabel(label)
     .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+  }
+}
+
+// MARK: - Recent query chip
+
+/// A single recent-query chip in the horizontal strip above the input field.
+///
+/// Displays the `queryText` truncated to a single line. Tapping fires the
+/// provided `action` closure (which in production calls
+/// `QueryViewModel.tapRecentQuery(_:)` to populate the field and submit).
+private struct RecentQueryChip: View {
+  let queryText: String
+  let action: () -> Void
+
+  var body: some View {
+    Button(action: action) {
+      Text(queryText)
+        .font(.subheadline)
+        .lineLimit(1)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color(.secondarySystemBackground))
+        .foregroundStyle(.primary)
+        .clipShape(Capsule())
+        .overlay(
+          Capsule()
+            .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+        )
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Recent query: \(queryText)")
+    .accessibilityHint("Double-tap to re-run this query")
+    .accessibilityAddTraits(.isButton)
   }
 }
 

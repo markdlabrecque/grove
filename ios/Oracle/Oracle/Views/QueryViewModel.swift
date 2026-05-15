@@ -14,6 +14,11 @@ import OracleCore
 /// In production it calls `OracleAPI.shared.submitFeedback(queryID:feedback:)`.
 /// The call is fire-and-forget: errors are swallowed silently; the chip stays
 /// selected regardless of server response.
+///
+/// The `recentQueriesProvider` closure is injected for the chip strip.
+/// In production it calls `OracleAPI.shared.recentQueries(limit:)`.
+/// A 5xx from this provider is swallowed silently — the strip shows empty
+/// but the Ask flow is unaffected.
 @Observable
 @MainActor
 final class QueryViewModel {
@@ -35,6 +40,13 @@ final class QueryViewModel {
   /// production `OracleAPI.shared.submitFeedback(queryID:feedback:)` path.
   /// Tests inject a stub to verify the fire-and-forget error-swallow path.
   var feedbackProvider: (UUID, Feedback) async throws -> Void
+
+  // MARK: - Injectable recent-queries provider
+
+  /// The async function that fetches the recent-queries chip strip.
+  /// Defaults to `OracleAPI.shared.recentQueries(limit:)`.
+  /// Tests inject a stub to verify the fetch, empty, and 5xx paths.
+  var recentQueriesProvider: (Int) async throws -> [RecentQueryItem]
 
   // MARK: - Derived state
 
@@ -124,6 +136,15 @@ final class QueryViewModel {
     feedbackByQueryID[queryID]
   }
 
+  // MARK: - Recent queries state
+
+  /// The most-recently fetched list of recent queries, newest-first.
+  ///
+  /// Populated on `.task` (view appear) and re-fetched after each successful
+  /// new query submission. A 5xx from the server leaves this empty; it does
+  /// not affect the Ask flow.
+  private(set) var recentQueries: [RecentQueryItem] = []
+
   // MARK: - Init
 
   init(
@@ -132,10 +153,14 @@ final class QueryViewModel {
     },
     feedbackProvider: @escaping (UUID, Feedback) async throws -> Void = { queryID, feedback in
       try await OracleAPI.shared.submitFeedback(queryID: queryID, feedback: feedback)
+    },
+    recentQueriesProvider: @escaping (Int) async throws -> [RecentQueryItem] = { limit in
+      try await OracleAPI.shared.recentQueries(limit: limit)
     }
   ) {
     self.queryProvider = queryProvider
     self.feedbackProvider = feedbackProvider
+    self.recentQueriesProvider = recentQueriesProvider
   }
 
   // MARK: - In-flight task
@@ -197,6 +222,41 @@ final class QueryViewModel {
     }
   }
 
+  // MARK: - Recent queries
+
+  /// Fetch the recent-queries chip strip from the server.
+  ///
+  /// Fire-and-forget: launched as a detached Task so the call site (`.task`
+  /// modifier on the view) does not have to await the result. A 5xx (or any
+  /// error) is swallowed silently — the strip stays empty and the Ask flow
+  /// is unaffected. Errors are logged at the debug level.
+  ///
+  /// Only one fetch runs at a time. The view calls this on appear; the ViewModel
+  /// calls it again after every successful query so the newest query rises to
+  /// the top of the strip.
+  func refreshRecentQueries() {
+    Task {
+      do {
+        let items = try await recentQueriesProvider(10)
+        recentQueries = items
+      } catch {
+        // Intentional swallow — the chip strip is a convenience; it must not
+        // break the primary Ask flow or surface an error alert to the user.
+        print("[recent-queries] swallowed error: \(error)")
+      }
+    }
+  }
+
+  /// Handle a tap on a recent-query chip.
+  ///
+  /// Sets `query` to the chip's text and immediately calls `ask()` so the view
+  /// fires a fresh submit rather than just showing cached results. This matches
+  /// the "tap-to-rerun fires a fresh query" contract from the ticket.
+  func tapRecentQuery(_ item: RecentQueryItem) {
+    query = item.queryText
+    ask()
+  }
+
   // MARK: - Ask
 
   /// Cancel any running query and start a new one with the current field value.
@@ -233,6 +293,9 @@ final class QueryViewModel {
         sources: response.sources,
         queryID: response.queryID
       )
+      // Re-fetch recent queries so the chip strip reflects this new query at
+      // the top. Fire-and-forget: errors are swallowed inside refreshRecentQueries().
+      refreshRecentQueries()
     } catch {
       // Cancellation is not a user-visible failure: the user deliberately
       // tapped Ask again (or the request was superseded by a new query).
