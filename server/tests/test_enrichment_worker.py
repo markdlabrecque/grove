@@ -182,10 +182,14 @@ async def test_concurrent_runs_all_memories_enriched(
     LOCKED prevents double-claim between truly concurrent *processes* (different
     OS-level connections racing the SELECT). Within a single asyncio event loop,
     coroutines interleave cooperatively -- both workers can fetch the same rows
-    after the first worker's batch_session commits. That is acceptable for V1:
-    enrichment is idempotent (enriched=True on an already-True row is a no-op).
+    after the first worker's batch_session commits.
 
-    This test asserts the two invariants that actually matter for correctness:
+    The double-claim risk for specialised-table inserts is closed by the
+    (memory_id, enrichment_version) unique constraint + ON CONFLICT DO NOTHING
+    upsert guard added in #201. Duplicate-row assertions live in
+    test_specialized_table_upsert.py::test_worker_concurrent_runs_no_duplicate_specialised_rows.
+
+    This test asserts the two invariants that matter for the Memory table itself:
     1. No crash or exception propagates out of either run() call.
     2. Every seeded memory is marked enriched after both runs complete.
     """
