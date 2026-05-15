@@ -43,5 +43,11 @@ class Settings(BaseSettings):
     rate_limit_default_per_min: int = 60
     rate_limit_burst_multiplier: int = 2
 
+    # Monthly OpenRouter spend cap in USD.
+    # At 80% of cap: log a warning on every LLM call.
+    # At 100% of cap: raise SpendCapExceededError — retrieval degrades to
+    # ranked-snippets-only; enrichment no-ops for the rest of the month.
+    openrouter_monthly_cap_usd: float = 20.0
+
 
 settings = Settings()  # type: ignore[call-arg]
