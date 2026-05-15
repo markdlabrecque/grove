@@ -46,6 +46,8 @@
 		B1000016 /* CapturePolishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000016 /* CapturePolishTests.swift */; };
 		A100001B /* UploadQueueDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001B /* UploadQueueDebugView.swift */; };
 		A100001C /* BackoffScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001C /* BackoffScheduler.swift */; };
+		A100001D /* FillerWordCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001D /* FillerWordCleaner.swift */; };
+		A100001E /* LanguageDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001E /* LanguageDetector.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -92,6 +94,8 @@
 		B2000015 /* SyncEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEdgeCaseTests.swift; sourceTree = "<group>"; };
 		A200001B /* UploadQueueDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueueDebugView.swift; sourceTree = "<group>"; };
 		A200001C /* BackoffScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffScheduler.swift; sourceTree = "<group>"; };
+		A200001D /* FillerWordCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordCleaner.swift; sourceTree = "<group>"; };
+		A200001E /* LanguageDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageDetector.swift; sourceTree = "<group>"; };
 		B2000016 /* CapturePolishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePolishTests.swift; sourceTree = "<group>"; };
 		A2000006 /* CaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModel.swift; sourceTree = "<group>"; };
 		A2000010 /* QueryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModel.swift; sourceTree = "<group>"; };
@@ -159,6 +163,8 @@
 				A2000014 /* NetworkMonitor.swift */,
 				A2000015 /* QueuedCaptureSchemaV1.swift */,
 				A200001C /* BackoffScheduler.swift */,
+				A200001D /* FillerWordCleaner.swift */,
+				A200001E /* LanguageDetector.swift */,
 				A2000008 /* Info.plist */,
 				A200000A /* Config.xcconfig.example */,
 				A200000B /* Config.debug.xcconfig */,
@@ -411,6 +417,8 @@
 				A100001A /* AuthRequiredBanner.swift in Sources */,
 				A100001B /* UploadQueueDebugView.swift in Sources */,
 				A100001C /* BackoffScheduler.swift in Sources */,
+				A100001D /* FillerWordCleaner.swift in Sources */,
+				A100001E /* LanguageDetector.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

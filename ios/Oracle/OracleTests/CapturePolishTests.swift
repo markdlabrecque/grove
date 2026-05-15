@@ -101,10 +101,12 @@ struct FillerWordCleanerTests {
 
   @Test("unicode text with fillers is handled safely")
   func unicodeText() {
-    // Fillers followed by unicode content must not corrupt the string
+    // Fillers followed by unicode content must not corrupt the string.
+    // The cleaner capitalises the first character of the result, so "café"
+    // becomes "Café" — test the lowercased result for the substring check.
     let input = "Um, café au lait is délicieux."
     let result = FillerWordCleaner.clean(input)
-    #expect(result.contains("café au lait"))
+    #expect(result.lowercased().contains("café au lait"))
     #expect(!result.lowercased().hasPrefix("um"))
   }
 
