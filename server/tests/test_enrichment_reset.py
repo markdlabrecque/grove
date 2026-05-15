@@ -144,10 +144,14 @@ async def test_reset_version_below_resets_only_qualifying_rows(
         assert row_a.enriched is False
         assert row_a.enriched_at is None
         assert row_a.enrichment_error is None
+        # enriched_version is intentionally left intact for diagnostic value.
+        assert row_a.enriched_version is None
 
         assert row_b.enriched is False
         assert row_b.enriched_at is None
         assert row_b.enrichment_error is None
+        # enriched_version is intentionally left intact for diagnostic value.
+        assert row_b.enriched_version == 1
 
         assert row_c.enriched is True
         assert row_d.enriched is True
@@ -176,10 +180,15 @@ async def test_dry_run_reports_ids_but_makes_no_changes(
         # No DB changes should have occurred.
         await db_session.refresh(row_a)
         await db_session.refresh(row_b)
+        await db_session.refresh(row_c)
 
         assert row_a.enriched is True, "dry-run must not modify enriched"
         assert row_a.enriched_at is not None, "dry-run must not clear enriched_at"
+        # enriched_version must be unchanged — dry-run writes nothing.
+        assert row_a.enriched_version is None
         assert row_b.enriched is True, "dry-run must not modify enriched"
+        assert row_b.enriched_version == 1
+        assert row_c.enriched_version == 2
     finally:
         await _cleanup(db_session, ids)
 
