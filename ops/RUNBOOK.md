@@ -533,6 +533,26 @@ journalctl -u oracle-enrichment.service -f
 systemctl list-timers oracle-enrichment.timer
 ```
 
+### Post-downtime behaviour
+
+The timer uses `Persistent=true`, so if the host was down (or the timer was
+disabled) when a scheduled hourly window would have fired, systemd executes the
+service once on the next boot to catch up. Only **one** catch-up run fires per
+re-enable — not one per missed window — so a multi-hour outage results in a
+single delayed run, not a flood.
+
+This is usually desirable but can surprise operators: after a long outage the
+enrichment worker can fire before the rest of the Docker stack is fully
+healthy. If you've just rebooted the box or restored from a snapshot, either
+let the full stack stabilise before enabling the timer, or temporarily stop
+it during the startup window:
+
+```bash
+sudo systemctl stop oracle-enrichment.timer
+# ... wait for compose stack + database to be healthy ...
+sudo systemctl start oracle-enrichment.timer
+```
+
 ### Alerting
 
 V1 has no automated alerting. Runs are reviewed manually as part of the weekly
