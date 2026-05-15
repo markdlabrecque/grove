@@ -324,6 +324,15 @@ final class QueryViewModel {
       } else {
         message = error.localizedDescription
       }
+
+      // 401 from the Ask path — surface the same auth-required banner that the
+      // upload queue uses.  The banner deep-links to Settings so the user can
+      // update their token.  We also show an error alert so the failure is
+      // clearly attributed to the query rather than silently swallowed.
+      if case .httpError(let code, _) = error as? APIError, code == 401 {
+        NotificationCenter.default.post(name: .authRequiredDidChange, object: nil)
+      }
+
       queryStatus = .idle
       errorMessage = message
       showErrorAlert = true

@@ -53,6 +53,17 @@ final class QueuedCapture {
   /// is needed to keep the value short.
   var lastError: String?
 
+  /// Whether the row is waiting for a credential update before it can be
+  /// retried.  Set to `true` when the server returns 401; cleared by
+  /// `UploadQueue.reenqueueAuthRequired(newToken:)` once the user provides a
+  /// new bearer token.
+  ///
+  /// A row in this state is intentionally skipped by `tryDrain` — it will not
+  /// be uploaded until `reenqueueAuthRequired` resets this flag and triggers a
+  /// fresh drain cycle.  This is an additive optional property; existing rows
+  /// from previous app versions default to `false` without a schema migration.
+  var isAuthRequired: Bool = false
+
   // MARK: - Init
 
   init(
@@ -60,12 +71,14 @@ final class QueuedCapture {
     payload: Data,
     createdAt: Date = Date(),
     attemptCount: Int = 0,
-    lastError: String? = nil
+    lastError: String? = nil,
+    isAuthRequired: Bool = false
   ) {
     self.clientID = clientID
     self.payload = payload
     self.createdAt = createdAt
     self.attemptCount = attemptCount
     self.lastError = lastError
+    self.isAuthRequired = isAuthRequired
   }
 }
