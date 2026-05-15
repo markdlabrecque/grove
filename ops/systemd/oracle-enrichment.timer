@@ -1,6 +1,5 @@
 [Unit]
 Description=Hourly Oracle enrichment worker timer
-Requires=oracle-enrichment.service
 
 [Timer]
 OnCalendar=hourly
