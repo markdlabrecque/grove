@@ -217,3 +217,70 @@ Postgres isn't reachable. Check `make logs-db` and confirm
 Expected on protected endpoints. Send `Authorization: Bearer <BEARER_TOKEN>`.
 Health endpoints are unauthenticated by design so the iPhone can probe
 reachability.
+
+---
+
+## Enrichment cron (systemd timer)
+
+The hourly enrichment worker runs as a systemd timer on the host. Unit files live
+in `ops/systemd/` and must be installed once after deploy.
+
+### Operator prerequisites
+
+1. Create the `oracle` system user and add it to the `docker` group:
+
+   ```bash
+   sudo useradd --system --no-create-home oracle
+   sudo usermod -aG docker oracle
+   ```
+
+2. Confirm the project is checked out at `/opt/the-oracle` (or update
+   `WorkingDirectory=` in `oracle-enrichment.service` to the actual path).
+
+### Install the units
+
+```bash
+sudo cp /opt/the-oracle/ops/systemd/oracle-enrichment.{service,timer} \
+    /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+### Enable and start the timer
+
+```bash
+sudo systemctl enable --now oracle-enrichment.timer
+```
+
+To disable (stops future runs; does not abort a run in progress):
+
+```bash
+sudo systemctl disable --now oracle-enrichment.timer
+```
+
+### Trigger an ad-hoc run
+
+```bash
+sudo systemctl start oracle-enrichment.service
+```
+
+### Read recent run logs
+
+```bash
+# Last 100 lines from all runs
+journalctl -u oracle-enrichment.service -n 100 --no-pager
+
+# Follow live output during a run
+journalctl -u oracle-enrichment.service -f
+```
+
+### Verify the timer is scheduled
+
+```bash
+systemctl list-timers oracle-enrichment.timer
+```
+
+### Alerting
+
+V1 has no automated alerting. Runs are reviewed manually as part of the weekly
+review cadence. Check for `enrichment_error` rows in the database or non-zero
+exit codes in the journal if something appears wrong.

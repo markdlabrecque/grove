@@ -1,0 +1,11 @@
+[Unit]
+Description=Hourly Oracle enrichment worker timer
+Requires=oracle-enrichment.service
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+Unit=oracle-enrichment.service
+
+[Install]
+WantedBy=timers.target
