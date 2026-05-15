@@ -94,16 +94,18 @@ public struct Config: Sendable {
 
     // --- Token: Keychain first, xcconfig as first-launch bootstrap ---
     //
-    // `resolveToken` reads the Keychain and returns the xcconfig value when
-    // the Keychain is empty.  On first launch this means xcconfig seeds the
-    // Keychain (seeded inline below on first launch); on subsequent
-    // launches the Keychain value is used directly.
+    // One read determines both the resolved value and whether we need to seed.
+    // If the Keychain has a value, use it directly.  If not (first launch, or
+    // a read failure), fall back to xcconfig and seed the Keychain so the
+    // Settings screen round-trips correctly from the very first session.
     let keychain = KeychainStore.shared
-    let resolvedToken = keychain.resolveToken(xconfigFallback: xconfigToken)
-
-    // Seed the Keychain on first launch so the Settings screen round-trips
-    // correctly from the very first session.
-    if (try? keychain.read(forKey: KeychainStore.bearerTokenKey)) == nil {
+    let resolvedToken: String
+    if let keychainToken = try? keychain.read(forKey: KeychainStore.bearerTokenKey),
+       !keychainToken.isEmpty
+    {
+      resolvedToken = keychainToken
+    } else {
+      resolvedToken = xconfigToken
       try? keychain.write(xconfigToken, forKey: KeychainStore.bearerTokenKey)
     }
 
