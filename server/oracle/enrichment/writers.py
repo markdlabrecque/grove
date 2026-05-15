@@ -25,12 +25,14 @@ from sqlalchemy import inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from oracle.models.base import Base
+
 logger = structlog.get_logger(__name__)
 
 
 async def insert_if_not_exists(
     session: AsyncSession,
-    model_class: type,
+    model_class: type[Base],
     *,
     memory_id: uuid.UUID,
     enrichment_version: int,
@@ -44,7 +46,8 @@ async def insert_if_not_exists(
 
     Args:
         session: An async SQLAlchemy session. The session is committed on success.
-        model_class: The ORM model class (Decision, Task, PeopleInteraction,
+        model_class: The ORM model class (a subclass of oracle.models.base.Base —
+            Decision, Task, PeopleInteraction,
             Appointment, or any future specialised table that carries the
             uq_{table}_memory_id_enrichment_version constraint).
         memory_id: FK referencing memories.id.
