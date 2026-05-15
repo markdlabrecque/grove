@@ -6,9 +6,11 @@ Single-run lifecycle:
 1. Insert an enrichment_state row with run_started_at and pipeline_version.
 2. Fetch a batch of unenriched memories using FOR UPDATE SKIP LOCKED so
    concurrent runs claim disjoint subsets.
-3. Call classify_and_write(memory, session) per memory inside its own
-   transaction so one failure does not poison the rest of the batch.
-4. Update the enrichment_state row with completion time and counts.
+3. Call classify_and_write(memory, session, report=report) per memory inside
+   its own transaction so one failure does not poison the rest of the batch.
+4. Serialise the RunReport to enrichment_state.notes (JSONB) and emit a
+   structured log line.
+5. Update the enrichment_state row with completion time and counts.
 """
 
 from __future__ import annotations
@@ -24,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from oracle.core.config import settings
+from oracle.enrichment.report import RunReport
 from oracle.models import EnrichmentState, Memory
 
 logger = structlog.get_logger(__name__)
@@ -67,10 +70,11 @@ async def run(
     Args:
         batch_size: Maximum number of memories to process per run.
         classify_and_write: Async callable invoked once per memory with the
-            memory and its per-memory session.  The callable owns the session
-            commit (success path) and rollback (failure path), so the worker
-            must NOT commit or rollback after the call returns.  Defaults to
-            the real orchestrator implementation from oracle.enrichment.orchestrator.
+            memory, its per-memory session, and a ``report`` keyword argument
+            carrying the shared RunReport for this run.  The callable owns the
+            session commit (success path) and rollback (failure path), so the
+            worker must NOT commit or rollback after the call returns.  Defaults
+            to the real orchestrator implementation from oracle.enrichment.orchestrator.
     """
     if classify_and_write is None:
         from oracle.enrichment.orchestrator import (
@@ -84,6 +88,7 @@ async def run(
     log.info("enrichment_run.started")
 
     factory = _make_session_factory()
+    report = RunReport()
 
     # --- Insert enrichment_state row at run start ---
     state_id = uuid.uuid4()
@@ -122,7 +127,7 @@ async def run(
             try:
                 mem = await mem_session.get(Memory, memory_id)
                 if mem is not None:
-                    await classify_and_write(mem, mem_session)
+                    await classify_and_write(mem, mem_session, report=report)  # type: ignore[call-arg]
                 else:
                     await mem_session.commit()
                 processed += 1
@@ -140,16 +145,22 @@ async def run(
                 processed += 1
                 memory_log.warning("enrichment_run.memory.error", error=str(exc))
 
-    # --- Update enrichment_state row with completion ---
+    # --- Serialise RunReport and update enrichment_state row ---
     finished_at = datetime.now(tz=UTC)
+    report_dict = report.to_dict()
     async with factory() as session:
         row = await session.get(EnrichmentState, state_id)
         if row is not None:
             row.run_completed_at = finished_at
             row.memories_processed = processed
             row.errors = errors
+            row.notes = report_dict
         await session.commit()
 
+    log.info(
+        "enrichment_run.report",
+        **report_dict,
+    )
     log.info(
         "enrichment_run.finished",
         processed=processed,
@@ -158,7 +169,7 @@ async def run(
     )
 
 
-async def _stub_classify_and_write(memory: Memory, session: AsyncSession) -> None:
+async def _stub_classify_and_write(memory: Memory, session: AsyncSession, **kwargs: Any) -> None:
     """Stub classifier used only in tests that inject their own classify_and_write.
 
     The real implementation lives in oracle.enrichment.orchestrator and is

@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Integer, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Integer
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import TIMESTAMP
 
@@ -24,4 +25,6 @@ class EnrichmentState(Base):
         Integer, nullable=False, server_default="0"
     )
     errors: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
-    notes: Mapped[str | None] = mapped_column(Text)
+    # Structured RunReport written at run end (ticket #182). JSONB for
+    # operator-accessible JSON in Postgres.
+    notes: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
