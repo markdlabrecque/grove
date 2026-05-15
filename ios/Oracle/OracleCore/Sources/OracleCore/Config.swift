@@ -96,7 +96,7 @@ public struct Config: Sendable {
     //
     // `resolveToken` reads the Keychain and returns the xcconfig value when
     // the Keychain is empty.  On first launch this means xcconfig seeds the
-    // Keychain (see `SettingsViewModel.seedKeychainIfNeeded`); on subsequent
+    // Keychain (seeded inline below on first launch); on subsequent
     // launches the Keychain value is used directly.
     let keychain = KeychainStore.shared
     let resolvedToken = keychain.resolveToken(xconfigFallback: xconfigToken)
