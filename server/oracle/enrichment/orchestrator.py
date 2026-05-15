@@ -299,5 +299,8 @@ async def classify_and_write(
         if report is not None:
             report.record_error(str(exc))
         # Surface the error on the memory row for retry on next run.
+        # Re-assert membership after rollback so the commit writes even if a
+        # future refactor expunges the instance from the identity map.
         memory.enrichment_error = str(exc)
+        session.add(memory)
         await session.commit()
