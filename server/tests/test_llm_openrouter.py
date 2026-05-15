@@ -134,9 +134,7 @@ class TestCostHeaderParsing:
     @respx.mock
     async def test_cost_present_returns_float(self) -> None:
         """x-openrouter-cost header present → cost_usd is a float."""
-        respx.post(_OPENROUTER_URL).mock(
-            return_value=_make_response(cost_header="0.00042")
-        )
+        respx.post(_OPENROUTER_URL).mock(return_value=_make_response(cost_header="0.00042"))
 
         result = await chat_completion(
             api_key="sk-test",
@@ -149,9 +147,7 @@ class TestCostHeaderParsing:
     @respx.mock
     async def test_cost_missing_returns_none(self) -> None:
         """x-openrouter-cost header absent → cost_usd is None."""
-        respx.post(_OPENROUTER_URL).mock(
-            return_value=_make_response(cost_header=None)
-        )
+        respx.post(_OPENROUTER_URL).mock(return_value=_make_response(cost_header=None))
 
         result = await chat_completion(
             api_key="sk-test",
@@ -164,9 +160,7 @@ class TestCostHeaderParsing:
     @respx.mock
     async def test_cost_malformed_returns_none(self) -> None:
         """Malformed x-openrouter-cost header → cost_usd is None (not raised)."""
-        respx.post(_OPENROUTER_URL).mock(
-            return_value=_make_response(cost_header="not-a-number")
-        )
+        respx.post(_OPENROUTER_URL).mock(return_value=_make_response(cost_header="not-a-number"))
 
         result = await chat_completion(
             api_key="sk-test",
@@ -232,9 +226,7 @@ class TestResponseParsing:
 
     @respx.mock
     async def test_content_extracted_from_choices(self) -> None:
-        respx.post(_OPENROUTER_URL).mock(
-            return_value=_make_response(content="The answer is 42.")
-        )
+        respx.post(_OPENROUTER_URL).mock(return_value=_make_response(content="The answer is 42."))
 
         result = await chat_completion(
             api_key="sk-test",
