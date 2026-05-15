@@ -81,6 +81,27 @@ struct SettingsViewModelTests {
     #expect(SettingsViewModel.languageHintKey == "capture.languageHint")
   }
 
+  // MARK: - currentServerURL fallback
+
+  @Test("currentServerURL returns Keychain value when one is stored")
+  @MainActor
+  func currentServerURLReturnsKeychainValue() throws {
+    let vm = SettingsViewModel.makeForTest()
+    vm.serverURLText = "https://oracle.example.ts.net"
+    vm.commitServerURL()
+    #expect(vm.currentServerURL == "https://oracle.example.ts.net")
+  }
+
+  @Test("currentServerURL returns empty string (not serverURLText) when Keychain has no entry")
+  @MainActor
+  func currentServerURLFallsBackToEmptyNotEditBuffer() throws {
+    // Fresh test keychain has no entry; simulate a half-typed edit buffer.
+    let vm = SettingsViewModel.makeForTest()
+    vm.serverURLText = "https://half-typed.example"
+    // Do NOT call commitServerURL() — nothing written to Keychain.
+    #expect(vm.currentServerURL == "")
+  }
+
   // MARK: - Force-resync
 
   @Test("forceResync calls tryDrain on the upload queue")
