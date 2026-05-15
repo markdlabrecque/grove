@@ -21,5 +21,3 @@ ExecStart=docker compose exec -T app python -m oracle.enrichment.run
 StandardOutput=journal
 StandardError=journal
 
-[Install]
-WantedBy=multi-user.target
