@@ -336,7 +336,7 @@ public actor UploadQueue {
   ///   - clientID: The `clientID` of the row to update.
   ///   - date: The new `nextAttemptAt` value.
   /// - Throws: If SwiftData cannot save.
-  public func setNextAttemptAt(clientID: String, date: Date) throws {
+  func setNextAttemptAt(clientID: String, date: Date) throws {
     let descriptor = FetchDescriptor<QueuedCapture>()
     let rows = try modelContext.fetch(descriptor)
     guard let row = rows.first(where: { $0.clientID == clientID }) else { return }
