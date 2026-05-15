@@ -19,7 +19,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import delete, text
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -37,10 +37,14 @@ async def db_session() -> AsyncIterator[AsyncSession]:  # type: ignore[misc]
         yield session
 
 
-# Two vectors with cosine similarity ≈ 1.0 (identical).
-_SIMILAR_VEC = [1.0] + [0.0] * (EMBEDDING_DIM - 1)
-# A vector orthogonal to _SIMILAR_VEC — cosine similarity = 0.0.
-_DIFFERENT_VEC = [0.0] + [1.0] + [0.0] * (EMBEDDING_DIM - 2)
+# Two vectors with cosine similarity ≈ 1.0 (identical) — placed at the END of
+# the embedding so they are orthogonal to anything other test modules might
+# insert at the start of the vector (e.g. ``test_queries.py`` uses
+# ``[1.0] + [0.0]*(D-1)`` at index 0). Keeping our refinement vectors at
+# index D-1 means cross-module rows can never reach the similarity threshold.
+_SIMILAR_VEC = [0.0] * (EMBEDDING_DIM - 1) + [1.0]
+# Orthogonal to _SIMILAR_VEC — cosine similarity = 0.0.
+_DIFFERENT_VEC = [0.0] * (EMBEDDING_DIM - 2) + [1.0, 0.0]
 
 
 async def _insert_prior_log(
@@ -65,21 +69,6 @@ async def _insert_prior_log(
 
 async def _cleanup_log(session: AsyncSession, log_id: uuid.UUID) -> None:
     await session.execute(delete(QueryLog).where(QueryLog.id == log_id))
-    await session.commit()
-
-
-async def _delete_recent_query_logs(session: AsyncSession, window_minutes: int = 6) -> None:
-    """Delete all query_log rows created within the last window_minutes.
-
-    Isolation helper — the shared dev DB accumulates query_log rows from other
-    tests in the same run (e.g. test_queries.py inserts rows with embeddings
-    identical to _SIMILAR_VEC). Clearing recent rows before each refinement
-    test gives us a known-empty window to seed from.
-    """
-    await session.execute(
-        text("DELETE FROM query_logs WHERE created_at >= now() - make_interval(mins => :m)"),
-        {"m": window_minutes},
-    )
     await session.commit()
 
 
@@ -109,9 +98,6 @@ async def test_detect_refinement_similar_within_window(db_session: AsyncSession)
     """Similar query within 5-minute window is marked as a refinement."""
     from oracle.retrieval.refinement import detect_refinement
 
-    # Clear any query_log rows from concurrent tests before seeding our known state.
-    await _delete_recent_query_logs(db_session)
-
     now = datetime.now(UTC)
     recent = now - timedelta(minutes=2)
 
@@ -136,9 +122,6 @@ async def test_detect_refinement_different_query_within_window(db_session: Async
     """Orthogonal query within 5-minute window is NOT a refinement."""
     from oracle.retrieval.refinement import detect_refinement
 
-    # Clear any query_log rows from concurrent tests before seeding our known state.
-    await _delete_recent_query_logs(db_session)
-
     now = datetime.now(UTC)
     recent = now - timedelta(minutes=2)
 
@@ -160,9 +143,6 @@ async def test_detect_refinement_different_query_within_window(db_session: Async
 async def test_detect_refinement_similar_outside_window(db_session: AsyncSession) -> None:
     """Similar query older than 5 minutes is NOT a refinement."""
     from oracle.retrieval.refinement import detect_refinement
-
-    # Clear any query_log rows from concurrent tests — only our old row remains.
-    await _delete_recent_query_logs(db_session)
 
     now = datetime.now(UTC)
     old = now - timedelta(minutes=10)
