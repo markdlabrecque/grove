@@ -110,6 +110,13 @@ _buckets: dict[tuple[str, RouteClass], TokenBucket] = {}
 # Indirection so tests can patch settings without reloading the module.
 # Production code reads from the real settings singleton; test overrides
 # replace this reference via unittest.mock.patch.
+#
+# WARNING (#267): treat _current_settings as a unittest.mock.patch seam ONLY.
+# It must never be assigned from non-test code — a stray write in production
+# would silently swap every subsequent rate-limit-config read. If you need a
+# different Settings object outside a patch context, pass it explicitly via
+# the `override_settings` parameter on `consume_for_request` /
+# `get_rate_limit_config` instead.
 _current_settings: Settings | None = None
 
 
