@@ -114,6 +114,12 @@ struct SettingsView: View {
 
   private var syncSection: some View {
     Section {
+      NavigationLink(destination: UploadQueueDebugView()) {
+        Label("Upload queue", systemImage: "tray.and.arrow.up")
+          .accessibilityLabel("Upload Queue")
+          .accessibilityHint("View upload queue items with state and error details")
+      }
+
       Button(action: {
         Task { await viewModel.forceResync() }
       }) {

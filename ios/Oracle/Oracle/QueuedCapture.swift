@@ -64,6 +64,34 @@ final class QueuedCapture {
   /// from previous app versions default to `false` without a schema migration.
   var isAuthRequired: Bool = false
 
+  /// Whether the row has permanently failed due to a non-401 4xx response
+  /// (400, 403, 404, 409, 422, …).
+  ///
+  /// A `failed` row will **not** be retried automatically by `tryDrain`.
+  /// The user must explicitly tap "Retry" or "Discard" in the debug screen.
+  ///
+  /// - `true`: The row has received a permanent 4xx from the server.
+  ///   `lastError` contains the server's error message.
+  /// - `false` (default): The row is either pending its first upload or in
+  ///   backoff after a transient failure.
+  ///
+  /// This is an additive optional property; existing rows from previous app
+  /// versions default to `false` without a schema migration.
+  var isFailed: Bool = false
+
+  /// The earliest `Date` at which `tryDrain` is allowed to retry this row.
+  ///
+  /// Set after a transient failure (5xx / network error) to implement
+  /// exponential backoff.  `tryDrain` skips any row whose `nextAttemptAt`
+  /// is still in the future.
+  ///
+  /// - `nil` (default): No backoff constraint — drain immediately.
+  /// - Non-nil: Row is in backoff; drain skips it until `Date() >= nextAttemptAt`.
+  ///
+  /// Cleared (set to `nil`) by `UploadQueue.retryFailed(clientID:)` when the
+  /// user manually retries a failed row.
+  var nextAttemptAt: Date? = nil
+
   // MARK: - Init
 
   init(
@@ -72,7 +100,9 @@ final class QueuedCapture {
     createdAt: Date = Date(),
     attemptCount: Int = 0,
     lastError: String? = nil,
-    isAuthRequired: Bool = false
+    isAuthRequired: Bool = false,
+    isFailed: Bool = false,
+    nextAttemptAt: Date? = nil
   ) {
     self.clientID = clientID
     self.payload = payload
@@ -80,5 +110,7 @@ final class QueuedCapture {
     self.attemptCount = attemptCount
     self.lastError = lastError
     self.isAuthRequired = isAuthRequired
+    self.isFailed = isFailed
+    self.nextAttemptAt = nextAttemptAt
   }
 }

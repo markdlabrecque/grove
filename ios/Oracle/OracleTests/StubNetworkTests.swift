@@ -280,15 +280,16 @@ struct StubNetworkTests {
       #expect(counter.value == rowCount)
     }
 
-    // MARK: - retryCapDeletesRowAfterMaxAttempts
+    // MARK: - fiveXxRetainsRowIndefinitely (#186: no retry cap)
 
-    /// Verifies that a row stuck on persistent 503 responses is deleted once
-    /// `attemptCount` reaches the cap (10).
+    /// Verifies that a row stuck on persistent 5xx responses is retained indefinitely
+    /// (#186 removed the 10-attempt cap — rows now stay in backoff until they succeed
+    /// or are manually discarded by the user).
     ///
-    /// Each `tryDrain()` call corresponds to one attempt. After 10 calls the row
-    /// must be gone. No `Task.sleep` — drain calls are driven explicitly.
-    @Test("retry cap: row deleted after 10 consecutive 5xx failures")
-    func retryCapDeletesRowAfterMaxAttempts() async throws {
+    /// The test drives 15 drain cycles (backdating nextAttemptAt between each) and
+    /// confirms the row is still present after all of them.
+    @Test("5xx: row retained indefinitely (no attempt cap), backoff delay increases")
+    func fiveXxRetainsRowIndefinitely() async throws {
       let container = try makeContainer()
       let (queue, _) = makeQueue(container: container)
 
@@ -304,28 +305,29 @@ struct StubNetworkTests {
       try await queue.enqueue(clientID: id.uuidString, payload: data)
       #expect(try await queue.pendingCount() == 1)
 
-      // Drive 9 drains — row should still be present after each.
-      for attempt in 1..<10 {
+      // Drive 15 drain cycles — row must remain present after each.
+      for attempt in 1...15 {
         await queue.tryDrain()
         let count = try await queue.pendingCount()
         #expect(count == 1, "row should still exist after attempt \(attempt)")
+        // Backdate nextAttemptAt so the next drain picks up the row.
+        try await queue.setNextAttemptAt(
+          clientID: id.uuidString,
+          date: Date().addingTimeInterval(-1)
+        )
       }
 
-      // 10th drain hits the cap — row must be deleted.
-      await queue.tryDrain()
-      #expect(try await queue.pendingCount() == 0)
+      // After 15 failures the row must still be in the queue (not deleted).
+      #expect(try await queue.pendingCount() == 1)
+      #expect(try await queue.failedCount() == 0, "5xx rows are not failed — they are pending backoff")
     }
 
-    // MARK: - retryCapSingleSaveOnCapHit
+    // MARK: - fiveXxSingleSavePerDrain
 
-    /// Verifies that the retry-cap eviction path issues exactly one `modelContext.save()`
-    /// call (not two). A second save would indicate the redundant intermediate bump+save
-    /// that issue #153 eliminated.
-    ///
-    /// The test drives the queue to attempt 9 (below cap) and then one final drain that
-    /// hits the cap. On that 10th call `onModelContextSave` must fire exactly once.
-    @Test("retry cap eviction: exactly one modelContext.save() on cap-hit drain")
-    func retryCapSingleSaveOnCapHit() async throws {
+    /// Verifies that each transient-failure drain path issues exactly one
+    /// `modelContext.save()` call (bump + save in a single write).
+    @Test("5xx transient failure: exactly one modelContext.save() per drain")
+    func fiveXxSingleSavePerDrain() async throws {
       let container = try makeContainer()
       let (queue, _) = makeQueue(container: container)
 
@@ -340,33 +342,30 @@ struct StubNetworkTests {
 
       try await queue.enqueue(clientID: id.uuidString, payload: data)
 
-      // Drive 9 drains to reach attemptCount == 9 without triggering the cap.
-      for _ in 1..<10 {
-        await queue.tryDrain()
-      }
-      // Row still present after 9 attempts.
-      #expect(try await queue.pendingCount() == 1)
-
-      // Arm the save counter for the 10th (cap-hit) drain only.
+      // Arm the save counter for one drain.
       final class Counter: @unchecked Sendable { var value = 0 }
       let saveCounter = Counter()
       await queue.setTestHooks(UploadQueueTestHooks(onModelContextSave: { saveCounter.value += 1 }))
       defer { Task { await queue.setTestHooks(nil) } }
 
-      // 10th drain — hits the cap, row is deleted.
       await queue.tryDrain()
 
-      #expect(try await queue.pendingCount() == 0)
-      // Exactly one save: the delete+save. No intermediate bump+save.
+      // Row still present (transient, not deleted).
+      #expect(try await queue.pendingCount() == 1)
+      // Exactly one save: the bump+save.
       #expect(saveCounter.value == 1)
     }
 
-    // MARK: - fourXxDeletesImmediately
+    // MARK: - fourXxTransitionsToFailed
 
-    /// A 422 response is a permanent failure. The row must be deleted after a
-    /// single `tryDrain()` call, without incrementing `attemptCount`.
-    @Test("4xx (422): row deleted immediately, not retried")
-    func fourXxDeletesImmediately() async throws {
+    /// A 422 response is a permanent failure. After a single `tryDrain()` call
+    /// the row must be marked `isFailed = true` and remain in the queue — it is
+    /// NOT deleted. The user must retry or discard from the debug screen.
+    ///
+    /// Updated from the old "4xx deletes immediately" behaviour (#186): deleting
+    /// was silent and lost the capture context. `failed` state makes it visible.
+    @Test("4xx (422): row transitions to failed state (not deleted)")
+    func fourXxTransitionsToFailed() async throws {
       let container = try makeContainer()
       let (queue, _) = makeQueue(container: container)
 
@@ -384,24 +383,21 @@ struct StubNetworkTests {
 
       await queue.tryDrain()
 
-      #expect(try await queue.pendingCount() == 0)
+      // Row stays in queue with isFailed = true.
+      #expect(try await queue.pendingCount() == 1)
+      #expect(try await queue.failedCount() == 1)
     }
 
-    // MARK: - fiveXxThenFourXxDeletesRow
+    // MARK: - fiveXxThenFourXxMarksRowFailed
 
     /// Exercises the interplay between the transient (5xx) and permanent (4xx)
     /// routing paths in `drainRow`.
     ///
-    /// A 503 on the first drain must leave the row alive with `attemptCount == 1`.
-    /// A subsequent 422 must trigger the permanent-failure path and delete the row,
-    /// so `pendingCount == 0` after the second drain.
-    ///
-    /// Red-on-revert confirmation: reverting `isPermanentFailure` so that 422 falls
-    /// through to the transient path (i.e. removing the 4xx branch) causes the
-    /// `pendingCount == 0` assertion to fail, because the row is kept for retry
-    /// instead of deleted.
-    @Test("5xx then 4xx: row retried on 503, then deleted immediately on 422")
-    func fiveXxThenFourXxDeletesRow() async throws {
+    /// A 503 on the first drain must leave the row alive with `attemptCount == 1`
+    /// and `nextAttemptAt` set (backoff).  After backdating `nextAttemptAt` to
+    /// the past a second drain sees the 422 and transitions the row to `failed`.
+    @Test("5xx then 4xx: row in backoff on 503, then transitions to failed on 422")
+    func fiveXxThenFourXxMarksRowFailed() async throws {
       let container = try makeContainer()
       let (queue, _) = makeQueue(container: container)
 
@@ -419,12 +415,17 @@ struct StubNetworkTests {
       try await queue.enqueue(clientID: id.uuidString, payload: data)
       await queue.tryDrain()
 
-      // Row must still be present with attemptCount == 1.
+      // Row must still be present with attemptCount == 1 and nextAttemptAt set.
       #expect(try await queue.pendingCount() == 1)
       let readContext = ModelContext(container)
       let rowsAfterTransient = try readContext.fetch(FetchDescriptor<QueuedCapture>())
       let row = try #require(rowsAfterTransient.first)
       #expect(row.attemptCount == 1)
+      #expect(row.nextAttemptAt != nil)
+      #expect(row.isFailed == false)
+
+      // Backdate nextAttemptAt so the second drain will pick up the row.
+      try await queue.setNextAttemptAt(clientID: id.uuidString, date: Date().addingTimeInterval(-1))
 
       // --- Second drain: 422 (permanent) ---
       StubURLProtocol.responder = { [permanentResponse, errorBody422] _ in
@@ -434,8 +435,9 @@ struct StubNetworkTests {
 
       await queue.tryDrain()
 
-      // Row must be deleted — 422 is a permanent failure, no retry.
-      #expect(try await queue.pendingCount() == 0)
+      // Row stays, now in failed state.
+      #expect(try await queue.pendingCount() == 1)
+      #expect(try await queue.failedCount() == 1)
     }
 
     // MARK: - transientNetworkErrorRetries
@@ -842,6 +844,10 @@ struct StubNetworkTests {
       #expect(try await queue.pendingCount() == 1)
       #expect(try await queue.authRequiredCount() == 0)
 
+      // Backdate nextAttemptAt so the second drain will pick up the row
+      // (the 503 set nextAttemptAt to ~now+5s; without this the 401 drain skips it).
+      try await queue.setNextAttemptAt(clientID: id.uuidString, date: Date().addingTimeInterval(-1))
+
       // Second: a 401 — row should now be isAuthRequired=true.
       let response401 = stubResponse(statusCode: 401)
       let body401 = #"{"detail":"Invalid authentication credentials"}"#.data(using: .utf8)!
@@ -1100,6 +1106,533 @@ struct StubNetworkTests {
       let rowsAfter = try ctxAfter.fetch(FetchDescriptor<QueuedCapture>())
       let rowBAfter = try #require(rowsAfter.first { $0.clientID == idB.uuidString })
       #expect(rowBAfter.isAuthRequired == false)
+    }
+  }
+
+  // MARK: - SyncEdgeCaseTests (#186)
+
+  /// Tests for permanent 4xx → `failed` state, exponential backoff for 5xx / network
+  /// errors, and the manual Retry / Discard operations exposed by the upload-queue
+  /// debug screen.
+  ///
+  /// Nested here so these tests participate in the outer `.serialized` constraint
+  /// and do not race other suites on `StubURLProtocol`'s static responder.
+  ///
+  /// # State machine (as of #186)
+  ///
+  /// ```
+  /// pending ──(5xx/network)──► pending (backoff, nextAttemptAt set)
+  ///         ──(401)──────────► auth_required   (handled by #185, not touched here)
+  ///         ──(4xx ≠ 401)────► failed          (NEW — this ticket)
+  ///         ──(success)──────► (deleted)
+  ///
+  /// failed ──(Retry)─────────► pending  (nextAttemptAt cleared, attemptCount reset)
+  ///        ──(Discard)──────► (deleted)
+  /// ```
+  @Suite("SyncEdgeCases")
+  struct SyncEdgeCaseTests {
+
+    // MARK: - Fixtures
+
+    private static let baseURL = URL(string: "https://oracle.example.ts.net")!
+    private static let token = "edge-case-test-token"
+
+    private func makeContainer() throws -> ModelContainer {
+      let schema = Schema([QueuedCapture.self])
+      let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+      return try ModelContainer(for: schema, configurations: [config])
+    }
+
+    private func makeQueue(container: ModelContainer) -> (UploadQueue, OracleAPI) {
+      let urlConfig = URLSessionConfiguration.default
+      urlConfig.protocolClasses = [StubURLProtocol.self]
+      let api = OracleAPI(
+        baseURL: Self.baseURL,
+        bearerToken: Self.token,
+        configuration: urlConfig
+      )
+      let queue = UploadQueue(modelContainer: container, api: api)
+      return (queue, api)
+    }
+
+    private func makePayload(
+      clientID: UUID = UUID(),
+      content: String = "test capture"
+    ) throws -> (UUID, Data) {
+      let body = CaptureRequestBody(
+        clientID: clientID,
+        content: content,
+        sourceModality: "text",
+        sourceDevice: "iphone",
+        language: "en",
+        capturedAt: Date()
+      )
+      let encoder = JSONEncoder()
+      encoder.dateEncodingStrategy = .iso8601
+      let data = try encoder.encode(body)
+      return (clientID, data)
+    }
+
+    private func stubResponse(statusCode: Int) -> HTTPURLResponse {
+      HTTPURLResponse(
+        url: Self.baseURL.appendingPathComponent("v1/captures"),
+        statusCode: statusCode,
+        httpVersion: nil,
+        headerFields: ["Content-Type": "application/json"]
+      )!
+    }
+
+    // MARK: - 4xx → failed (not deleted, not transient)
+
+    /// A 422 response must transition the row to `isFailed = true`, set `lastError`
+    /// to the server's error body, and leave the row in the queue (not delete it).
+    @Test("422 response: row transitions to failed state, lastError set, row persists")
+    func fourTwoTwoTransitionToFailed() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let errorBody = #"{"detail":"unprocessable entity"}"#.data(using: .utf8)!
+      let response422 = stubResponse(statusCode: 422)
+
+      StubURLProtocol.responder = { [response422, errorBody] _ in
+        (response422, errorBody)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      #expect(try await queue.pendingCount() == 1)
+
+      await queue.tryDrain()
+
+      // Row must still exist — `failed` is a distinct state, not deleted.
+      #expect(try await queue.pendingCount() == 1)
+
+      let readContext = ModelContext(container)
+      let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+      let row = try #require(rows.first)
+      #expect(row.isFailed == true)
+      #expect(row.lastError != nil)
+      #expect(row.lastError?.isEmpty == false)
+      // Error string must contain the HTTP status code.
+      #expect(row.lastError?.contains("422") == true)
+    }
+
+    /// All explicitly-permanent 4xx codes (400, 403, 404, 409, 422) must each
+    /// transition to `failed`.  This table-driven test runs once per code.
+    @Test(
+      "each permanent 4xx code maps to failed state",
+      arguments: [400, 403, 404, 409, 422]
+    )
+    func eachPermanentFourXxMapToFailed(statusCode: Int) async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let errorBody = "{\"detail\":\"error \(statusCode)\"}".data(using: .utf8)!
+      let response = stubResponse(statusCode: statusCode)
+
+      StubURLProtocol.responder = { [response, errorBody] _ in
+        (response, errorBody)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      await queue.tryDrain()
+
+      #expect(try await queue.pendingCount() == 1)
+      let readContext = ModelContext(container)
+      let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+      let row = try #require(rows.first)
+      #expect(row.isFailed == true, "status \(statusCode) must produce isFailed=true")
+      #expect(row.lastError != nil, "status \(statusCode) must produce a lastError")
+    }
+
+    /// The error string stored in `lastError` must reference the HTTP status code.
+    /// A huge response body is truncated at ≤ 500 chars.
+    @Test("422 lastError: status code preserved; huge body truncated at 500 chars")
+    func fourTwoTwoErrorStringPreserved() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let knownBody = #"{"detail":"validation failed: field 'content' is required"}"#
+      let errorBody = knownBody.data(using: .utf8)!
+      let response422 = stubResponse(statusCode: 422)
+
+      StubURLProtocol.responder = { [response422, errorBody] _ in
+        (response422, errorBody)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      await queue.tryDrain()
+
+      let readContext = ModelContext(container)
+      let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+      let row = try #require(rows.first)
+      // The error string must be non-empty and reference the HTTP status.
+      #expect(row.lastError?.isEmpty == false)
+      #expect(row.lastError?.contains("422") == true)
+
+      // Now test truncation: enqueue a second item and return a very long body.
+      // `extractDetail` in OracleAPI parses JSON; a non-JSON blob returns nil detail.
+      // The combined "HTTP 422: " prefix is still within 500 chars regardless.
+      let (id2, data2) = try makePayload(content: "truncation test")
+      // Build a 600-char JSON body whose "detail" value is 580 chars.
+      let longDetail = String(repeating: "x", count: 580)
+      let longJSON = "{\"detail\":\"\(longDetail)\"}".data(using: .utf8)!
+      let response422b = stubResponse(statusCode: 422)
+      StubURLProtocol.responder = { [response422b, longJSON] _ in
+        (response422b, longJSON)
+      }
+      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
+      await queue.tryDrain()
+
+      let readContext2 = ModelContext(container)
+      let rows2 = try readContext2.fetch(FetchDescriptor<QueuedCapture>())
+      let row2 = try #require(rows2.first { $0.clientID == id2.uuidString })
+      #expect((row2.lastError?.count ?? 0) <= 500)
+    }
+
+    // MARK: - failed state is skipped by tryDrain
+
+    /// Rows in the `failed` state must not be retried automatically by `tryDrain`.
+    /// Only manual Retry can clear the failed state.
+    @Test("tryDrain: failed rows are skipped (no network call)")
+    func tryDrainSkipsFailedRows() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let errorBody = #"{"detail":"bad entity"}"#.data(using: .utf8)!
+      let response422 = stubResponse(statusCode: 422)
+
+      StubURLProtocol.responder = { [response422, errorBody] _ in
+        (response422, errorBody)
+      }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      await queue.tryDrain()  // → failed
+      StubURLProtocol.responder = nil
+
+      #expect(try await queue.failedCount() == 1)
+
+      // Now arm a counter to detect any HTTP calls during the next drain.
+      final class Counter: @unchecked Sendable { var value = 0 }
+      let httpCallCount = Counter()
+      StubURLProtocol.responder = { [httpCallCount] _ in
+        httpCallCount.value += 1
+        let r = HTTPURLResponse(
+          url: Self.baseURL.appendingPathComponent("v1/captures"),
+          statusCode: 201, httpVersion: nil, headerFields: nil
+        )!
+        return (r, Data())
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      await queue.tryDrain()
+
+      #expect(httpCallCount.value == 0, "tryDrain must not retry failed rows")
+      #expect(try await queue.failedCount() == 1)
+    }
+
+    // MARK: - Retry resets failed state
+
+    /// `retryFailed(clientID:)` must clear `isFailed`, clear `nextAttemptAt`,
+    /// reset `attemptCount`, and put the row back into the drainable pending pool.
+    @Test("retryFailed: clears isFailed, resets attemptCount, row becomes pending")
+    func retryFailedResetsToPending() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let errorBody = #"{"detail":"bad"}"#.data(using: .utf8)!
+      let response422 = stubResponse(statusCode: 422)
+
+      StubURLProtocol.responder = { [response422, errorBody] _ in
+        (response422, errorBody)
+      }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      await queue.tryDrain()  // → failed
+      StubURLProtocol.responder = nil
+
+      #expect(try await queue.failedCount() == 1)
+
+      // Retry the failed row.
+      try await queue.retryFailed(clientID: id.uuidString)
+
+      #expect(try await queue.failedCount() == 0)
+
+      let readContext = ModelContext(container)
+      let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+      let row = try #require(rows.first)
+      #expect(row.isFailed == false)
+      #expect(row.nextAttemptAt == nil)
+      #expect(row.attemptCount == 0)
+    }
+
+    // MARK: - Discard removes the row
+
+    /// `discardFailed(clientID:)` must delete the row from the queue permanently.
+    @Test("discardFailed: row is removed from queue (pendingCount == 0)")
+    func discardFailedRemovesRow() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let errorBody = #"{"detail":"bad"}"#.data(using: .utf8)!
+      let response422 = stubResponse(statusCode: 422)
+
+      StubURLProtocol.responder = { [response422, errorBody] _ in
+        (response422, errorBody)
+      }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      await queue.tryDrain()  // → failed
+      StubURLProtocol.responder = nil
+
+      #expect(try await queue.failedCount() == 1)
+
+      try await queue.discardFailed(clientID: id.uuidString)
+
+      #expect(try await queue.pendingCount() == 0)
+      #expect(try await queue.failedCount() == 0)
+    }
+
+    // MARK: - Backoff schedule
+
+    /// The backoff schedule must be: 5s, 10s, 20s, 40s, 80s, 160s, 320s, 640s,
+    /// 1280s, 2560s, then capped at 3600s indefinitely.
+    @Test("backoff schedule: base=5s, doubling, capped at 3600s (1h)")
+    func backoffSchedule() {
+      let expected: [(attempt: Int, delay: TimeInterval)] = [
+        (1, 5),
+        (2, 10),
+        (3, 20),
+        (4, 40),
+        (5, 80),
+        (6, 160),
+        (7, 320),
+        (8, 640),
+        (9, 1280),
+        (10, 2560),
+        (11, 3600),  // would be 5120s but capped at 3600s
+        (12, 3600),  // sticky cap
+        (13, 3600),  // still capped
+        (50, 3600),  // large attempt — always capped
+      ]
+
+      for (attempt, expectedDelay) in expected {
+        let actual = BackoffScheduler.delay(forAttempt: attempt)
+        #expect(
+          actual == expectedDelay,
+          "attempt \(attempt): expected \(expectedDelay)s, got \(actual)s"
+        )
+      }
+    }
+
+    /// The cap is sticky: no attempt index, however large, can produce a delay
+    /// exceeding 3600s.
+    @Test("backoff schedule: cap is sticky — no delay exceeds 3600s regardless of attempt")
+    func backoffCapIsSticky() {
+      for attempt in [11, 20, 100, 1000] {
+        let delay = BackoffScheduler.delay(forAttempt: attempt)
+        #expect(delay <= 3600, "attempt \(attempt): delay \(delay) exceeds cap")
+      }
+    }
+
+    // MARK: - 5xx sets nextAttemptAt via backoff
+
+    /// After a 503 response, `nextAttemptAt` must be set to approximately
+    /// `now + BackoffScheduler.delay(forAttempt: 1)`.
+    @Test("5xx: nextAttemptAt set to ~now + delay(forAttempt: 1) = 5s")
+    func fiveXxSetsNextAttemptAt() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let errorBody = #"{"detail":"unavailable"}"#.data(using: .utf8)!
+      let response503 = stubResponse(statusCode: 503)
+
+      StubURLProtocol.responder = { [response503, errorBody] _ in
+        (response503, errorBody)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      let before = Date()
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      await queue.tryDrain()
+      let after = Date()
+
+      let readContext = ModelContext(container)
+      let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+      let row = try #require(rows.first)
+
+      // Row must still be pending (not failed, not deleted).
+      #expect(row.isFailed == false)
+      #expect(row.attemptCount == 1)
+
+      // nextAttemptAt must be set.
+      let nextAttempt = try #require(row.nextAttemptAt)
+
+      // Expected: before + 5s ≤ nextAttemptAt ≤ after + 5s + tolerance.
+      let expectedMin = before.addingTimeInterval(5)
+      let expectedMax = after.addingTimeInterval(5 + 5)  // +5s tolerance
+      #expect(
+        nextAttempt >= expectedMin,
+        "nextAttemptAt \(nextAttempt) is earlier than expected minimum \(expectedMin)"
+      )
+      #expect(
+        nextAttempt <= expectedMax,
+        "nextAttemptAt \(nextAttempt) is later than expected maximum \(expectedMax)"
+      )
+    }
+
+    /// Rows whose `nextAttemptAt` is in the future must be skipped by `tryDrain`.
+    @Test("tryDrain: rows with nextAttemptAt in future are skipped")
+    func tryDrainSkipsFutureBackoffRows() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+
+      // Enqueue and set nextAttemptAt to far future directly.
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      try await queue.setNextAttemptAt(
+        clientID: id.uuidString,
+        date: Date().addingTimeInterval(3600)
+      )
+
+      // Arm a counter — we must see zero HTTP calls.
+      final class Counter: @unchecked Sendable { var value = 0 }
+      let httpCallCount = Counter()
+      StubURLProtocol.responder = { [httpCallCount] _ in
+        httpCallCount.value += 1
+        let r = HTTPURLResponse(
+          url: Self.baseURL.appendingPathComponent("v1/captures"),
+          statusCode: 201, httpVersion: nil, headerFields: nil
+        )!
+        return (r, Data())
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      await queue.tryDrain()
+
+      #expect(httpCallCount.value == 0, "Row with future nextAttemptAt must be skipped")
+      #expect(try await queue.pendingCount() == 1)
+    }
+
+    /// When `nextAttemptAt` is in the past, the row must be processed normally.
+    @Test("tryDrain: rows with nextAttemptAt in past are processed")
+    func tryDrainProcessesPastBackoffRows() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload(
+        clientID: UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
+      )
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      // Set nextAttemptAt to 10s in the past.
+      try await queue.setNextAttemptAt(
+        clientID: id.uuidString,
+        date: Date().addingTimeInterval(-10)
+      )
+
+      let successResponse = HTTPURLResponse(
+        url: Self.baseURL.appendingPathComponent("v1/captures"),
+        statusCode: 201, httpVersion: nil,
+        headerFields: ["Content-Type": "application/json"]
+      )!
+      let fixture = """
+      {"id":"b3d6e4f2-1a2b-4c3d-8e9f-0a1b2c3d4e5f",
+       "client_id":"a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+       "captured_at":null,"enriched":false}
+      """.data(using: .utf8)!
+
+      StubURLProtocol.responder = { [successResponse, fixture] _ in
+        (successResponse, fixture)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      await queue.tryDrain()
+
+      // Row should be deleted on success.
+      #expect(try await queue.pendingCount() == 0)
+    }
+
+    // MARK: - Backoff attempt count increments correctly across drains
+
+    /// After N 5xx failures the backoff delay at attempt N must match the schedule.
+    @Test("backoff: attempt count after two 5xx failures matches delay(forAttempt: 2) = 10s")
+    func backoffAttemptCountTracksSchedule() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id, data) = try makePayload()
+      let errorBody = #"{"detail":"unavailable"}"#.data(using: .utf8)!
+      let response503 = stubResponse(statusCode: 503)
+
+      StubURLProtocol.responder = { [response503, errorBody] _ in
+        (response503, errorBody)
+      }
+      defer { StubURLProtocol.responder = nil }
+
+      try await queue.enqueue(clientID: id.uuidString, payload: data)
+
+      // First drain — attempt 1, delay = 5s. Force past nextAttemptAt by backdating.
+      await queue.tryDrain()
+      try await queue.setNextAttemptAt(clientID: id.uuidString, date: Date().addingTimeInterval(-1))
+
+      // Second drain — attempt 2, delay = 10s.
+      let before = Date()
+      await queue.tryDrain()
+      let after = Date()
+
+      let readContext = ModelContext(container)
+      let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
+      let row = try #require(rows.first)
+      #expect(row.attemptCount == 2)
+
+      let nextAttempt = try #require(row.nextAttemptAt)
+      let expectedMin = before.addingTimeInterval(10)
+      let expectedMax = after.addingTimeInterval(10 + 5)
+      #expect(nextAttempt >= expectedMin)
+      #expect(nextAttempt <= expectedMax)
+    }
+
+    // MARK: - failedCount
+
+    /// `failedCount()` must return only rows with `isFailed == true`.
+    @Test("failedCount: only counts rows with isFailed=true")
+    func failedCountIsSelective() async throws {
+      let container = try makeContainer()
+      let (queue, _) = makeQueue(container: container)
+
+      let (id1, data1) = try makePayload(content: "failed-one")
+      let (id2, data2) = try makePayload(content: "failed-two")
+      let (id3, data3) = try makePayload(content: "pending-one")
+
+      let errorBody = #"{"detail":"bad entity"}"#.data(using: .utf8)!
+      let response422 = stubResponse(statusCode: 422)
+
+      // Enqueue all three, then drain id1 and id2 into failed.
+      try await queue.enqueue(clientID: id1.uuidString, payload: data1)
+      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
+
+      StubURLProtocol.responder = { [response422, errorBody] _ in
+        (response422, errorBody)
+      }
+      await queue.tryDrain()
+      StubURLProtocol.responder = nil
+
+      // Now enqueue id3 (still pending, no drain attempt).
+      try await queue.enqueue(clientID: id3.uuidString, payload: data3)
+
+      #expect(try await queue.failedCount() == 2)
+      #expect(try await queue.pendingCount() == 3)
     }
   }
 }
