@@ -356,15 +356,18 @@ private struct AnswerTextView: View {
 /// to this card via its list `.id`; the expand toggle is on the chevron button
 /// only so that scroll-and-highlight does not unintentionally expand the card.
 ///
-/// The expanded footer contains a `NavigationLink` to `MemoryDetailView`,
-/// keeping the delete flow from #172 reachable without a separate navigation
-/// path.
+/// Two paths to `MemoryDetailView` (which hosts the delete flow from #172):
+/// - Leading swipe action on the row (#263) — one gesture, no expand required.
+/// - "View detail / Delete" link in the expanded footer — explicit, always visible
+///   after expanding.
 private struct SourceCardRow: View {
   let result: QueryResult
   let isHighlighted: Bool
   let onDeleteSuccess: (UUID) -> Void
 
   @State private var isExpanded = false
+  /// Drives programmatic navigation to `MemoryDetailView` from the swipe action.
+  @State private var navigateToDetail = false
 
   private static let relativeDateFormatter: RelativeDateTimeFormatter = {
     let f = RelativeDateTimeFormatter()
@@ -448,6 +451,28 @@ private struct SourceCardRow: View {
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .animation(.easeOut(duration: 0.3), value: isHighlighted)
     .accessibilityElement(children: .contain)
+    // Leading swipe action — restores one-gesture detail access removed in #188.
+    // Leading (not trailing) keeps the trailing edge free for a future delete
+    // shortcut without gesture collision. The chevron tap on the card body is
+    // unaffected because swipeActions only fires on a committed swipe gesture.
+    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+      Button {
+        navigateToDetail = true
+      } label: {
+        Label("View Detail", systemImage: "arrow.right.circle")
+      }
+      .tint(.accentColor)
+      .accessibilityLabel("View memory detail")
+      .accessibilityHint("Opens the full detail view where you can delete this memory")
+    }
+    // Hidden programmatic NavigationLink driven by the swipe action button above.
+    .background {
+      NavigationLink(isActive: $navigateToDetail) {
+        MemoryDetailView(result: result, onDeleteSuccess: onDeleteSuccess)
+      } label: {
+        EmptyView()
+      }
+    }
   }
 
   // MARK: - Metadata row (collapsed)
