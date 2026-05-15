@@ -380,7 +380,7 @@ async def run_specialised_queries(
 
     For each intent:
     - If the target table is empty → log "empty", skip the query.
-    - Otherwise → run the structured WHERE query, log "matched" or "skipped".
+    - Otherwise → run the structured WHERE query, log "matched" or "empty".
 
     Returns a SpecialisedQueryResult with all matching memory_ids and a
     tables_searched dict recording the outcome per table.
@@ -416,7 +416,11 @@ async def run_specialised_queries(
         else:
             hits = []
 
-        result.tables_searched[intent_name] = "matched" if hits else "skipped"
+        # "empty" here means "queried but no rows matched the query".  This is
+        # distinct from "skipped" (intent classifier did not select this table) and
+        # consistent with the "table has zero rows" branch above — both are flavours
+        # of "we asked, nothing came back" from the operator's telemetry standpoint.
+        result.tables_searched[intent_name] = "matched" if hits else "empty"
         result.hits.extend(hits)
 
         logger.info(
