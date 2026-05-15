@@ -23,18 +23,17 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from enum import StrEnum
-from typing import Any, Protocol
+from typing import Protocol
 
-import httpx
 import structlog
 from pydantic import ValidationError
 
 from oracle.embeddings.tokenizer import count_tokens
 from oracle.enrichment.schemas import Classification, PromptBundle
+from oracle.llm.openrouter import chat_completion
 
 logger = structlog.get_logger(__name__)
 
-_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _TOKEN_CAP = 8000
 
 
@@ -130,41 +129,20 @@ async def classify_memory(
     log = logger.bind(model=model, token_count=token_count)
     log.info("classifier.request.start")
 
-    async with httpx.AsyncClient() as client:
-        response = await client.post(
-            _OPENROUTER_URL,
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-                "HTTP-Referer": "https://github.com/markdlabrecque/the-oracle",
-                "X-Title": "The Oracle",
-            },
-            json={
-                "model": model,
-                "messages": messages,
-                # Structured JSON output — tells the model to respond with
-                # syntactically valid JSON only.
-                "response_format": {"type": "json_object"},
-            },
-            timeout=60.0,
-        )
-        response.raise_for_status()
+    # Structured JSON output — tells the model to respond with syntactically
+    # valid JSON only.
+    completion = await chat_completion(
+        api_key=api_key,
+        model=model,
+        messages=messages,
+        response_format={"type": "json_object"},
+        timeout=60.0,
+    )
 
-    body: dict[str, Any] = response.json()
-
-    # --- Extract telemetry ---
-    usage = body.get("usage", {})
-    prompt_tokens: int = usage.get("prompt_tokens", 0)
-    completion_tokens: int = usage.get("completion_tokens", 0)
-    total_tokens: int = usage.get("total_tokens", prompt_tokens + completion_tokens)
-
-    cost_usd: float | None = None
-    raw_cost = response.headers.get("x-openrouter-cost")
-    if raw_cost is not None:
-        try:
-            cost_usd = float(raw_cost)
-        except ValueError:
-            pass  # malformed header — treat as absent
+    prompt_tokens = completion.prompt_tokens
+    completion_tokens = completion.completion_tokens
+    total_tokens = completion.total_tokens
+    cost_usd = completion.cost_usd
 
     log.info(
         "classifier.request.ok",
@@ -174,7 +152,7 @@ async def classify_memory(
     )
 
     # --- Parse and validate ---
-    raw_content: str = body["choices"][0]["message"]["content"]
+    raw_content: str = completion.content
 
     try:
         payload = json.loads(raw_content)
