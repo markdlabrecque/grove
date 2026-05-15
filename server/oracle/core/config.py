@@ -35,5 +35,13 @@ class Settings(BaseSettings):
     # Refinement-detection thresholds — tunable without code changes.
     refinement: RefinementConfig = RefinementConfig()
 
+    # Per-token rate limits (token bucket, in-process memory).
+    # Burst capacity = rate × burst_multiplier tokens (bucket starts full).
+    # See oracle.core.rate_limit for the multi-process caveat.
+    rate_limit_capture_per_min: int = 30
+    rate_limit_query_per_min: int = 20
+    rate_limit_default_per_min: int = 60
+    rate_limit_burst_multiplier: int = 2
+
 
 settings = Settings()  # type: ignore[call-arg]
