@@ -141,7 +141,7 @@ async def test_insert_if_not_exists_idempotent(
     model_class: type,
     kwargs: dict,
 ) -> None:
-    """Calling insert_if_not_exists twice with same (memory_id, enrichment_version) yields one row."""
+    """Calling insert_if_not_exists twice with same (memory_id, enrichment_version) → one row."""
     from oracle.enrichment.writers import insert_if_not_exists
 
     memory = await _seed_memory(db_session)
@@ -173,9 +173,7 @@ async def test_insert_if_not_exists_idempotent(
             select(model_class).where(model_class.memory_id == memory.id)
         )
         rows = result.scalars().all()
-        assert len(rows) == 1, (
-            f"Expected 1 row for {model_class.__name__}, found {len(rows)}"
-        )
+        assert len(rows) == 1, f"Expected 1 row for {model_class.__name__}, found {len(rows)}"
     finally:
         await _delete_memory(db_session, memory)
 
@@ -376,18 +374,14 @@ async def test_concurrent_inserts_produce_one_row(
         assert isinstance(results[0], bool), f"Expected bool, got {type(results[0])}"
         assert isinstance(results[1], bool), f"Expected bool, got {type(results[1])}"
         # Exactly one True (row created) and one False (skipped), in either order.
-        assert sorted(results) == [False, True], (
-            f"Expected one True and one False, got {results}"
-        )
+        assert sorted(results) == [False, True], f"Expected one True and one False, got {results}"
 
         # Exactly one row — confirm via the shared read session.
         result = await db_session.execute(
             select(model_class).where(model_class.memory_id == memory.id)
         )
         rows = result.scalars().all()
-        assert len(rows) == 1, (
-            f"Concurrent inserts produced {len(rows)} rows; expected exactly 1"
-        )
+        assert len(rows) == 1, f"Concurrent inserts produced {len(rows)} rows; expected exactly 1"
     finally:
         await _delete_memory(db_session, memory)
 
@@ -447,13 +441,10 @@ async def test_worker_concurrent_runs_no_duplicate_specialised_rows(
 
         # Each memory should have exactly one Decision row.
         for mid in memory_ids:
-            result = await db_session.execute(
-                select(Decision).where(Decision.memory_id == mid)
-            )
+            result = await db_session.execute(select(Decision).where(Decision.memory_id == mid))
             rows = result.scalars().all()
             assert len(rows) == 1, (
-                f"memory {mid}: expected 1 Decision row after concurrent writes, "
-                f"found {len(rows)}"
+                f"memory {mid}: expected 1 Decision row after concurrent writes, found {len(rows)}"
             )
             # Confirm the row has the expected enrichment_version.
             assert rows[0].enrichment_version == 1, (
