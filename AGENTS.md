@@ -78,8 +78,6 @@ final PR that completes the ticket's acceptance criteria uses
 
 ## The lifecycle
 
-@EXPERIMENTAL_DEV_PROCESS_AMMENDMENT.md
-
 For every ticket that requires implementation work:
 
 1. **Triage in the orchestrator session.**
@@ -114,6 +112,31 @@ For every ticket that requires implementation work:
      this change** (RUNBOOK, implementation plan, inline docs). Doc
      drift is a must-fix issue if Theo catches it later, so handle it
      up front.
+   - **Red → green ordering (TDD).** For any ticket whose acceptance
+     criteria can be expressed as machine-checkable assertions, the
+     failing test(s) land in their **own commit** before the
+     implementation commit(s). Push the red commit, confirm it fails
+     for the *expected* reason (a wrong-failure-mode red is the same
+     as no test), then commit and push the green. The red commit MUST
+     precede the green commit in the branch history; Theo verifies the
+     ordering during review.
+     - **Applies to:** pure-logic features and refactors (parsers,
+       classifiers, ranking changes, state machines, anything with a
+       deterministic input → output contract) and all bug fixes (this
+       extends the existing regression-test-for-every-fix rule by
+       moving the test to the front).
+     - **Does not apply to:** UI / visual work (SwiftUI layout,
+       animations, look-and-feel polish); prompt engineering
+       (classifier / synthesis / intent-router prompts — quality is
+       judged manually via untracked manual-test docs); schema-only
+       migrations without behaviour changes; one-line typo fixes,
+       dependency bumps, and docs; glue / integration code whose
+       value is entirely in the wiring (Caddy, systemd, cron) — smoke
+       tests still apply where reasonable, but a red→green ceremony
+       is overkill.
+     - When the judgment is ambiguous, the implementer notes the call
+       in the PR body — `TDD applied` or `TDD skipped because <reason>`
+       — and Theo confirms it during review.
    - **Test quality bar.** Tests should match the cost of the change —
      a one-line bug fix earns one focused regression test, not a
      suite. The bar is "would a future regression in this area be
@@ -165,10 +188,15 @@ For every ticket that requires implementation work:
        bug fixes, **incomplete test sets** (weak assertions, missing
        edge cases from the acceptance criteria, no negative path where
        the contract has one — completeness is its own named concern,
-       not folded into "missing tests"), tests that use `sleep` /
-       `Task.sleep` / `DispatchQueue.asyncAfter` as synchronisation
-       primitives, duplicated test fixtures that should be unified,
-       broken doc references, plus
+       not folded into "missing tests"), **red commit out of order on
+       a TDD-eligible ticket** (the failing test must precede the
+       implementation in branch history; a single "everything together"
+       commit fails this check even if the tests pass), **tests that
+       re-encode the implementation rather than pinning the
+       invariant** (passes green but catches nothing), tests that use
+       `sleep` / `Task.sleep` / `DispatchQueue.asyncAfter` as
+       synchronisation primitives, duplicated test fixtures that should
+       be unified, broken doc references, plus
        *cheap drive-by improvements to files already in the diff*
        (rename a confusingly-named local, fix an obvious typo in a
        changed comment, etc.). These ride along — they don't get
