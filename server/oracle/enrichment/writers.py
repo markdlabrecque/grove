@@ -6,9 +6,13 @@ IDs. This module provides insert_if_not_exists — an ON CONFLICT DO NOTHING
 upsert that makes every specialised-table write safe to call multiple times for
 the same (memory_id, enrichment_version) pair.
 
-# TODO(#180): Wire insert_if_not_exists into the per-table writers once
-# classify_memory is integrated. Each writer call becomes:
-#     await insert_if_not_exists(session, Decision, memory_id=..., enrichment_version=..., ...)
+Note: `oracle.enrichment.orchestrator` carries a near-identical non-committing
+variant of `insert_if_not_exists`. The orchestrator path needs the caller
+(`classify_and_write`) to own the transaction boundary so that all four
+specialised-table inserts + the `memory.enriched=True` flip happen atomically;
+this module's version commits per call and is currently used only by the
+upsert idempotency test suite. The two should be unified if a future change
+gives both call sites the same transaction semantics.
 """
 
 from __future__ import annotations
