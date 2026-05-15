@@ -1,0 +1,23 @@
+[Unit]
+Description=Oracle enrichment worker (single run)
+# Ensures Docker is up before the service fires.
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# WorkingDirectory must be the directory containing docker-compose.yml.
+# Adjust to the actual deploy path on the box (see RUNBOOK.md).
+WorkingDirectory=/opt/the-oracle
+
+# Run as the system user that owns the Docker Compose project and is a member
+# of the 'docker' group.  Change 'oracle' to match what was created on the box.
+User=oracle
+
+ExecStart=docker compose exec -T app python -m oracle.enrichment.run
+
+# journald captures stdout/stderr by default for systemd services;
+# these two lines are explicit for clarity but have no net effect.
+StandardOutput=journal
+StandardError=journal
+
