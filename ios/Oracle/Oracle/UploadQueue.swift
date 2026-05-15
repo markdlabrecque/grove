@@ -56,18 +56,25 @@ internal struct UploadQueueTestHooks {
 /// Reference: `server/oracle/api/captures.py` — idempotency pre-check plus
 /// `insert().on_conflict_do_nothing(index_elements=["client_id"])`.
 ///
-/// # Retry policy
+/// # Retry policy (#186)
 ///
-/// `drainRow` distinguishes between three failure categories:
+/// `drainRow` distinguishes between four failure categories:
 ///
 /// - **401 Unauthorized:** The bearer token is invalid or expired.  The row is
 ///   marked `isAuthRequired = true` and skipped by future drains until the user
 ///   provides a new token via `reenqueueAuthRequired(newToken:)`.
-/// - **Other 4xx (403, 400, 422, …):** The payload or credentials are bad and
-///   won't improve with retries.  The row is deleted immediately.
-/// - **5xx, network errors, and other transients:** `attemptCount` is incremented
-///   and the row is kept for the next drain.  Once `attemptCount` reaches
-///   `maxAttempts` the row is deleted to prevent infinite retry loops.
+/// - **Other 4xx (400, 403, 404, 409, 422 …):** The payload is permanently
+///   rejected by the server.  The row transitions to `isFailed = true` with
+///   the server error stored in `lastError`.  It is skipped by `tryDrain` until
+///   the user manually retries or discards it from the debug screen.
+/// - **5xx + network errors:** Transient failures.  `attemptCount` is incremented,
+///   `nextAttemptAt` is set using `BackoffScheduler` (base 5s, doubling, capped
+///   at 1h), and the row is kept.  `tryDrain` skips rows whose `nextAttemptAt`
+///   is still in the future.  There is no maximum-attempt cap — the row stays
+///   in `pending` indefinitely until it succeeds or the user discards it from
+///   the debug screen.
+/// - **Decode errors (malformed stored payload):** Treated as a permanent error;
+///   the row is deleted immediately.
 @ModelActor
 public actor UploadQueue {
 
@@ -80,17 +87,6 @@ public actor UploadQueue {
   /// The property is written once during `init` before any concurrent access is
   /// possible, so the `unsafe` annotation is safe here.
   nonisolated(unsafe) private var api: OracleAPI!
-
-  // MARK: - Retry policy
-
-  /// Maximum number of drain attempts before a row is deleted.
-  ///
-  /// After `maxAttempts` consecutive failures the row is treated as permanently
-  /// unsalvageable and removed from the queue. This prevents malformed payloads
-  /// or unrecoverable server-side rejections from retrying indefinitely.
-  ///
-  /// Note: 4xx responses trigger immediate deletion regardless of this cap.
-  private let maxAttempts = 10
 
   // MARK: - Drain guard
 
@@ -229,6 +225,7 @@ public actor UploadQueue {
       return
     }
 
+    let now = Date()
     for row in rows {
       // Skip rows waiting for a credential update — they must not be re-uploaded
       // until the user provides a new token via reenqueueAuthRequired(newToken:).
@@ -236,6 +233,20 @@ public actor UploadQueue {
         print("[UploadQueue] skipping auth_required row clientID=\(row.clientID)")
         continue
       }
+
+      // Skip rows that have permanently failed — user must retry or discard via
+      // the debug screen.
+      guard !row.isFailed else {
+        print("[UploadQueue] skipping failed row clientID=\(row.clientID)")
+        continue
+      }
+
+      // Skip rows in backoff whose next attempt is still in the future.
+      if let nextAttemptAt = row.nextAttemptAt, nextAttemptAt > now {
+        print("[UploadQueue] skipping backoff row clientID=\(row.clientID) nextAttemptAt=\(nextAttemptAt)")
+        continue
+      }
+
       await drainRow(row)
     }
   }
@@ -254,6 +265,83 @@ public actor UploadQueue {
     let descriptor = FetchDescriptor<QueuedCapture>()
     let rows = try modelContext.fetch(descriptor)
     return rows.filter { $0.isAuthRequired }.count
+  }
+
+  // MARK: - Failed count
+
+  /// Return the number of rows currently in the `failed` state (`isFailed == true`).
+  ///
+  /// Used by the upload-queue debug screen and by tests to assert state-machine
+  /// transitions.
+  public func failedCount() throws -> Int {
+    let descriptor = FetchDescriptor<QueuedCapture>()
+    let rows = try modelContext.fetch(descriptor)
+    return rows.filter { $0.isFailed }.count
+  }
+
+  // MARK: - Manual retry from debug screen
+
+  /// Reset a failed row back to the pending state.
+  ///
+  /// Clears `isFailed`, `nextAttemptAt`, and `attemptCount` so the row will be
+  /// picked up by the next `tryDrain` call.  Persists to SwiftData immediately.
+  ///
+  /// - Parameter clientID: The `clientID` of the row to retry.
+  /// - Throws: If the row is not found or if SwiftData cannot save.
+  public func retryFailed(clientID: String) throws {
+    let descriptor = FetchDescriptor<QueuedCapture>()
+    let rows = try modelContext.fetch(descriptor)
+    guard let row = rows.first(where: { $0.clientID == clientID }) else {
+      print("[UploadQueue] retryFailed: row not found clientID=\(clientID)")
+      return
+    }
+    row.isFailed = false
+    row.nextAttemptAt = nil
+    row.attemptCount = 0
+    row.lastError = nil
+    try modelContext.save()
+    print("[UploadQueue] retryFailed: reset row clientID=\(clientID) → pending")
+  }
+
+  // MARK: - Manual discard from debug screen
+
+  /// Permanently delete a row from the queue.
+  ///
+  /// Used by the debug screen's "Discard" action.  The capture will not be
+  /// re-uploaded — any server-side state (if it ever reached the server) is
+  /// unaffected.
+  ///
+  /// - Parameter clientID: The `clientID` of the row to discard.
+  /// - Throws: If the row is not found or if SwiftData cannot save.
+  public func discardFailed(clientID: String) throws {
+    let descriptor = FetchDescriptor<QueuedCapture>()
+    let rows = try modelContext.fetch(descriptor)
+    guard let row = rows.first(where: { $0.clientID == clientID }) else {
+      print("[UploadQueue] discardFailed: row not found clientID=\(clientID)")
+      return
+    }
+    modelContext.delete(row)
+    try modelContext.save()
+    print("[UploadQueue] discardFailed: deleted row clientID=\(clientID)")
+  }
+
+  // MARK: - Test helper: set nextAttemptAt directly
+
+  /// Directly set `nextAttemptAt` on a row by clientID.
+  ///
+  /// Exposed for tests only — allows tests to advance or rewind the backoff
+  /// clock without sleeping.  Production code never calls this.
+  ///
+  /// - Parameters:
+  ///   - clientID: The `clientID` of the row to update.
+  ///   - date: The new `nextAttemptAt` value.
+  /// - Throws: If SwiftData cannot save.
+  func setNextAttemptAt(clientID: String, date: Date) throws {
+    let descriptor = FetchDescriptor<QueuedCapture>()
+    let rows = try modelContext.fetch(descriptor)
+    guard let row = rows.first(where: { $0.clientID == clientID }) else { return }
+    row.nextAttemptAt = date
+    try modelContext.save()
   }
 
   // MARK: - Re-enqueue after token update
@@ -395,39 +483,56 @@ public actor UploadQueue {
 
       // Distinguish permanent (non-401 4xx) from transient (5xx / network) failures.
       if isPermanentFailure(error) {
-        // Permanent failure — delete immediately, no retry.
-        let description = String(error.localizedDescription.prefix(256))
-        print("[UploadQueue] WARN permanent failure (4xx) clientID=\(row.clientID) error=\(description) — deleting")
-        modelContext.delete(row)
+        // Permanent 4xx failure — mark as failed, preserve error, keep for user action.
+        // Do NOT delete: the user must explicitly retry or discard from the debug screen.
+        let description = errorDescription(error, maxLength: 500)
+        print("[UploadQueue] WARN permanent failure (4xx) clientID=\(row.clientID) error=\(description) — marking failed")
+        row.isFailed = true
+        row.lastError = description
         try? modelContext.save()
         testHooks?.onModelContextSave?()
         testHooks?.onDrainRowComplete?(.failure(error))
       } else {
-        // Transient failure — check cap before deciding whether to bump+keep or delete.
-        // Truncate to 256 chars to avoid unbounded growth.
-        let description = String(error.localizedDescription.prefix(256))
+        // Transient failure (5xx / network error) — increment attempt count,
+        // schedule next attempt via exponential backoff, and keep the row.
+        // There is no maximum-attempt cap: the row stays in pending indefinitely
+        // until it succeeds or the user discards it.
+        let description = errorDescription(error, maxLength: 500)
         let prospectiveCount = row.attemptCount + 1
-
-        if prospectiveCount >= maxAttempts {
-          // Cap reached on this attempt: skip the bump+save and go straight to
-          // deletion. This collapses what was two consecutive saves into one.
-          print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(prospectiveCount) error=\(description)")
-          print("[UploadQueue] WARN retry cap reached clientID=\(row.clientID) attempt=\(prospectiveCount) lastError=\(description) — deleting")
-          modelContext.delete(row)
-          try? modelContext.save()
-          testHooks?.onModelContextSave?()
-          testHooks?.onDrainRowComplete?(.failure(error))
-        } else {
-          // Below cap — bump attemptCount, persist, and leave the row for the next drain.
-          row.attemptCount = prospectiveCount
-          row.lastError = description
-          try? modelContext.save()
-          testHooks?.onModelContextSave?()
-          print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(row.attemptCount) error=\(description)")
-          testHooks?.onDrainRowComplete?(.failure(error))
-        }
+        let delay = BackoffScheduler.delay(forAttempt: prospectiveCount)
+        row.attemptCount = prospectiveCount
+        row.lastError = description
+        row.nextAttemptAt = Date().addingTimeInterval(delay)
+        try? modelContext.save()
+        testHooks?.onModelContextSave?()
+        print("[UploadQueue] drain failed clientID=\(row.clientID) attempt=\(row.attemptCount) delay=\(delay)s error=\(description)")
+        testHooks?.onDrainRowComplete?(.failure(error))
       }
     }
+  }
+
+  // MARK: - Error description helper
+
+  /// Build a human-readable error description for storage in `lastError`.
+  ///
+  /// For `APIError.httpError` responses the description leads with the HTTP
+  /// status code so the debug screen can surface it clearly, followed by the
+  /// server response body (trimmed to `maxLength` to keep SwiftData rows small).
+  ///
+  /// For all other errors (URLError, decode failures, etc.) the description is
+  /// `error.localizedDescription` trimmed to `maxLength`.
+  ///
+  /// - Parameters:
+  ///   - error: The error to describe.
+  ///   - maxLength: Maximum character count of the returned string.
+  /// - Returns: A non-empty description, at most `maxLength` characters.
+  private func errorDescription(_ error: Error, maxLength: Int) -> String {
+    if case .httpError(let statusCode, let detail) = error as? APIError {
+      let detailText = detail ?? ""
+      let combined = "HTTP \(statusCode): \(detailText)"
+      return String(combined.prefix(maxLength))
+    }
+    return String(error.localizedDescription.prefix(maxLength))
   }
 
   // MARK: - Retry-policy helpers
@@ -444,9 +549,8 @@ public actor UploadQueue {
     return statusCode == 401
   }
 
-  /// Returns `true` when `error` indicates a permanent failure that should not
-  /// be retried. A permanent failure causes the queued row to be deleted
-  /// immediately rather than kept for the next drain.
+  /// Returns `true` when `error` indicates a permanent failure that should
+  /// transition the row to `isFailed = true` rather than scheduling a retry.
   ///
   /// Note: 401 is handled separately (before this check) by `isAuthRequiredError`.
   ///
@@ -454,9 +558,9 @@ public actor UploadQueue {
   ///
   /// | Status | Treatment | Rationale |
   /// |--------|-----------|-----------|
-  /// | 4xx (except 401, 408, 429) | permanent | Bad payload; retrying won't help |
-  /// | 401 | auth_required | Handled separately — marks row, does not delete |
-  /// | 403 | permanent | Forbidden — retrying won't help in V1 |
+  /// | 4xx (except 401, 408, 429) | failed | Bad payload; retrying won't help |
+  /// | 401 | auth_required | Handled separately — marks row, does not fail it |
+  /// | 403 | failed | Forbidden — retrying won't help in V1 |
   /// | 408 | transient | Request timeout — transient |
   /// | 429 | transient | Rate-limited — transient |
   /// | 5xx | transient | Server-side error — transient |
