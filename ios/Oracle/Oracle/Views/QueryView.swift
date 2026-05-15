@@ -164,23 +164,20 @@ struct QueryView: View {
                 .listRowSeparator(.hidden)
             }
 
-            // Source cards — each navigates to MemoryDetailView on tap.
+            // Source cards — tap the chevron to expand/collapse inline;
+            // the expanded card footer contains a link to MemoryDetailView
+            // for the full delete flow (#172).
             ForEach(Array(sources.enumerated()), id: \.element.memoryID) { idx, result in
-              NavigationLink {
-                MemoryDetailView(
-                  result: result,
-                  onDeleteSuccess: { deletedID in
-                    viewModel.removeSource(memoryID: deletedID)
-                  }
-                )
-              } label: {
-                QueryResultRow(
-                  result: result,
-                  isHighlighted: highlightedSourceIndex == idx
-                )
-              }
+              SourceCardRow(
+                result: result,
+                isHighlighted: highlightedSourceIndex == idx,
+                onDeleteSuccess: { deletedID in
+                  viewModel.removeSource(memoryID: deletedID)
+                }
+              )
               .id("source-\(idx)")
               .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
+              .listRowSeparator(.hidden)
             }
           }
           .listStyle(.plain)
@@ -350,16 +347,24 @@ private struct AnswerTextView: View {
   }
 }
 
-// MARK: - Result row
+// MARK: - Source card row (expandable)
 
-private struct QueryResultRow: View {
+/// A source card that can be expanded inline to show the full memory content.
+///
+/// Tapping the chevron button toggles expanded/collapsed state with a smooth
+/// height animation. Citation tap-throughs from the answer card (#171) scroll
+/// to this card via its list `.id`; the expand toggle is on the chevron button
+/// only so that scroll-and-highlight does not unintentionally expand the card.
+///
+/// The expanded footer contains a `NavigationLink` to `MemoryDetailView`,
+/// keeping the delete flow from #172 reachable without a separate navigation
+/// path.
+private struct SourceCardRow: View {
   let result: QueryResult
   let isHighlighted: Bool
+  let onDeleteSuccess: (UUID) -> Void
 
-  init(result: QueryResult, isHighlighted: Bool = false) {
-    self.result = result
-    self.isHighlighted = isHighlighted
-  }
+  @State private var isExpanded = false
 
   private static let relativeDateFormatter: RelativeDateTimeFormatter = {
     let f = RelativeDateTimeFormatter()
@@ -367,47 +372,161 @@ private struct QueryResultRow: View {
     return f
   }()
 
+  private static let dateFormatter: DateFormatter = {
+    let f = DateFormatter()
+    f.dateStyle = .medium
+    f.timeStyle = .short
+    return f
+  }()
+
   var body: some View {
-    VStack(alignment: .leading, spacing: 6) {
-      Text(result.excerpt)
-        .font(.body)
-        .lineLimit(3)
-        .accessibilityLabel("Snippet: \(result.excerpt)")
+    VStack(alignment: .leading, spacing: 0) {
+      // --- Collapsed chrome (always visible) ---
+      HStack(alignment: .top, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
+          Text(result.excerpt)
+            .font(.body)
+            .lineLimit(isExpanded ? nil : 3)
+            .accessibilityLabel(isExpanded ? "Memory content: \(result.excerpt)" : "Snippet: \(result.excerpt)")
 
-      HStack(spacing: 8) {
-        // Similarity score as a percentage — visually subordinate.
-        Text(String(format: "%.0f%%", result.score * 100))
-          .font(.caption)
-          .foregroundStyle(.secondary)
-          .accessibilityLabel("Similarity \(String(format: "%.0f", result.score * 100)) percent")
-
-        // Relative capture date.
-        if let capturedAt = result.capturedAt {
-          Text(Self.relativeDateFormatter.localizedString(for: capturedAt, relativeTo: Date()))
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .accessibilityLabel("Captured \(Self.relativeDateFormatter.localizedString(for: capturedAt, relativeTo: Date()))")
+          metadataRow
         }
 
-        // matched_via badge: nothing for "whole", [chunk N] for "chunk".
-        if result.matchedVia == "chunk", let idx = result.matchedChunkIndex {
-          Text("[chunk \(idx)]")
-            .font(.caption2)
+        Spacer(minLength: 4)
+
+        // Chevron button — the ONLY expand/collapse trigger. Isolated so that
+        // the text content above (which may receive highlight flashes from
+        // citation taps) never accidentally toggles expansion.
+        Button {
+          withAnimation(.easeInOut(duration: 0.25)) {
+            isExpanded.toggle()
+          }
+        } label: {
+          Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+            .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
+            .frame(width: 28, height: 28)
             .background(Color(.tertiarySystemBackground))
-            .clipShape(RoundedRectangle(cornerRadius: 4))
-            .accessibilityLabel("Chunk \(idx)")
+            .clipShape(Circle())
         }
+        .buttonStyle(.plain)
+        .accessibilityLabel(isExpanded ? "Collapse memory" : "Expand memory")
+        .accessibilityHint("Double-tap to \(isExpanded ? "collapse" : "expand") the full content of this memory")
+      }
+      .padding(8)
+
+      // --- Expanded content footer ---
+      if isExpanded {
+        VStack(alignment: .leading, spacing: 12) {
+          Divider()
+            .padding(.horizontal, 8)
+
+          expandedMetadata
+            .padding(.horizontal, 8)
+
+          // NavigationLink to the detail view — keeps delete reachable (#172).
+          NavigationLink {
+            MemoryDetailView(
+              result: result,
+              onDeleteSuccess: onDeleteSuccess
+            )
+          } label: {
+            Label("View detail / Delete", systemImage: "arrow.right.circle")
+              .font(.subheadline)
+              .foregroundStyle(.accent)
+          }
+          .buttonStyle(.plain)
+          .padding(.horizontal, 8)
+          .padding(.bottom, 8)
+          .accessibilityLabel("View memory detail and delete options")
+          .accessibilityHint("Double-tap to open full detail view where you can delete this memory")
+        }
+        .transition(.opacity.combined(with: .move(edge: .top)))
       }
     }
-    .accessibilityElement(children: .combine)
-    // Brief highlight flash when scrolled-to from a citation tap.
-    .padding(8)
+    // Animate the isExpanded flag on both the lineLimit change and the footer.
+    .animation(.easeInOut(duration: 0.25), value: isExpanded)
     .background(isHighlighted ? Color.accentColor.opacity(0.12) : Color.clear)
     .clipShape(RoundedRectangle(cornerRadius: 8))
     .animation(.easeOut(duration: 0.3), value: isHighlighted)
+    .accessibilityElement(children: .contain)
+  }
+
+  // MARK: - Metadata row (collapsed)
+
+  private var metadataRow: some View {
+    HStack(spacing: 8) {
+      // Similarity score as a percentage — visually subordinate.
+      Text(String(format: "%.0f%%", result.score * 100))
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .accessibilityLabel("Similarity \(String(format: "%.0f", result.score * 100)) percent")
+
+      // Relative capture date.
+      if let capturedAt = result.capturedAt {
+        Text(Self.relativeDateFormatter.localizedString(for: capturedAt, relativeTo: Date()))
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          .accessibilityLabel("Captured \(Self.relativeDateFormatter.localizedString(for: capturedAt, relativeTo: Date()))")
+      }
+
+      // matched_via badge: nothing for "whole", [chunk N] for "chunk".
+      if result.matchedVia == "chunk", let idx = result.matchedChunkIndex {
+        Text("[chunk \(idx)]")
+          .font(.caption2)
+          .foregroundStyle(.secondary)
+          .padding(.horizontal, 5)
+          .padding(.vertical, 2)
+          .background(Color(.tertiarySystemBackground))
+          .clipShape(RoundedRectangle(cornerRadius: 4))
+          .accessibilityLabel("Chunk \(idx)")
+      }
+    }
+  }
+
+  // MARK: - Expanded metadata
+
+  private var expandedMetadata: some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if let capturedAt = result.capturedAt {
+        expandedMetaItem(
+          label: "Captured",
+          value: Self.dateFormatter.string(from: capturedAt)
+        )
+      }
+      if let modality = result.sourceModality {
+        expandedMetaItem(label: "Source", value: modality.capitalized)
+      }
+      expandedMetaItem(
+        label: "Match",
+        value: result.matchedVia == "chunk"
+          ? (result.matchedChunkIndex.map { "Chunk \($0)" } ?? "Chunk")
+          : "Full memory"
+      )
+      expandedMetaItem(
+        label: "Relevance",
+        value: String(format: "%.0f%%", result.score * 100)
+      )
+    }
+    .padding(10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .background(Color(.secondarySystemBackground))
+    .clipShape(RoundedRectangle(cornerRadius: 8))
+  }
+
+  private func expandedMetaItem(label: String, value: String) -> some View {
+    HStack(alignment: .firstTextBaseline) {
+      Text(label)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .frame(width: 72, alignment: .leading)
+      Text(value)
+        .font(.caption)
+        .foregroundStyle(.primary)
+      Spacer()
+    }
+    .accessibilityElement(children: .combine)
+    .accessibilityLabel("\(label): \(value)")
   }
 }
 
