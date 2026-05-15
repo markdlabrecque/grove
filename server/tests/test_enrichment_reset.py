@@ -29,7 +29,7 @@ from collections.abc import AsyncIterator
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -285,4 +285,73 @@ async def test_specialised_table_rows_not_deleted_on_reset(
         )
     finally:
         # Decision is cascade-deleted with the memory.
+        await _cleanup(db_session, [memory.id])
+
+
+async def test_atomic_reset_skips_row_re_enriched_between_select_and_update(
+    db_session: AsyncSession,
+) -> None:
+    """reset() must not overwrite a concurrent worker's re-enrichment.
+
+    The race window in the old SELECT-then-UPDATE implementation: reset() selects
+    qualifying rows, a concurrent worker re-enriches one of them (bumping
+    enriched_version beyond version_below), then reset()'s UPDATE fires
+    ``WHERE id IN (affected_ids)`` — which has no predicate re-check and
+    overwrites the worker's result, resetting enriched back to false.
+
+    The fix collapses SELECT + UPDATE into a single ``UPDATE … RETURNING`` with
+    the predicate re-checked at write time.  A row that has moved to
+    enriched_version >= version_below between the conceptual SELECT and UPDATE
+    is excluded atomically.
+
+    This test uses a module-level seam (``_test_after_select_hook``) to inject a
+    concurrent worker bump between the SELECT and UPDATE in the old code path.
+    In the new code there is no SELECT; the hook fires before the single
+    UPDATE … RETURNING statement, so the predicate re-check at write time
+    correctly excludes the already-bumped row.
+
+    Seed:
+        row: enriched=true, enriched_version=1  (qualifies for version_below=10)
+    Injected hook (fires between SELECT and UPDATE):
+        commits enriched_version=10, enriched=true in a separate session
+    Expected after reset(version_below=10):
+        count == 0  (row excluded because 10 is not < 10 at write time)
+        DB state unchanged: enriched=true, enriched_version=10
+    On the old SELECT-then-UPDATE code (regression):
+        count == 1  (UPDATE WHERE id IN (…) ignores the predicate; overwrites worker)
+        DB state: enriched=false (worker's re-enrichment is lost)
+    """
+    import oracle.enrichment.reset as reset_module
+    from oracle.enrichment.reset import reset
+
+    memory = _make_memory(enriched=True, enriched_version=1)
+    await _seed(db_session, [memory])
+
+    async def _bump_to_worker_version() -> None:
+        """Simulate a worker re-enriching the row to version 10 before the UPDATE fires."""
+        async with _Session() as side:
+            await side.execute(
+                update(Memory)
+                .where(Memory.id == memory.id)
+                .values(enriched=True, enriched_version=10)
+            )
+            await side.commit()
+
+    reset_module._test_after_select_hook = _bump_to_worker_version
+    try:
+        result = await reset(version_below=10, dry_run=False, session=db_session)
+
+        # The worker's re-enrichment must be preserved: the row must not appear
+        # in affected_ids, and its DB state must reflect the worker's stamp.
+        assert result.count == 0, (
+            f"reset() wrongly reset a row the worker had already re-enriched "
+            f"(expected count=0, got count={result.count})"
+        )
+        assert memory.id not in result.affected_ids
+
+        await db_session.refresh(memory)
+        assert memory.enriched is True, "worker's enriched=true must be preserved"
+        assert memory.enriched_version == 10, "worker's enriched_version=10 must be preserved"
+    finally:
+        reset_module._test_after_select_hook = None
         await _cleanup(db_session, [memory.id])

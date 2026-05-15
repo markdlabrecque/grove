@@ -40,6 +40,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import uuid
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 
 import structlog
@@ -50,6 +51,12 @@ from sqlalchemy.pool import NullPool
 from oracle.models import Memory
 
 logger = structlog.get_logger(__name__)
+
+# Test seam: when set, called between the qualifying-row SELECT and the UPDATE
+# that resets those rows.  Used in tests to simulate a concurrent worker
+# re-enriching a row in the window between the two statements.  Must be None
+# in production; the reset() hot path never sets it.
+_test_after_select_hook: Callable[[], Awaitable[None]] | None = None
 
 
 @dataclass
@@ -92,6 +99,9 @@ async def reset(
         )
         result = await s.execute(stmt)
         affected_ids: list[uuid.UUID] = list(result.scalars().all())
+
+        if _test_after_select_hook is not None:
+            await _test_after_select_hook()
 
         if not dry_run and affected_ids:
             await s.execute(
