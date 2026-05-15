@@ -105,8 +105,8 @@ def test_refinement_config_on_settings() -> None:
     assert hasattr(settings, "refinement"), "settings must have a 'refinement' attribute"
     cfg = settings.refinement
     assert isinstance(cfg, RefinementConfig)
-    assert cfg.window_minutes > 0
-    assert 0.0 < cfg.similarity_threshold <= 1.0
+    assert cfg.window_minutes == 5
+    assert cfg.similarity_threshold == 0.85
 
 
 # ---------------------------------------------------------------------------
