@@ -120,6 +120,17 @@ async def reset(
     return result_obj
 
 
+def _positive_int(raw: str) -> int:
+    """argparse type validator: accept only integers >= 1."""
+    value = int(raw)
+    if value < 1:
+        raise argparse.ArgumentTypeError(
+            f"--version-below must be >= 1; got {value}. "
+            "Use N=1 to reset only rows with no recorded pipeline version."
+        )
+    return value
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="python -m oracle.enrichment.reset",
@@ -130,7 +141,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--version-below",
-        type=int,
+        type=_positive_int,
         required=True,
         metavar="N",
         help=(
