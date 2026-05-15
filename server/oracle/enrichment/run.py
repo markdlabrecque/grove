@@ -6,16 +6,17 @@ Single-run lifecycle:
 1. Insert an enrichment_state row with run_started_at and pipeline_version.
 2. Fetch a batch of unenriched memories using FOR UPDATE SKIP LOCKED so
    concurrent runs claim disjoint subsets.
-3. Call classify_and_write(memory) per memory inside its own transaction so
-   one failure does not poison the rest of the batch.
+3. Call classify_and_write(memory, session) per memory inside its own
+   transaction so one failure does not poison the rest of the batch.
 4. Update the enrichment_state row with completion time and counts.
 """
 
 from __future__ import annotations
 
 import uuid
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from datetime import UTC, datetime
+from typing import Any
 
 import structlog
 from sqlalchemy import select
@@ -59,18 +60,24 @@ async def _fetch_batch(
 
 async def run(
     batch_size: int = 50,
-    classify_and_write: Callable[[Memory], None] | None = None,
+    classify_and_write: Callable[[Memory, AsyncSession], Coroutine[Any, Any, None]] | None = None,
 ) -> None:
     """Execute one enrichment pass.
 
     Args:
         batch_size: Maximum number of memories to process per run.
-        classify_and_write: Called once per memory. Defaults to the stub
-            (real implementation wired in #179/#180). Accepts a sync callable
-            for simplicity; the worker is I/O-bound at the DB level.
+        classify_and_write: Async callable invoked once per memory with the
+            memory and its per-memory session.  The callable owns the session
+            commit (success path) and rollback (failure path), so the worker
+            must NOT commit or rollback after the call returns.  Defaults to
+            the real orchestrator implementation from oracle.enrichment.orchestrator.
     """
     if classify_and_write is None:
-        classify_and_write = _stub_classify_and_write
+        from oracle.enrichment.orchestrator import (
+            classify_and_write as _real_classify_and_write,
+        )
+
+        classify_and_write = _real_classify_and_write
 
     run_id = uuid.uuid4()
     log = logger.bind(run_id=str(run_id), batch_size=batch_size)
@@ -109,23 +116,21 @@ async def run(
         memory_log = log.bind(memory_id=str(memory_id))
 
         # Each memory gets its own session so a failure is isolated.
+        # classify_and_write owns the session commit (or rollback) — the
+        # worker must not commit after returning.
         async with factory() as mem_session:
             try:
                 mem = await mem_session.get(Memory, memory_id)
                 if mem is not None:
-                    classify_and_write(mem)
-
-                    # Mark memory enriched on success.
-                    mem.enriched = True
-                    mem.enriched_at = datetime.now(tz=UTC)
-                    mem.enriched_version = PIPELINE_VERSION
-                    mem.enrichment_error = None
-                await mem_session.commit()
+                    await classify_and_write(mem, mem_session)
+                else:
+                    await mem_session.commit()
                 processed += 1
                 memory_log.info("enrichment_run.memory.ok")
             except Exception as exc:
                 await mem_session.rollback()
-                # Surface the error on the memory row so the next run retries.
+                # Unexpected exception (not handled by the orchestrator).
+                # Surface on the memory row so the next run retries.
                 async with factory() as err_session:
                     mem = await err_session.get(Memory, memory_id)
                     if mem is not None:
@@ -153,9 +158,21 @@ async def run(
     )
 
 
-def _stub_classify_and_write(memory: Memory) -> None:
-    """Stub classifier — real implementation wired in tickets #179/#180."""
-    pass
+async def _stub_classify_and_write(memory: Memory, session: AsyncSession) -> None:
+    """Stub classifier used only in tests that inject their own classify_and_write.
+
+    The real implementation lives in oracle.enrichment.orchestrator and is
+    wired in automatically when classify_and_write is None (default).
+    """
+    # Mark memory enriched so run() tests that pass this stub still work.
+    from datetime import UTC
+    from datetime import datetime as _dt
+
+    memory.enriched = True
+    memory.enriched_at = _dt.now(tz=UTC)
+    memory.enriched_version = PIPELINE_VERSION
+    memory.enrichment_error = None
+    await session.commit()
 
 
 if __name__ == "__main__":

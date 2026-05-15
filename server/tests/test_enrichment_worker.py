@@ -23,7 +23,7 @@ import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy import select
@@ -146,7 +146,7 @@ async def test_run_creates_enrichment_state_and_calls_stub(
     """run() inserts an enrichment_state row and calls the stub for each memory."""
     memories = await _seed_memories(db_session, 5)
     try:
-        stub = MagicMock(return_value=None)
+        stub = AsyncMock(return_value=None)
         await _run_with_timeout(batch_size=10, classify_and_write=stub)
 
         # Exactly one enrichment_state row should exist after a clean run.
@@ -197,9 +197,22 @@ async def test_concurrent_runs_all_memories_enriched(
     memory_ids = {m.id for m in memories}
 
     try:
+
+        async def _enriching_stub(m: Memory, s: AsyncSession) -> None:
+            from datetime import UTC
+            from datetime import datetime as _dt
+
+            from oracle.enrichment.run import PIPELINE_VERSION
+
+            m.enriched = True
+            m.enriched_at = _dt.now(tz=UTC)
+            m.enriched_version = PIPELINE_VERSION
+            m.enrichment_error = None
+            await s.commit()
+
         await asyncio.gather(
-            _run_with_timeout(batch_size=10, classify_and_write=lambda _m: None),
-            _run_with_timeout(batch_size=10, classify_and_write=lambda _m: None),
+            _run_with_timeout(batch_size=10, classify_and_write=_enriching_stub),
+            _run_with_timeout(batch_size=10, classify_and_write=_enriching_stub),
         )
 
         # All 6 test memories must be enriched -- no memory left behind.
@@ -225,12 +238,22 @@ async def test_per_memory_isolation_failure_does_not_block_others(
     processed: list[uuid.UUID] = []
     call_count = 0
 
-    def flaky_stub(memory: Memory) -> None:
+    async def flaky_stub(memory: Memory, session: AsyncSession) -> None:
         nonlocal call_count
         call_count += 1
         if call_count == 3:
             raise RuntimeError("simulated enrichment failure on memory 3")
+        from datetime import UTC
+        from datetime import datetime as _dt
+
+        from oracle.enrichment.run import PIPELINE_VERSION
+
+        memory.enriched = True
+        memory.enriched_at = _dt.now(tz=UTC)
+        memory.enriched_version = PIPELINE_VERSION
+        memory.enrichment_error = None
         processed.append(memory.id)
+        await session.commit()
 
     try:
         await _run_with_timeout(batch_size=10, classify_and_write=flaky_stub)
@@ -293,10 +316,21 @@ async def test_for_update_lock_released_before_per_memory_update(
 
     # --- Part 1: run() must complete within the timeout ---
     memories = await _seed_memories(db_session, 3)
-    stub = MagicMock(return_value=None)
+
+    async def _enriching_stub(m: Memory, s: AsyncSession) -> None:
+        from datetime import UTC
+        from datetime import datetime as _dt
+
+        from oracle.enrichment.run import PIPELINE_VERSION
+
+        m.enriched = True
+        m.enriched_at = _dt.now(tz=UTC)
+        m.enriched_version = PIPELINE_VERSION
+        m.enrichment_error = None
+        await s.commit()
 
     try:
-        await _run_with_timeout(batch_size=10, classify_and_write=stub)
+        await _run_with_timeout(batch_size=10, classify_and_write=_enriching_stub)
         # All 3 memories must be enriched -- only possible if mem_session.commit()
         # was not blocked by batch_session's FOR UPDATE lock.
         result = await db_session.execute(
