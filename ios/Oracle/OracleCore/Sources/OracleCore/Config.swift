@@ -5,27 +5,39 @@ import Foundation
 /// Values flow from the active `.xcconfig` file → build settings → Info.plist
 /// key/value pairs → here.
 ///
-/// V1 note: `bearerToken` is read from Info.plist, which is populated by the
-/// active `.xcconfig` (Config.debug.xcconfig or Config.release.xcconfig).
-/// This approach is intentional for V1 transparency and per-environment
-/// flexibility.
+/// # V1 auth model (as of #184)
 ///
-/// TODO(auth): Migrate `bearerToken` storage to iOS Keychain protected by
-/// `LAContext` (Face ID / Touch ID) before any production or wider-distribution
-/// use. See `kai.md` §"What to avoid" — "Keychain only" is the standing rule;
-/// this `.xcconfig` path is an explicit V1 override. The Keychain migration
-/// ticket follows this one.
+/// The **Keychain is the runtime source of truth** for both `bearerToken` and
+/// `baseURL`.  xcconfig / Info.plist is a *first-launch bootstrap* only:
+///
+///   1. On first launch (Keychain is empty) `Config.init()` reads the xcconfig
+///      value from Info.plist and seeds it into the Keychain via
+///      `KeychainStore.shared`.
+///   2. On every subsequent launch the Keychain value is used directly.
+///   3. The user can update the token and URL in the Settings screen; those
+///      writes go to the Keychain and take effect on the next API call.
+///
+/// The xcconfig / Info.plist path is kept intact so the app still builds
+/// correctly from a fresh clone with a populated `Config.debug.xcconfig`.
+/// `Config.xcconfig.example` and the build-time wiring are never removed.
+///
+/// TODO(auth-v2): Add Face/Touch ID gate (`LAContext`) around the Keychain
+/// token read before any production or wider-distribution use.
 public struct Config: Sendable {
   /// Shared singleton; constructed once at app launch.
   public static let shared = Config()
 
   /// The server's base URL, e.g. `https://oracle.example.ts.net`.
+  ///
+  /// At runtime this reflects the Keychain value (potentially updated by the
+  /// user in Settings).  The xcconfig bootstrap value is used only when the
+  /// Keychain has no entry.
   public let baseURL: URL
 
   /// Long-lived bearer token sent with every API request.
   ///
-  /// TODO(auth): V2 — move this value to Keychain + LAContext; delete the
-  /// `BEARER_TOKEN` key from Info.plist and the `.xcconfig` files.
+  /// Source of truth at runtime is the Keychain (see class-level doc).
+  /// xcconfig / Info.plist is the first-launch bootstrap only.
   public let bearerToken: String
 
   private init() {
@@ -58,20 +70,21 @@ public struct Config: Sendable {
       return
     }
 
+    // --- xcconfig bootstrap values from Info.plist ---
     guard
       let rawURL = Bundle.main.object(forInfoDictionaryKey: "BASE_URL") as? String,
-      let url = URL(string: rawURL)
+      !rawURL.isEmpty
     else {
       fatalError(
-        "Oracle: BASE_URL is missing or malformed in Info.plist. "
+        "Oracle: BASE_URL is missing in Info.plist. "
           + "Copy Config.xcconfig.example → Config.debug.xcconfig and fill in your values."
       )
     }
 
     guard
-      let token = Bundle.main.object(forInfoDictionaryKey: "BEARER_TOKEN") as? String,
-      !token.isEmpty,
-      token != "replace-me"
+      let xconfigToken = Bundle.main.object(forInfoDictionaryKey: "BEARER_TOKEN") as? String,
+      !xconfigToken.isEmpty,
+      xconfigToken != "replace-me"
     else {
       fatalError(
         "Oracle: BEARER_TOKEN is missing or still set to the placeholder in Info.plist. "
@@ -79,8 +92,42 @@ public struct Config: Sendable {
       )
     }
 
+    // --- Token: Keychain first, xcconfig as first-launch bootstrap ---
+    //
+    // `resolveToken` reads the Keychain and returns the xcconfig value when
+    // the Keychain is empty.  On first launch this means xcconfig seeds the
+    // Keychain (see `SettingsViewModel.seedKeychainIfNeeded`); on subsequent
+    // launches the Keychain value is used directly.
+    let keychain = KeychainStore.shared
+    let resolvedToken = keychain.resolveToken(xconfigFallback: xconfigToken)
+
+    // Seed the Keychain on first launch so the Settings screen round-trips
+    // correctly from the very first session.
+    if (try? keychain.read(forKey: KeychainStore.bearerTokenKey)) == nil {
+      try? keychain.write(xconfigToken, forKey: KeychainStore.bearerTokenKey)
+    }
+
+    // --- URL: Keychain first, xcconfig as first-launch bootstrap ---
+    let resolvedRawURL: String
+    if let keychainURL = try? keychain.read(forKey: KeychainStore.serverURLKey),
+       let _ = URL(string: keychainURL),
+       !keychainURL.isEmpty
+    {
+      resolvedRawURL = keychainURL
+    } else {
+      resolvedRawURL = rawURL
+      // Seed the Keychain with the xcconfig URL on first launch.
+      try? keychain.write(rawURL, forKey: KeychainStore.serverURLKey)
+    }
+
+    guard let url = URL(string: resolvedRawURL) else {
+      fatalError(
+        "Oracle: resolved BASE_URL '\(resolvedRawURL)' is not a valid URL."
+      )
+    }
+
     self.baseURL = url
-    self.bearerToken = token
+    self.bearerToken = resolvedToken
   }
 
   /// Designated initialiser used by unit tests.

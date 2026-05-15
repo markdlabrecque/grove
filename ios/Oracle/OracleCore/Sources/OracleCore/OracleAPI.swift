@@ -28,10 +28,17 @@ import Foundation
 /// actor via `Task { await api?.… }` so they are never concurrent with each
 /// other or with `postCapture` / `postQuery`.
 ///
-/// TODO(auth): When the bearer token moves to Keychain + LAContext (V2 auth
-/// migration), update `authorizedRequest(for:)` to read the token from
-/// Keychain at call time rather than from `Config.shared.bearerToken`. See
-/// `Config.swift` for the matching TODO(auth) marker.
+/// # Auth model (V1 — as of #184)
+///
+/// The shared singleton reads `bearerToken` and `baseURL` from
+/// `Config.shared`, which itself reads the Keychain first (with xcconfig as a
+/// first-launch fallback — see `Config.swift`).  When the user updates the
+/// token or URL in Settings, `SettingsViewModel` writes the new values to the
+/// Keychain and calls `OracleAPI.shared.updateCredentials(baseURL:bearerToken:)`
+/// so in-flight auth is kept consistent without requiring an app restart.
+///
+/// TODO(auth-v2): Add Face/Touch ID gate (`LAContext`) around the Keychain
+/// token read before any production or wider-distribution use.
 public actor OracleAPI {
 
   // MARK: - Shared instance
@@ -65,8 +72,13 @@ public actor OracleAPI {
 
   // MARK: - Private state — config
 
-  private let baseURL: URL
-  private let bearerToken: String
+  /// The server's base URL.  Mutable so `SettingsViewModel` can push an
+  /// updated URL without requiring an app restart.
+  private var baseURL: URL
+
+  /// The bearer token used in `Authorization` headers.  Mutable so
+  /// `SettingsViewModel` can push a new token after the user edits Settings.
+  private var bearerToken: String
 
   // MARK: - Background session identifier
 
@@ -506,6 +518,23 @@ public actor OracleAPI {
     }
   }
 
+  // MARK: - Runtime credential update (called by SettingsViewModel)
+
+  /// Update the base URL and bearer token used for all subsequent API calls.
+  ///
+  /// Called by `SettingsViewModel` after the user saves new values in Settings
+  /// and the Keychain has been updated.  Takes effect immediately for all API
+  /// calls that start after this method returns — in-flight requests are
+  /// unaffected (they already have their auth headers baked in).
+  ///
+  /// Background upload tasks use the token baked into the URLRequest at task-
+  /// creation time; those are not retroactively updated.  For V1 this is
+  /// acceptable — the user changes credentials rarely and can force-resync.
+  public func updateCredentials(baseURL: URL, bearerToken: String) {
+    self.baseURL = baseURL
+    self.bearerToken = bearerToken
+  }
+
   // MARK: - Temp file management
 
   /// Write the JSON-encoded request body to a temp file and return its URL.
@@ -596,9 +625,11 @@ public actor OracleAPI {
 
   public func authorizedRequest(for url: URL) -> URLRequest {
     var request = URLRequest(url: url)
-    // TODO(auth): Read token from Keychain rather than Config once V2 auth
-    //             migration lands. Delete this comment and the Config bearer
-    //             token path at that time.
+    // bearerToken is already the Keychain-resolved value (set at init time via
+    // Config.shared, or updated live by SettingsViewModel via
+    // updateCredentials(baseURL:bearerToken:)).
+    // TODO(auth-v2): Read the token fresh from Keychain on every call once
+    //               the LAContext / biometric gate is added in V2.
     request.setValue("Bearer \(bearerToken)", forHTTPHeaderField: "Authorization")
     request.setValue("application/json", forHTTPHeaderField: "Content-Type")
     return request

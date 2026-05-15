@@ -1,7 +1,11 @@
 import SwiftUI
 
-/// Application root: a two-tab shell containing the Save (capture) and Ask
-/// (retrieval) tabs. Placeholder content in both tabs lands in #61 and #62.
+/// Application root: a three-tab shell containing the Save (capture), Ask
+/// (retrieval), and Settings tabs.
+///
+/// The Settings tab was added in #184.  It hosts `SettingsView`, which
+/// provides server URL / bearer token configuration (Keychain-persisted),
+/// capture defaults (UserDefaults), force-resync, and build info.
 struct RootView: View {
   var body: some View {
     TabView {
@@ -13,6 +17,11 @@ struct RootView: View {
       QueryView()
         .tabItem {
           Label("Ask", systemImage: "magnifyingglass")
+        }
+
+      SettingsView()
+        .tabItem {
+          Label("Settings", systemImage: "gear")
         }
     }
   }
