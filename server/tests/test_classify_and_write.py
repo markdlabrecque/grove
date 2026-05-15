@@ -59,9 +59,17 @@ from oracle.enrichment.schemas import (
 )
 from oracle.models import (
     Appointment as AppointmentModel,
+)
+from oracle.models import (
     Decision as DecisionModel,
+)
+from oracle.models import (
     Memory,
+)
+from oracle.models import (
     PeopleInteraction as PeopleInteractionModel,
+)
+from oracle.models import (
     Task as TaskModel,
 )
 
@@ -256,9 +264,7 @@ async def test_classify_and_write_happy_path(db_session: AsyncSession) -> None:
         assert interactions[0].enrichment_version == PIPELINE_VERSION
 
         # --- Accepted Task row ---
-        result = await db_session.execute(
-            select(TaskModel).where(TaskModel.memory_id == memory.id)
-        )
+        result = await db_session.execute(select(TaskModel).where(TaskModel.memory_id == memory.id))
         tasks = result.scalars().all()
         assert len(tasks) == 1, f"Expected 1 Task row, got {len(tasks)}"
         assert tasks[0].description == "Follow up on budget"
@@ -425,10 +431,23 @@ async def test_classify_and_write_atomicity_on_writer_failure(db_session: AsyncS
         call_count += 1
         if call_count == 2:
             raise RuntimeError("Injected writer failure on second call")
-        # Execute the statement but don't commit — let the orchestrator own the tx.
-        from oracle.enrichment.writers import insert_if_not_exists
+        # Execute the upsert without committing so the first insert is pending
+        # (not yet committed) when the second call raises.  The orchestrator's
+        # except block then rolls back the whole transaction.
 
-        return await insert_if_not_exists(session, model_class, **kwargs)  # type: ignore[arg-type]
+        from sqlalchemy import inspect as _inspect
+        from sqlalchemy.dialects.postgresql import insert as _pg_insert
+
+        table = _inspect(model_class).persist_selectable
+        constraint_name = f"uq_{table.name}_memory_id_enrichment_version"
+        stmt = (
+            _pg_insert(model_class)
+            .values(**kwargs)
+            .on_conflict_do_nothing(constraint=constraint_name)
+            .returning(table.c.id)
+        )
+        result = await session.execute(stmt)
+        return result.fetchone() is not None
 
     with (
         patch(
@@ -537,9 +556,7 @@ async def test_classify_and_write_idempotent(db_session: AsyncSession) -> None:
             select(DecisionModel).where(DecisionModel.memory_id == memory.id)
         )
         decisions = result.scalars().all()
-        assert len(decisions) == 1, (
-            f"Expected 1 Decision row after two calls, got {len(decisions)}"
-        )
+        assert len(decisions) == 1, f"Expected 1 Decision row after two calls, got {len(decisions)}"
         assert decisions[0].decision_maker == "Alice"
     finally:
         await _delete_memory(db_session, memory)
@@ -614,9 +631,7 @@ async def test_classify_and_write_version_stamping(db_session: AsyncSession) -> 
             f"expected {PIPELINE_VERSION}"
         )
 
-        result = await db_session.execute(
-            select(TaskModel).where(TaskModel.memory_id == memory.id)
-        )
+        result = await db_session.execute(select(TaskModel).where(TaskModel.memory_id == memory.id))
         tasks = result.scalars().all()
         assert len(tasks) == 1
         assert tasks[0].enrichment_version == PIPELINE_VERSION, (
