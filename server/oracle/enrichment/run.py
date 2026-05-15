@@ -167,29 +167,3 @@ async def run(
         errors=errors,
         duration_s=(finished_at - started_at).total_seconds(),
     )
-
-
-async def _stub_classify_and_write(memory: Memory, session: AsyncSession, **kwargs: Any) -> None:
-    """Stub classifier used only in tests that inject their own classify_and_write.
-
-    The real implementation lives in oracle.enrichment.orchestrator and is
-    wired in automatically when classify_and_write is None (default).
-    """
-    # Mark memory enriched so run() tests that pass this stub still work.
-    from datetime import UTC
-    from datetime import datetime as _dt
-
-    memory.enriched = True
-    memory.enriched_at = _dt.now(tz=UTC)
-    memory.enriched_version = PIPELINE_VERSION
-    memory.enrichment_error = None
-    await session.commit()
-
-
-if __name__ == "__main__":
-    import asyncio
-
-    from oracle.core.logging import configure_logging
-
-    configure_logging()
-    asyncio.run(run())
