@@ -75,6 +75,16 @@ async def _delete_recent_query_logs(session: AsyncSession, window_minutes: int =
     tests in the same run (e.g. test_queries.py inserts rows with embeddings
     identical to _SIMILAR_VEC). Clearing recent rows before each refinement
     test gives us a known-empty window to seed from.
+
+    Ticket #218 considered narrowing this to per-fixture-ID cleanup, but
+    `detect_refinement` fetches the SINGLE most recent row in the window
+    (`ORDER BY created_at DESC LIMIT 1`) and computes similarity against IT
+    only — it does not pick the highest-similarity row. So any cross-module
+    row inserted closer to ``now()`` masks our seeded row regardless of how
+    orthogonal the vectors are.  The bulk delete is the only correct
+    isolation primitive given those semantics. Removing it would require
+    re-shaping `detect_refinement` itself, which is out of scope for a test
+    tidy-up.
     """
     await session.execute(
         text("DELETE FROM query_logs WHERE created_at >= now() - make_interval(mins => :m)"),
