@@ -75,8 +75,12 @@ final class SettingsViewModel: ObservableObject {
 
   /// The server URL currently in use, read from Keychain (or xcconfig if
   /// Keychain has no entry yet).  Read-only display field.
+  ///
+  /// Falls back to empty string on a Keychain read failure — intentionally
+  /// NOT `serverURLText`, which is the live edit buffer and would show
+  /// whatever the user is currently half-typing.
   var currentServerURL: String {
-    (try? keychain.read(forKey: KeychainStore.serverURLKey)) ?? serverURLText
+    (try? keychain.read(forKey: KeychainStore.serverURLKey)) ?? ""
   }
 
   // MARK: - Force-resync state
