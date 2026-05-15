@@ -198,7 +198,7 @@ async def test_concurrent_runs_all_memories_enriched(
 
     try:
 
-        async def _enriching_stub(m: Memory, s: AsyncSession) -> None:
+        async def _enriching_stub(m: Memory, s: AsyncSession, **kwargs: object) -> None:
             from datetime import UTC
             from datetime import datetime as _dt
 
@@ -238,7 +238,7 @@ async def test_per_memory_isolation_failure_does_not_block_others(
     processed: list[uuid.UUID] = []
     call_count = 0
 
-    async def flaky_stub(memory: Memory, session: AsyncSession) -> None:
+    async def flaky_stub(memory: Memory, session: AsyncSession, **kwargs: object) -> None:
         nonlocal call_count
         call_count += 1
         if call_count == 3:
@@ -317,7 +317,7 @@ async def test_for_update_lock_released_before_per_memory_update(
     # --- Part 1: run() must complete within the timeout ---
     memories = await _seed_memories(db_session, 3)
 
-    async def _enriching_stub(m: Memory, s: AsyncSession) -> None:
+    async def _enriching_stub(m: Memory, s: AsyncSession, **kwargs: object) -> None:
         from datetime import UTC
         from datetime import datetime as _dt
 

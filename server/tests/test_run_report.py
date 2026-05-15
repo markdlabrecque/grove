@@ -26,7 +26,6 @@ import json
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
-from unittest.mock import patch
 
 import pytest
 from sqlalchemy import select
@@ -108,7 +107,9 @@ async def _run_and_get_state(classify_and_write) -> EnrichmentState:  # type: ig
 
     from oracle.enrichment.run import run
 
-    await asyncio.wait_for(run(batch_size=50, classify_and_write=classify_and_write), timeout=_RUN_TIMEOUT)
+    await asyncio.wait_for(
+        run(batch_size=50, classify_and_write=classify_and_write), timeout=_RUN_TIMEOUT
+    )
 
     async with _Session() as s:
         result = await s.execute(select(EnrichmentState))
@@ -407,7 +408,6 @@ async def test_run_report_structured_log_emitted(db_session: AsyncSession) -> No
         memory.enrichment_error = None
         await session.commit()
 
-    import structlog
     from structlog.testing import capture_logs
 
     try:

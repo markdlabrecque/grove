@@ -1,12 +1,14 @@
 """Per-memory classify-and-write orchestrator (ticket #180).
 
 Public API:
-    classify_and_write(memory, session)
+    classify_and_write(memory, session, *, report=None)
         Classify *memory* using #179's classifier, then write accepted
         extractions (confidence >= CONFIDENCE_THRESHOLD) to the four
         specialised tables in the same transaction that is owned by
         the caller.  Marks memory.enriched = True on success; sets
         memory.enrichment_error and leaves enriched = False on failure.
+        When *report* is provided (injected by the worker), token counts,
+        costs, accepted extractions, and errors are accumulated there.
 
 Transaction contract:
     classify_and_write does NOT commit or roll back the session itself
@@ -21,7 +23,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import structlog
 from sqlalchemy import inspect
@@ -31,6 +33,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from oracle.enrichment.classifier import ClassificationError, SkippedReason, classify_memory
 from oracle.enrichment.schemas import load_classification_prompts
 from oracle.models import Appointment, Decision, Memory, PeopleInteraction, Task
+
+if TYPE_CHECKING:
+    from oracle.enrichment.report import RunReport
 
 logger = structlog.get_logger(__name__)
 
@@ -82,7 +87,12 @@ async def insert_if_not_exists(
     return inserted
 
 
-async def classify_and_write(memory: Memory, session: AsyncSession) -> None:
+async def classify_and_write(
+    memory: Memory,
+    session: AsyncSession,
+    *,
+    report: RunReport | None = None,
+) -> None:
     """Classify *memory* and write accepted extractions to specialised tables.
 
     Called once per memory by the enrichment worker.  All database writes
@@ -104,6 +114,9 @@ async def classify_and_write(memory: Memory, session: AsyncSession) -> None:
         session: An async SQLAlchemy session.  Committed on success;
             rolled back on failure.  The caller must NOT commit after
             returning — classify_and_write owns the commit.
+        report: Optional RunReport accumulator injected by the worker.  When
+            provided, token counts, costs, accepted extractions, and errors
+            are recorded here for the per-run summary.
     """
     from oracle.core.config import settings
     from oracle.enrichment.run import PIPELINE_VERSION
@@ -123,6 +136,8 @@ async def classify_and_write(memory: Memory, session: AsyncSession) -> None:
         )
     except ClassificationError as exc:
         log.warning("orchestrator.classification_error", error=str(exc))
+        if report is not None:
+            report.record_error(str(exc))
         memory.enrichment_error = str(exc)
         await session.commit()
         return
@@ -133,8 +148,15 @@ async def classify_and_write(memory: Memory, session: AsyncSession) -> None:
         await session.commit()
         return
 
-    # result is a ClassificationResult
+    # result is a ClassificationResult — record LLM usage regardless of what
+    # gets accepted below.
     classification = result.classification
+    if report is not None:
+        report.record_llm_usage(
+            input_tokens=result.prompt_tokens,
+            output_tokens=result.completion_tokens,
+            cost_usd=result.cost_usd,
+        )
 
     # --- Write accepted extractions, all in this transaction ---
     try:
@@ -157,8 +179,12 @@ async def classify_and_write(memory: Memory, session: AsyncSession) -> None:
                     outcome_date=decision.outcome_date,
                     confidence=decision.confidence,
                 )
+                if report is not None:
+                    report.record_accepted("decisions", confidence=decision.confidence)
                 accepted += 1
             else:
+                if report is not None:
+                    report.record_dropped()
                 dropped += 1
 
         for interaction in classification.people_interactions:
@@ -174,8 +200,12 @@ async def classify_and_write(memory: Memory, session: AsyncSession) -> None:
                     next_steps=interaction.next_steps,
                     confidence=interaction.confidence,
                 )
+                if report is not None:
+                    report.record_accepted("people_interactions", confidence=interaction.confidence)
                 accepted += 1
             else:
+                if report is not None:
+                    report.record_dropped()
                 dropped += 1
 
         for task in classification.tasks:
@@ -191,8 +221,12 @@ async def classify_and_write(memory: Memory, session: AsyncSession) -> None:
                     related_people=task.related_people,
                     confidence=task.confidence,
                 )
+                if report is not None:
+                    report.record_accepted("tasks", confidence=task.confidence)
                 accepted += 1
             else:
+                if report is not None:
+                    report.record_dropped()
                 dropped += 1
 
         for appointment in classification.appointments:
@@ -209,8 +243,12 @@ async def classify_and_write(memory: Memory, session: AsyncSession) -> None:
                     participants=appointment.participants,
                     confidence=appointment.confidence,
                 )
+                if report is not None:
+                    report.record_accepted("appointments", confidence=appointment.confidence)
                 accepted += 1
             else:
+                if report is not None:
+                    report.record_dropped()
                 dropped += 1
 
         # --- Mark memory enriched ---
@@ -231,6 +269,8 @@ async def classify_and_write(memory: Memory, session: AsyncSession) -> None:
     except Exception as exc:
         await session.rollback()
         log.warning("orchestrator.writer_error", error=str(exc))
+        if report is not None:
+            report.record_error(str(exc))
         # Surface the error on the memory row for retry on next run.
         memory.enrichment_error = str(exc)
         await session.commit()
