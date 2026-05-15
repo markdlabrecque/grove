@@ -329,12 +329,33 @@ async def test_no_raise_below_80_pct(db_session: AsyncSession) -> None:
 # ---------------------------------------------------------------------------
 
 
+async def _override_get_session() -> AsyncIterator[AsyncSession]:
+    async with _Session() as session:
+        yield session
+
+
+def _override_get_log_session_factory() -> async_sessionmaker[AsyncSession]:
+    return _Session
+
+
 @pytest.fixture
 async def admin_client() -> AsyncIterator[AsyncClient]:
+    """ASGI test client with DB overrides so all DB calls go through _Session."""
+    from oracle.api.admin import get_log_session_factory as admin_log_factory
+    from oracle.api.queries import get_log_session_factory as query_log_factory
+    from oracle.core.db import get_session
     from oracle.main import app
+
+    app.dependency_overrides[get_session] = _override_get_session
+    app.dependency_overrides[admin_log_factory] = _override_get_log_session_factory
+    app.dependency_overrides[query_log_factory] = _override_get_log_session_factory
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
+
+    app.dependency_overrides.pop(get_session, None)
+    app.dependency_overrides.pop(admin_log_factory, None)
+    app.dependency_overrides.pop(query_log_factory, None)
 
 
 async def test_admin_usage_aggregates(db_session: AsyncSession, admin_client: AsyncClient) -> None:
@@ -416,29 +437,50 @@ async def test_admin_usage_requires_auth(admin_client: AsyncClient) -> None:
 # ---------------------------------------------------------------------------
 
 
-async def test_retrieval_degrades_gracefully_when_cap_exceeded(
-    db_session: AsyncSession,
-) -> None:
+async def test_retrieval_degrades_gracefully_when_cap_exceeded() -> None:
     """When SpendCapExceededError is raised, post_query skips synthesis and
     returns answer=None with sources still populated.
 
-    This is a unit-level test: we mock check_spend_cap to raise immediately,
-    then verify that a query response comes back with answer=None.
+    check_spend_cap is patched at the oracle.api.queries module level so that
+    the mock takes effect regardless of how the import is resolved.
+    DB calls are routed through _Session via dependency_overrides.
+    Embedding is skipped by patching get_embedding_provider.
     """
+    from unittest.mock import AsyncMock, MagicMock
+
     from oracle.admin.spend import SpendCapExceededError
+    from oracle.api.queries import get_log_session_factory
+    from oracle.core.db import get_session
+    from oracle.embeddings import EMBEDDING_DIM
+    from oracle.main import app
 
     raise_exc = SpendCapExceededError(spend_usd=25.0, cap_usd=20.0)
 
-    from oracle.main import app
+    # Fake embedding provider so the query path doesn't hit OpenAI.
+    fake_vec = [1.0] + [0.0] * (EMBEDDING_DIM - 1)
+    mock_provider = MagicMock()
+    mock_provider.embed_batch = AsyncMock(return_value=[fake_vec])
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        auth = {"Authorization": f"Bearer {settings.bearer_token}"}
-        with patch("oracle.api.queries.check_spend_cap", side_effect=raise_exc):
-            r = await client.post(
-                "/v1/queries",
-                json={"query": "what did I decide about the API design?"},
-                headers=auth,
-            )
+    app.dependency_overrides[get_session] = _override_get_session
+    app.dependency_overrides[get_log_session_factory] = _override_get_log_session_factory
+
+    try:
+        with (
+            patch("oracle.api.queries.check_spend_cap", side_effect=raise_exc),
+            patch("oracle.api.queries.get_embedding_provider", return_value=mock_provider),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                auth = {"Authorization": f"Bearer {settings.bearer_token}"}
+                r = await client.post(
+                    "/v1/queries",
+                    json={"query": "what did I decide about the API design?"},
+                    headers=auth,
+                )
+    finally:
+        app.dependency_overrides.pop(get_session, None)
+        app.dependency_overrides.pop(get_log_session_factory, None)
 
     # Route must succeed (200), not 500
     assert r.status_code == 200

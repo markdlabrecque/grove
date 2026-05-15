@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from oracle.admin.spend import SpendCapExceededError, check_spend_cap
 from oracle.core.db import SessionLocal, get_session
 from oracle.embeddings import get_embedding_provider
 from oracle.embeddings.tokenizer import count_tokens
@@ -399,6 +400,20 @@ async def post_query(
     search_latency_ms = (time.monotonic() - search_start) * 1000
 
     # ---------------------------------------------------------------------------
+    # Spend-cap check — evaluate before any LLM call so degradation is applied
+    # consistently to both intent routing and synthesis.
+    # ---------------------------------------------------------------------------
+    _spend_cap_exceeded = False
+    try:
+        await check_spend_cap(log_factory)
+    except SpendCapExceededError:
+        _spend_cap_exceeded = True
+        logger.warning(
+            "spend_cap_exceeded_degraded",
+            query_log_id=str(log_id) if log_id else None,
+        )
+
+    # ---------------------------------------------------------------------------
     # Intent router — classify query intent and run specialised-table retrieval.
     # On failure: degrade gracefully to vector-only results.
     # ---------------------------------------------------------------------------
@@ -408,7 +423,7 @@ async def post_query(
     tables_searched: dict = {"vector": True}
     all_hits = whole_hits + chunk_hits
 
-    if api_key:
+    if api_key and not _spend_cap_exceeded:
         try:
             intent_result = await classify_intent(
                 body.query,
@@ -496,7 +511,7 @@ async def post_query(
     # ---------------------------------------------------------------------------
     answer: str | None = None
 
-    if sources and api_key:
+    if sources and api_key and not _spend_cap_exceeded:
         try:
             synthesis_result = await synthesize(
                 body.query,
@@ -521,6 +536,8 @@ async def post_query(
                 query_log_id=str(log_id) if log_id else None,
                 error=str(exc),
             )
+    elif _spend_cap_exceeded:
+        logger.warning("synthesis_skipped_spend_cap_exceeded")
     elif not api_key:
         logger.warning("synthesis_skipped_no_api_key")
 
