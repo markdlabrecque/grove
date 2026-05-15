@@ -19,6 +19,7 @@
       "source_modality": "voice"
     }
   ],
+  "query_id": "feedb000-0000-0000-0000-000000000001",
   "query_token_count": 7,
   "latency_ms": 612.4
 }
