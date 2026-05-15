@@ -43,6 +43,7 @@
 		B100000D /* OracleTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = B200000D /* OracleTestSupport */; };
 		C1000001 /* OracleUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* OracleUITests.swift */; };
 		B1000015 /* SyncEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000015 /* SyncEdgeCaseTests.swift */; };
+		B1000016 /* CapturePolishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000016 /* CapturePolishTests.swift */; };
 		A100001B /* UploadQueueDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001B /* UploadQueueDebugView.swift */; };
 		A100001C /* BackoffScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001C /* BackoffScheduler.swift */; };
 /* End PBXBuildFile section */
@@ -91,6 +92,7 @@
 		B2000015 /* SyncEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEdgeCaseTests.swift; sourceTree = "<group>"; };
 		A200001B /* UploadQueueDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueueDebugView.swift; sourceTree = "<group>"; };
 		A200001C /* BackoffScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffScheduler.swift; sourceTree = "<group>"; };
+		B2000016 /* CapturePolishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePolishTests.swift; sourceTree = "<group>"; };
 		A2000006 /* CaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModel.swift; sourceTree = "<group>"; };
 		A2000010 /* QueryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModel.swift; sourceTree = "<group>"; };
 		A2000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -228,6 +230,7 @@
 				B2000013 /* FeedbackViewModelTests.swift */,
 				B2000014 /* SettingsViewModelTests.swift */,
 				B2000015 /* SyncEdgeCaseTests.swift */,
+				B2000016 /* CapturePolishTests.swift */,
 				B3000002 /* Fixtures */,
 			);
 			path = OracleTests;
@@ -428,6 +431,7 @@
 				B1000013 /* FeedbackViewModelTests.swift in Sources */,
 				B1000014 /* SettingsViewModelTests.swift in Sources */,
 				B1000015 /* SyncEdgeCaseTests.swift in Sources */,
+				B1000016 /* CapturePolishTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
