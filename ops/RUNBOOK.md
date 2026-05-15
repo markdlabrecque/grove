@@ -218,6 +218,29 @@ Expected on protected endpoints. Send `Authorization: Bearer <BEARER_TOKEN>`.
 Health endpoints are unauthenticated by design so the iPhone can probe
 reachability.
 
+**`429 Too Many Requests` / `Retry-After: N`.**
+The per-token rate limiter rejected the request. The client should back off for
+at least `Retry-After` seconds and retry. Default limits:
+
+| Route class | `per_min` | burst capacity |
+|---|---|---|
+| `/v1/captures` | 30 | 60 |
+| `/v1/queries` | 20 | 40 |
+| everything else | 60 | 120 |
+
+To raise or lower the limits, set the env vars `RATE_LIMIT_CAPTURE_PER_MIN`,
+`RATE_LIMIT_QUERY_PER_MIN`, `RATE_LIMIT_DEFAULT_PER_MIN`, and
+`RATE_LIMIT_BURST_MULTIPLIER` in `.env` and `make rebuild`.
+
+**Multi-process caveat.** The rate limiter uses in-process memory (a plain
+Python dict per worker). If the server is ever scaled to multiple worker
+processes (`uvicorn --workers N`) or multiple container replicas, each process
+maintains its own independent bucket dict and a client can exceed the nominal
+rate by routing requests across processes. In that scenario, replace the
+module-level storage in `oracle/core/rate_limit.py` with a Redis-backed
+implementation (e.g. redis-py async + a Lua script for atomic
+check-and-decrement).
+
 ---
 
 ## Enrichment cron (systemd timer)
