@@ -19,7 +19,7 @@ import GroveCore
 /// ## Dependency injection
 ///
 /// `deleteProvider` is the async function that performs the network call.
-/// Production code uses `OracleAPI.shared.deleteMemory(id:)` (the default).
+/// Production code uses `GroveAPI.shared.deleteMemory(id:)` (the default).
 /// Tests inject a stub closure to exercise state paths without a live server.
 ///
 /// `onDeleteSuccess` is called with the `memoryID` on a successful delete.
@@ -59,7 +59,7 @@ final class MemoryDetailViewModel {
   init(
     result: QueryResult,
     deleteProvider: @escaping (UUID) async throws -> Void = { id in
-      try await OracleAPI.shared.deleteMemory(id: id)
+      try await GroveAPI.shared.deleteMemory(id: id)
     },
     onDeleteSuccess: @escaping (UUID) -> Void = { _ in }
   ) {

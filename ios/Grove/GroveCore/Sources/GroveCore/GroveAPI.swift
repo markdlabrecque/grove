@@ -34,16 +34,16 @@ import Foundation
 /// `Config.shared`, which itself reads the Keychain first (with xcconfig as a
 /// first-launch fallback — see `Config.swift`).  When the user updates the
 /// token or URL in Settings, `SettingsViewModel` writes the new values to the
-/// Keychain and calls `OracleAPI.shared.updateCredentials(baseURL:bearerToken:)`
+/// Keychain and calls `GroveAPI.shared.updateCredentials(baseURL:bearerToken:)`
 /// so in-flight auth is kept consistent without requiring an app restart.
 ///
 /// TODO(auth-v2): Add Face/Touch ID gate (`LAContext`) around the Keychain
 /// token read before any production or wider-distribution use.
-public actor OracleAPI {
+public actor GroveAPI {
 
   // MARK: - Shared instance
 
-  public static let shared = OracleAPI()
+  public static let shared = GroveAPI()
 
   // MARK: - Private state — sessions
 
@@ -105,7 +105,7 @@ public actor OracleAPI {
     //                              "task already enqueued, network drops" case.
     //                              Does NOT cover offline-at-save (PR 3 queue).
     let bgConfig = URLSessionConfiguration.background(
-      withIdentifier: OracleAPI.backgroundSessionIdentifier
+      withIdentifier: GroveAPI.backgroundSessionIdentifier
     )
     bgConfig.isDiscretionary = false
     bgConfig.sessionSendsLaunchEvents = true
@@ -161,7 +161,7 @@ public actor OracleAPI {
   /// The session is created with `uploadDelegate` as its delegate so that
   /// `StubURLProtocol` callbacks flow through the same
   /// `urlSession(_:dataTask:didReceive:)` / `urlSession(_:task:didCompleteWithError:)`
-  /// path as in production. This means integration tests in `OracleAPISmokeTests`
+  /// path as in production. This means integration tests in `GroveAPISmokeTests`
   /// exercise the full continuation-map bridge, not just `data(for:)`.
   ///
   /// Both the capture (backgroundSession) and query (defaultSession) paths share
@@ -212,7 +212,7 @@ public actor OracleAPI {
   /// `init(baseURL:bearerToken:configuration:)` is a plain `.default`-shaped
   /// session, so `StubURLProtocol` can intercept the upload and the async
   /// `data(for:)` / `uploadTask` distinction is transparent to those tests.
-  /// Integration tests in `OracleAPISmokeTests` use this path.
+  /// Integration tests in `GroveAPISmokeTests` use this path.
   public func postCapture(_ payload: CapturePayload) async throws -> CaptureResponseBody {
     let request = try captureRequest(for: payload)
     let tempURL = try writeBodyToTempFile(for: payload, request: request)
@@ -598,7 +598,7 @@ public actor OracleAPI {
   // MARK: - Test helpers (internal — @testable import only)
 
   /// Insert a `PendingUpload` with a live continuation directly into the
-  /// actor's pending map. Used by `OracleAPIBridgeTests` to drive
+  /// actor's pending map. Used by `GroveAPIBridgeTests` to drive
   /// `completeTask` and `appendData` without going through a real URLSession.
   ///
   /// Tests pair this with `withCheckedThrowingContinuation`: the continuation
@@ -650,7 +650,7 @@ public actor OracleAPI {
 
 // MARK: - API errors
 
-/// Errors surfaced by `OracleAPI` network calls.
+/// Errors surfaced by `GroveAPI` network calls.
 public enum APIError: Error, LocalizedError {
   case unexpectedResponse
   case httpError(statusCode: Int, detail: String?)
@@ -839,7 +839,7 @@ public struct QueryResponseBody: Codable, Sendable {
   public let queryTokenCount: Int
   public let latencyMs: Double
   /// Server-assigned UUID for this query. Used as the target for
-  /// `OracleAPI.submitFeedback(queryID:feedback:)`.
+  /// `GroveAPI.submitFeedback(queryID:feedback:)`.
   public let queryID: UUID?
 
   public init(

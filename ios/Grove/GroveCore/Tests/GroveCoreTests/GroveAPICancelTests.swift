@@ -1,9 +1,9 @@
 import Testing
 import Foundation
-import OracleTestSupport
+import GroveTestSupport
 @testable import GroveCore
 
-/// Tests for in-flight cancellation of `OracleAPI.postQuery`.
+/// Tests for in-flight cancellation of `GroveAPI.postQuery`.
 ///
 /// Uses `SlowURLProtocol` — a `URLProtocol` subclass that blocks the response
 /// indefinitely until either the task is cancelled (via `stopLoading()`) or a
@@ -11,16 +11,16 @@ import OracleTestSupport
 /// "Task.cancel() drops the URLSession request" path without a live server.
 ///
 /// Serialised to prevent concurrent access to `SlowURLProtocol`'s static state.
-@Suite("OracleAPI cancellation", .serialized)
-struct OracleAPICancelTests {
+@Suite("GroveAPI cancellation", .serialized)
+struct GroveAPICancelTests {
 
   private static let baseURL = URL(string: "https://oracle.example.ts.net")!
   private static let token = "cancel-test-token"
 
-  private func makeAPI() -> OracleAPI {
+  private func makeAPI() -> GroveAPI {
     let config = URLSessionConfiguration.default
     config.protocolClasses = [SlowURLProtocol.self]
-    return OracleAPI(
+    return GroveAPI(
       baseURL: Self.baseURL,
       bearerToken: Self.token,
       configuration: config

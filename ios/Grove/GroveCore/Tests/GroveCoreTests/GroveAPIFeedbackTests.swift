@@ -1,9 +1,9 @@
 import Testing
 import Foundation
-import OracleTestSupport
+import GroveTestSupport
 @testable import GroveCore
 
-/// Tests for `OracleAPI.submitFeedback(queryID:feedback:)` —
+/// Tests for `GroveAPI.submitFeedback(queryID:feedback:)` —
 /// POST /v1/queries/{id}/feedback.
 ///
 /// Uses `FeedbackStubURLProtocol` — a dedicated protocol class with its own
@@ -12,8 +12,8 @@ import OracleTestSupport
 /// global-state contamination when Swift Testing runs suites concurrently.
 ///
 /// The suite is `.serialized` to prevent concurrent access within the suite.
-@Suite("OracleAPI submitFeedback", .serialized)
-struct OracleAPIFeedbackTests {
+@Suite("GroveAPI submitFeedback", .serialized)
+struct GroveAPIFeedbackTests {
 
   // MARK: - Fixtures
 
@@ -21,10 +21,10 @@ struct OracleAPIFeedbackTests {
   private static let token = "feedback-test-token"
   private static let queryID = UUID(uuidString: "FEEDB000-0000-0000-0000-000000000001")!
 
-  private func makeAPI() -> OracleAPI {
+  private func makeAPI() -> GroveAPI {
     let config = URLSessionConfiguration.default
     config.protocolClasses = [FeedbackStubURLProtocol.self]
-    return OracleAPI(
+    return GroveAPI(
       baseURL: Self.baseURL,
       bearerToken: Self.token,
       configuration: config
@@ -267,8 +267,8 @@ struct OracleAPIFeedbackTests {
 
 /// A dedicated `URLProtocol` subclass for feedback tests that carries its own
 /// static `responder` state, isolated from `StubURLProtocol` (used by
-/// `OracleAPISmokeTests`) and `DeleteStubURLProtocol` (used by
-/// `OracleAPIDeleteTests`). Prevents inter-suite global-state contamination.
+/// `GroveAPISmokeTests`) and `DeleteStubURLProtocol` (used by
+/// `GroveAPIDeleteTests`). Prevents inter-suite global-state contamination.
 private final class FeedbackStubURLProtocol: URLProtocol {
 
   /// Configure this before each test. The suite is `.serialized` so access is

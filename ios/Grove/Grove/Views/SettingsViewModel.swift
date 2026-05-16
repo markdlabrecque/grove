@@ -15,7 +15,7 @@ import GroveCore
 /// # Keychain round-trip
 ///
 /// Server URL and bearer token are persisted to Keychain via `KeychainStore`.
-/// After a successful save the live `OracleAPI.shared` actor is updated via
+/// After a successful save the live `GroveAPI.shared` actor is updated via
 /// `updateCredentials(baseURL:bearerToken:)` so subsequent API calls use the
 /// new values without an app restart.
 ///
@@ -104,7 +104,7 @@ final class SettingsViewModel: ObservableObject {
   /// Tests inject a stub to assert the call without a live queue.
   private let reenqueueAction: (String) async -> Void
   /// Called with `(baseURL, bearerToken)` after a successful credential
-  /// persist.  In production this updates `OracleAPI.shared`; tests inject a
+  /// persist.  In production this updates `GroveAPI.shared`; tests inject a
   /// recording closure to assert the call (or absence of it) without touching
   /// the shared actor.
   private let updateCredentialsAction: (URL, String) async -> Void
@@ -122,7 +122,7 @@ final class SettingsViewModel: ObservableObject {
       await GroveApp.uploadQueue.reenqueueAuthRequired(newToken: newToken)
     }
     self.updateCredentialsAction = { baseURL, token in
-      await OracleAPI.shared.updateCredentials(baseURL: baseURL, bearerToken: token)
+      await GroveAPI.shared.updateCredentials(baseURL: baseURL, bearerToken: token)
     }
     loadFromKeychain()
   }
@@ -136,7 +136,7 @@ final class SettingsViewModel: ObservableObject {
   ///   - onReenqueue: Closure called with the new token instead of
   ///     `uploadQueue.reenqueueAuthRequired(newToken:)`.
   ///   - onUpdateCredentials: Closure called with `(baseURL, token)` instead of
-  ///     `OracleAPI.shared.updateCredentials`.
+  ///     `GroveAPI.shared.updateCredentials`.
   init(
     keychainService: String,
     onDrain: @escaping () async -> Void,
@@ -162,7 +162,7 @@ final class SettingsViewModel: ObservableObject {
   ///   - onReenqueue: Closure called with the new token instead of
   ///     `uploadQueue.reenqueueAuthRequired(newToken:)`.
   ///   - onUpdateCredentials: Closure called with `(baseURL, token)` instead of
-  ///     `OracleAPI.shared.updateCredentials`.
+  ///     `GroveAPI.shared.updateCredentials`.
   init(
     keychain: any KeychainStoreProtocol,
     onDrain: @escaping () async -> Void = {},
@@ -219,7 +219,7 @@ final class SettingsViewModel: ObservableObject {
   /// Validate and persist the current `serverURLText` to Keychain.
   ///
   /// Sets `serverURLError` when the URL is invalid.  On a successful Keychain
-  /// write, updates the live `OracleAPI.shared` actor with the new base URL.
+  /// write, updates the live `GroveAPI.shared` actor with the new base URL.
   /// If the Keychain write fails the live API is NOT updated — Keychain is the
   /// source of truth; we do not propagate a value that did not persist.
   func commitServerURL() {

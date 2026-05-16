@@ -35,12 +35,12 @@
 		A1000009 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000009 /* Preview Assets.xcassets */; };
 		A100000A /* GroveCore in Frameworks */ = {isa = PBXBuildFile; productRef = A200000D /* GroveCore */; };
 		B1000001 /* ConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* ConfigTests.swift */; };
-		B1000002 /* OracleAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* OracleAPITests.swift */; };
+		B1000002 /* GroveAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* GroveAPITests.swift */; };
 		B1000003 /* JSONCodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* JSONCodingTests.swift */; };
 		B1000004 /* capture_response.json in Resources */ = {isa = PBXBuildFile; fileRef = B2000004 /* capture_response.json */; };
 		B1000006 /* QueryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000007 /* QueryViewModelTests.swift */; };
 		B100000A /* GroveCore in Frameworks */ = {isa = PBXBuildFile; productRef = B200000A /* GroveCore */; };
-		B100000D /* OracleTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = B200000D /* OracleTestSupport */; };
+		B100000D /* GroveTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = B200000D /* GroveTestSupport */; };
 		C1000001 /* GroveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* GroveUITests.swift */; };
 		B1000015 /* SyncEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000015 /* SyncEdgeCaseTests.swift */; };
 		B1000016 /* CapturePolishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000016 /* CapturePolishTests.swift */; };
@@ -136,7 +136,7 @@
 		A200000B /* Config.debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.debug.xcconfig; sourceTree = "<group>"; };
 		A200000C /* Config.release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.release.xcconfig; sourceTree = "<group>"; };
 		B2000001 /* ConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigTests.swift; sourceTree = "<group>"; };
-		B2000002 /* OracleAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OracleAPITests.swift; sourceTree = "<group>"; };
+		B2000002 /* GroveAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroveAPITests.swift; sourceTree = "<group>"; };
 		B2000003 /* JSONCodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONCodingTests.swift; sourceTree = "<group>"; };
 		B2000004 /* capture_response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = capture_response.json; sourceTree = "<group>"; };
 		B2000007 /* QueryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModelTests.swift; sourceTree = "<group>"; };
@@ -159,7 +159,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B100000A /* GroveCore in Frameworks */,
-				B100000D /* OracleTestSupport in Frameworks */,
+				B100000D /* GroveTestSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -270,7 +270,7 @@
 			isa = PBXGroup;
 			children = (
 				B2000001 /* ConfigTests.swift */,
-				B2000002 /* OracleAPITests.swift */,
+				B2000002 /* GroveAPITests.swift */,
 				B2000003 /* JSONCodingTests.swift */,
 				B2000007 /* QueryViewModelTests.swift */,
 				B200000B /* NetworkMonitorTests.swift */,
@@ -358,7 +358,7 @@
 			name = GroveTests;
 			packageProductDependencies = (
 				B200000A /* GroveCore */,
-				B200000D /* OracleTestSupport */,
+				B200000D /* GroveTestSupport */,
 			);
 			productName = GroveTests;
 			productReference = B2000005 /* GroveTests.xctest */;
@@ -496,7 +496,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B1000001 /* ConfigTests.swift in Sources */,
-				B1000002 /* OracleAPITests.swift in Sources */,
+				B1000002 /* GroveAPITests.swift in Sources */,
 				B1000003 /* JSONCodingTests.swift in Sources */,
 				B1000006 /* QueryViewModelTests.swift in Sources */,
 				B1000009 /* NetworkMonitorTests.swift in Sources */,
@@ -875,10 +875,10 @@
 			package = A200000E /* XCLocalSwiftPackageReference "GroveCore" */;
 			productName = GroveCore;
 		};
-		B200000D /* OracleTestSupport */ = {
+		B200000D /* GroveTestSupport */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A200000E /* XCLocalSwiftPackageReference "GroveCore" */;
-			productName = OracleTestSupport;
+			productName = GroveTestSupport;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

@@ -13,13 +13,13 @@ import GroveCore
 /// # Lifecycle
 ///
 /// 1. OS reactivates the app (launch or resume) and calls this delegate method.
-/// 2. We hand the `completionHandler` to `OracleAPI.shared` keyed by `identifier`.
-/// 3. `OracleAPI` reconnects to the background session (it was recreated with the
+/// 2. We hand the `completionHandler` to `GroveAPI.shared` keyed by `identifier`.
+/// 3. `GroveAPI` reconnects to the background session (it was recreated with the
 ///    same identifier on launch), and the OS replays any outstanding task events
 ///    via `UploadSessionDelegate`.
 /// 4. Once all events are delivered the OS calls
 ///    `urlSessionDidFinishEvents(forBackgroundURLSession:)` on the delegate, which
-///    calls `OracleAPI.drainBackgroundCompletionHandlers()`.
+///    calls `GroveAPI.drainBackgroundCompletionHandlers()`.
 /// 5. That method calls the stored completion handler on the main thread, as
 ///    Apple's documentation requires.
 final class AppDelegate: NSObject, UIApplicationDelegate {
@@ -30,12 +30,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     completionHandler: @escaping () -> Void
   ) {
     // Wrap the system-supplied handler in a @Sendable closure so it can cross
-    // the actor boundary into OracleAPI. The system's completionHandler is a
+    // the actor boundary into GroveAPI. The system's completionHandler is a
     // plain C-function-pointer bridge with no shared mutable state; the wrapper
     // is safe to send across isolation domains.
     let sendableHandler: @Sendable () -> Void = { completionHandler() }
     Task {
-      await OracleAPI.shared.storeBackgroundCompletionHandler(
+      await GroveAPI.shared.storeBackgroundCompletionHandler(
         sendableHandler,
         forIdentifier: identifier
       )

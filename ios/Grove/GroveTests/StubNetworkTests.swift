@@ -2,7 +2,7 @@ import Testing
 import Foundation
 import SwiftData
 import GroveCore
-import OracleTestSupport
+import GroveTestSupport
 @testable import GroveCore
 @testable import Grove
 
@@ -478,7 +478,7 @@ struct StubNetworkTests {
 
       let urlConfig = URLSessionConfiguration.default
       urlConfig.protocolClasses = [StubURLProtocol.self]
-      let api = OracleAPI(
+      let api = GroveAPI(
         baseURL: Self.baseURL,
         bearerToken: Self.token,
         configuration: urlConfig
@@ -1148,7 +1148,7 @@ struct StubNetworkTests {
       #expect(row.lastError?.contains("422") == true)
 
       // Now test truncation: enqueue a second item and return a very long body.
-      // `extractDetail` in OracleAPI parses JSON; a non-JSON blob returns nil detail.
+      // `extractDetail` in GroveAPI parses JSON; a non-JSON blob returns nil detail.
       // The combined "HTTP 422: " prefix is still within 500 chars regardless.
       let (id2, data2) = try makePayload(content: "truncation test")
       // Build a 600-char JSON body whose "detail" value is 580 chars.

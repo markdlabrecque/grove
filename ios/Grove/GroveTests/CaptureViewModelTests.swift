@@ -40,7 +40,7 @@ struct SweepOrphanedTempFilesTests {
     #expect(FileManager.default.fileExists(atPath: staleURL.path), "Pre-condition: file exists")
 
     // Run the sweep — actor-isolated so requires await.
-    await OracleAPI.shared.sweepOrphanedTempFiles()
+    await GroveAPI.shared.sweepOrphanedTempFiles()
 
     #expect(
       !FileManager.default.fileExists(atPath: staleURL.path),
@@ -59,7 +59,7 @@ struct SweepOrphanedTempFilesTests {
 
     #expect(FileManager.default.fileExists(atPath: recentURL.path), "Pre-condition: file exists")
 
-    await OracleAPI.shared.sweepOrphanedTempFiles()
+    await GroveAPI.shared.sweepOrphanedTempFiles()
 
     #expect(
       FileManager.default.fileExists(atPath: recentURL.path),

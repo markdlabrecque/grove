@@ -28,7 +28,7 @@ import Security
 /// value into the Keychain; subsequent reads go through `KeychainStore` only.
 ///
 /// V2 will add Face/Touch ID protection via `LAContext`.  See the
-/// `TODO(auth-v2):` markers in `Config.swift` and `OracleAPI.swift`.
+/// `TODO(auth-v2):` markers in `Config.swift` and `GroveAPI.swift`.
 public struct KeychainStore: KeychainStoreProtocol {
 
   // MARK: - Well-known keys

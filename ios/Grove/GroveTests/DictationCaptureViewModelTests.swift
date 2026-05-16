@@ -25,7 +25,7 @@ private func makeQueue() throws -> UploadQueue {
   let schema = Schema([QueuedCapture.self])
   let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
   let container = try ModelContainer(for: schema, configurations: [config])
-  let api = OracleAPI(
+  let api = GroveAPI(
     baseURL: URL(string: "https://oracle.test.example")!,
     bearerToken: "test-token"
   )
