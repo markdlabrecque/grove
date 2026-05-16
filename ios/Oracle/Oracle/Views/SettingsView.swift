@@ -64,7 +64,7 @@ struct SettingsView: View {
       }
       .navigationTitle("Settings")
       .navigationBarTitleDisplayMode(.large)
-      // Settings tab replaces the "THE ORACLE" wordmark with the version
+      // Settings tab replaces the "GROVE" wordmark with the version
       // string per spec §3.2.
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {

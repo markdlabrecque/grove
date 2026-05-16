@@ -76,7 +76,7 @@ struct MemoryDetailView: View {
         viewModel.cancelDelete()
       }
     } message: {
-      Text("This memory will be permanently deleted from your Oracle. This cannot be undone.")
+      Text("This memory will be permanently deleted from Grove. This cannot be undone.")
     }
     .alert("Delete Failed", isPresented: Binding(
       get: { viewModel.deleteError != nil },

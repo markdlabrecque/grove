@@ -17,7 +17,7 @@ import Foundation
 /// ## Donation
 ///
 /// The intent is donated via `AppIntentRecommendation` in ``OracleApp`` so it
-/// appears in the Shortcuts picker under the "The Oracle" app section, in the
+/// appears in the Shortcuts picker under the "Grove" app section, in the
 /// Action Button settings panel, and in Spotlight.
 ///
 /// ## Return value
@@ -27,10 +27,10 @@ import Foundation
 /// ticket can make this chainable once the sync path is synchronous.
 struct CaptureViaDictationIntent: AppIntent {
 
-  static var title: LocalizedStringResource = "Capture with Oracle"
+  static var title: LocalizedStringResource = "Capture with Grove"
 
   static var description: IntentDescription = IntentDescription(
-    "Opens The Oracle and starts microphone dictation immediately. Speak your thought and save it in seconds.",
+    "Opens Grove and starts microphone dictation immediately. Speak your thought and save it in seconds.",
     categoryName: "Capture"
   )
 
@@ -53,7 +53,7 @@ struct CaptureViaDictationIntent: AppIntent {
 // MARK: - AppShortcutsProvider
 
 /// Donates the dictation intent to the system so it appears in:
-/// - Shortcuts app under "The Oracle"
+/// - Shortcuts app under "Grove"
 /// - Action Button settings picker
 /// - Siri suggestions
 struct OracleShortcutsProvider: AppShortcutsProvider {
@@ -65,7 +65,7 @@ struct OracleShortcutsProvider: AppShortcutsProvider {
         "Dictate to \(.applicationName)",
         "Save a thought in \(.applicationName)",
       ],
-      shortTitle: "Capture with Oracle",
+      shortTitle: "Capture with Grove",
       systemImageName: "mic.fill"
     )
   }

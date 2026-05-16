@@ -9,7 +9,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Oracle</string>
+	<string>Grove</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -27,9 +27,9 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>The Oracle uses the microphone to transcribe your spoken thoughts into captures.</string>
+	<string>Grove uses the microphone to transcribe your spoken thoughts into captures.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>The Oracle uses on-device speech recognition to convert your voice to text when capturing thoughts.</string>
+	<string>Grove uses on-device speech recognition to convert your voice to text when capturing thoughts.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
