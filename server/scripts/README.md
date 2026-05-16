@@ -6,7 +6,7 @@ sections to the terminal.
 
 ## Invocation
 
-Both scripts are designed to be run with `psql -f` inside the `db` container.
+Both scripts are piped via stdin to `psql` running inside the `postgres` container.
 Credentials and DB name are taken from `docker-compose.yml`; no extra env vars
 are needed beyond a running stack.
 
