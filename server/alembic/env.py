@@ -6,8 +6,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from alembic import context
-from oracle.core.config import settings
-from oracle.models.base import Base
+from grove.core.config import settings
+from grove.models.base import Base
 
 config = context.config
 config.set_main_option("sqlalchemy.url", settings.database_url)
@@ -17,7 +17,7 @@ if config.config_file_name is not None:
 
 # Import all models so their tables are registered on Base.metadata before
 # autogenerate inspects it.
-import oracle.models  # noqa: F401, E402
+import grove.models  # noqa: F401, E402
 
 target_metadata = Base.metadata
 

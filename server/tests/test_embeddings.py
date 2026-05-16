@@ -1,4 +1,4 @@
-"""Unit tests for oracle.embeddings — tokenizer, chunker, and OpenAI provider.
+"""Unit tests for grove.embeddings — tokenizer, chunker, and OpenAI provider.
 
 No database required.  The OpenAI provider tests mock at the HTTP boundary
 using respx so the real API is never called.
@@ -12,10 +12,10 @@ import httpx
 import pytest
 import respx
 
-from oracle.embeddings import EMBEDDING_DIM, WHOLE_VS_CHUNKS_THRESHOLD
-from oracle.embeddings.chunker import chunk
-from oracle.embeddings.openai_provider import OpenAIEmbeddingProvider
-from oracle.embeddings.tokenizer import count_tokens
+from grove.embeddings import EMBEDDING_DIM, WHOLE_VS_CHUNKS_THRESHOLD
+from grove.embeddings.chunker import chunk
+from grove.embeddings.openai_provider import OpenAIEmbeddingProvider
+from grove.embeddings.tokenizer import count_tokens
 
 # ---------------------------------------------------------------------------
 # Tokenizer
@@ -273,7 +273,7 @@ class TestOpenAIEmbeddingProvider:
         assert provider.name == "text-embedding-3-small"
 
     def test_provider_satisfies_protocol(self) -> None:
-        from oracle.embeddings.provider import EmbeddingProvider
+        from grove.embeddings.provider import EmbeddingProvider
 
         provider = OpenAIEmbeddingProvider(api_key=_TEST_API_KEY)
         assert isinstance(provider, EmbeddingProvider)

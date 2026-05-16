@@ -32,10 +32,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.enrichment.classifier import ClassificationError
-from oracle.enrichment.report import RunReport
-from oracle.models import EnrichmentState, Memory
+from grove.core.config import settings
+from grove.enrichment.classifier import ClassificationError
+from grove.enrichment.report import RunReport
+from grove.models import EnrichmentState, Memory
 
 _engine = create_async_engine(settings.database_url, poolclass=NullPool)
 _Session = async_sessionmaker(_engine, expire_on_commit=False)
@@ -105,7 +105,7 @@ async def db_session() -> AsyncIterator[AsyncSession]:
 async def _run_and_get_state(classify_and_write) -> EnrichmentState:  # type: ignore[no-untyped-def]
     import asyncio
 
-    from oracle.enrichment.run import run
+    from grove.enrichment.run import run
 
     await asyncio.wait_for(
         run(batch_size=50, classify_and_write=classify_and_write), timeout=_RUN_TIMEOUT
@@ -139,7 +139,7 @@ async def test_run_report_happy_path(db_session: AsyncSession) -> None:
         from datetime import UTC
         from datetime import datetime as _dt
 
-        from oracle.enrichment.run import PIPELINE_VERSION
+        from grove.enrichment.run import PIPELINE_VERSION
 
         report.record_accepted("decisions", confidence=0.8)
         report.record_accepted("tasks", confidence=0.9)
@@ -190,7 +190,7 @@ async def test_run_report_error_path(db_session: AsyncSession) -> None:
         from datetime import UTC
         from datetime import datetime as _dt
 
-        from oracle.enrichment.run import PIPELINE_VERSION
+        from grove.enrichment.run import PIPELINE_VERSION
 
         if call_count == 2:
             # Signal error in report then raise so run() records it
@@ -236,7 +236,7 @@ async def test_run_report_confidence_dropouts(db_session: AsyncSession) -> None:
         from datetime import UTC
         from datetime import datetime as _dt
 
-        from oracle.enrichment.run import PIPELINE_VERSION
+        from grove.enrichment.run import PIPELINE_VERSION
 
         # One accepted, one dropped
         report.record_accepted("decisions", confidence=0.8)
@@ -313,7 +313,7 @@ async def test_run_report_cost_arithmetic(db_session: AsyncSession) -> None:
         from datetime import UTC
         from datetime import datetime as _dt
 
-        from oracle.enrichment.run import PIPELINE_VERSION
+        from grove.enrichment.run import PIPELINE_VERSION
 
         cost = per_call_costs[call_idx]
         call_idx += 1
@@ -351,7 +351,7 @@ async def test_run_report_jsonb_persistence(db_session: AsyncSession) -> None:
         from datetime import UTC
         from datetime import datetime as _dt
 
-        from oracle.enrichment.run import PIPELINE_VERSION
+        from grove.enrichment.run import PIPELINE_VERSION
 
         report.record_accepted("appointments", confidence=0.95)
         report.record_dropped()
@@ -398,7 +398,7 @@ async def test_run_report_structured_log_emitted(db_session: AsyncSession) -> No
         from datetime import UTC
         from datetime import datetime as _dt
 
-        from oracle.enrichment.run import PIPELINE_VERSION
+        from grove.enrichment.run import PIPELINE_VERSION
 
         report.record_accepted("tasks", confidence=0.8)
         report.record_llm_usage(input_tokens=5, output_tokens=3, cost_usd=0.001)
@@ -414,7 +414,7 @@ async def test_run_report_structured_log_emitted(db_session: AsyncSession) -> No
         with capture_logs() as cap:
             import asyncio
 
-            from oracle.enrichment.run import run
+            from grove.enrichment.run import run
 
             await asyncio.wait_for(
                 run(batch_size=50, classify_and_write=stub), timeout=_RUN_TIMEOUT

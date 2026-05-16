@@ -5,12 +5,12 @@ from collections.abc import AsyncIterator
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from oracle.core.config import settings
+from grove.core.config import settings
 
-# oracle.main is imported at module level so Python's import cache makes this
+# grove.main is imported at module level so Python's import cache makes this
 # a single import regardless of how many tests run. conftest.py seeds the env
 # vars (BEARER_TOKEN, DATABASE_URL, OPENAI_API_KEY) before this line executes.
-from oracle.main import app
+from grove.main import app
 
 # Use the same token the app validates against, not a hardcoded value.
 _AUTH_HEADERS = {"Authorization": f"Bearer {settings.bearer_token}"}

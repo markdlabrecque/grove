@@ -48,28 +48,28 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.enrichment.classifier import ClassificationError, SkippedReason
-from oracle.enrichment.schemas import (
+from grove.core.config import settings
+from grove.enrichment.classifier import ClassificationError, SkippedReason
+from grove.enrichment.schemas import (
     Appointment,
     Classification,
     Decision,
     PeopleInteraction,
     Task,
 )
-from oracle.models import (
+from grove.models import (
     Appointment as AppointmentModel,
 )
-from oracle.models import (
+from grove.models import (
     Decision as DecisionModel,
 )
-from oracle.models import (
+from grove.models import (
     Memory,
 )
-from oracle.models import (
+from grove.models import (
     PeopleInteraction as PeopleInteractionModel,
 )
-from oracle.models import (
+from grove.models import (
     Task as TaskModel,
 )
 
@@ -207,7 +207,7 @@ def stub_check_spend_cap():  # type: ignore[return]
     the same NullPool engine while the test's session has one already open.
     """
     with patch(
-        "oracle.enrichment.orchestrator.check_spend_cap",
+        "grove.enrichment.orchestrator.check_spend_cap",
         new_callable=AsyncMock,
         return_value=None,
     ):
@@ -224,9 +224,9 @@ async def test_classify_and_write_happy_path(db_session: AsyncSession) -> None:
 
     Memory ends enriched=True with enriched_version stamped, enrichment_error NULL.
     """
-    from oracle.enrichment.classifier import ClassificationResult
-    from oracle.enrichment.orchestrator import classify_and_write
-    from oracle.enrichment.run import PIPELINE_VERSION
+    from grove.enrichment.classifier import ClassificationResult
+    from grove.enrichment.orchestrator import classify_and_write
+    from grove.enrichment.run import PIPELINE_VERSION
 
     memory = await _seed_memory(db_session)
 
@@ -240,7 +240,7 @@ async def test_classify_and_write_happy_path(db_session: AsyncSession) -> None:
     )
 
     with patch(
-        "oracle.enrichment.orchestrator.classify_memory",
+        "grove.enrichment.orchestrator.classify_memory",
         new_callable=AsyncMock,
         return_value=mock_result,
     ):
@@ -315,13 +315,13 @@ async def test_classify_and_write_classification_error(db_session: AsyncSession)
 
     enrichment_error is set to the error message string; no specialised rows are written.
     """
-    from oracle.enrichment.orchestrator import classify_and_write
+    from grove.enrichment.orchestrator import classify_and_write
 
     memory = await _seed_memory(db_session)
     error_msg = "Model returned non-JSON content: 'garbled'"
 
     with patch(
-        "oracle.enrichment.orchestrator.classify_memory",
+        "grove.enrichment.orchestrator.classify_memory",
         new_callable=AsyncMock,
         side_effect=ClassificationError(error_msg),
     ):
@@ -358,12 +358,12 @@ async def test_classify_and_write_skipped_reason(db_session: AsyncSession) -> No
 
     enrichment_error is set; no specialised rows are written.
     """
-    from oracle.enrichment.orchestrator import classify_and_write
+    from grove.enrichment.orchestrator import classify_and_write
 
     memory = await _seed_memory(db_session)
 
     with patch(
-        "oracle.enrichment.orchestrator.classify_memory",
+        "grove.enrichment.orchestrator.classify_memory",
         new_callable=AsyncMock,
         return_value=SkippedReason.TOO_LARGE,
     ):
@@ -403,8 +403,8 @@ async def test_classify_and_write_atomicity_on_writer_failure(db_session: AsyncS
     call (after the first Decision row is pending but before commit), then assert
     full rollback.
     """
-    from oracle.enrichment.classifier import ClassificationResult
-    from oracle.enrichment.orchestrator import classify_and_write
+    from grove.enrichment.classifier import ClassificationResult
+    from grove.enrichment.orchestrator import classify_and_write
 
     memory = await _seed_memory(db_session)
 
@@ -469,12 +469,12 @@ async def test_classify_and_write_atomicity_on_writer_failure(db_session: AsyncS
 
     with (
         patch(
-            "oracle.enrichment.orchestrator.classify_memory",
+            "grove.enrichment.orchestrator.classify_memory",
             new_callable=AsyncMock,
             return_value=mock_result,
         ),
         patch(
-            "oracle.enrichment.orchestrator.insert_if_not_exists",
+            "grove.enrichment.orchestrator.insert_if_not_exists",
             side_effect=_failing_insert,
         ),
     ):
@@ -516,9 +516,9 @@ async def test_classify_and_write_idempotent(db_session: AsyncSession) -> None:
     The upsert helper (insert_if_not_exists, ON CONFLICT DO NOTHING) handles this.
     Second call must not raise and must not produce duplicate rows.
     """
-    from oracle.enrichment.classifier import ClassificationResult
-    from oracle.enrichment.orchestrator import classify_and_write
-    from oracle.enrichment.run import PIPELINE_VERSION
+    from grove.enrichment.classifier import ClassificationResult
+    from grove.enrichment.orchestrator import classify_and_write
+    from grove.enrichment.run import PIPELINE_VERSION
 
     memory = await _seed_memory(db_session)
 
@@ -548,7 +548,7 @@ async def test_classify_and_write_idempotent(db_session: AsyncSession) -> None:
     )
 
     with patch(
-        "oracle.enrichment.orchestrator.classify_memory",
+        "grove.enrichment.orchestrator.classify_memory",
         new_callable=AsyncMock,
         return_value=mock_result,
     ):
@@ -587,9 +587,9 @@ async def test_classify_and_write_idempotent(db_session: AsyncSession) -> None:
 
 async def test_classify_and_write_version_stamping(db_session: AsyncSession) -> None:
     """enriched_version on memory and on specialised rows must equal PIPELINE_VERSION."""
-    from oracle.enrichment.classifier import ClassificationResult
-    from oracle.enrichment.orchestrator import classify_and_write
-    from oracle.enrichment.run import PIPELINE_VERSION
+    from grove.enrichment.classifier import ClassificationResult
+    from grove.enrichment.orchestrator import classify_and_write
+    from grove.enrichment.run import PIPELINE_VERSION
 
     memory = await _seed_memory(db_session)
 
@@ -624,7 +624,7 @@ async def test_classify_and_write_version_stamping(db_session: AsyncSession) -> 
     )
 
     with patch(
-        "oracle.enrichment.orchestrator.classify_memory",
+        "grove.enrichment.orchestrator.classify_memory",
         new_callable=AsyncMock,
         return_value=mock_result,
     ):

@@ -14,7 +14,7 @@ RUN apt-get update \
 COPY pyproject.toml ./
 RUN pip install -e .
 
-COPY oracle ./oracle
+COPY grove ./grove
 COPY alembic ./alembic
 COPY alembic.ini ./
 COPY prompts ./prompts
@@ -22,4 +22,4 @@ COPY tests ./tests
 
 EXPOSE 8000
 
-CMD ["uvicorn", "oracle.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "grove.main:app", "--host", "0.0.0.0", "--port", "8000"]

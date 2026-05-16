@@ -1,4 +1,4 @@
-"""Integration tests for oracle.enrichment.run (worker entrypoint).
+"""Integration tests for grove.enrichment.run (worker entrypoint).
 
 Coverage:
 - Integration: 5 unenriched memories -> run() -> enrichment_state row created,
@@ -30,8 +30,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.models import EnrichmentState, Memory
+from grove.core.config import settings
+from grove.models import EnrichmentState, Memory
 
 # NullPool: each test gets fresh connections; avoids "another operation in
 # progress" when test helpers and the worker share the same event loop.
@@ -89,7 +89,7 @@ async def _run_with_timeout(
     Converts an indefinite hang (e.g. from a deadlock) into a fast
     pytest.fail so CI does not block for minutes.
     """
-    from oracle.enrichment.run import run
+    from grove.enrichment.run import run
 
     try:
         await asyncio.wait_for(run(*args, **kwargs), timeout=timeout)  # type: ignore[arg-type]
@@ -202,7 +202,7 @@ async def test_concurrent_runs_all_memories_enriched(
             from datetime import UTC
             from datetime import datetime as _dt
 
-            from oracle.enrichment.run import PIPELINE_VERSION
+            from grove.enrichment.run import PIPELINE_VERSION
 
             m.enriched = True
             m.enriched_at = _dt.now(tz=UTC)
@@ -246,7 +246,7 @@ async def test_per_memory_isolation_failure_does_not_block_others(
         from datetime import UTC
         from datetime import datetime as _dt
 
-        from oracle.enrichment.run import PIPELINE_VERSION
+        from grove.enrichment.run import PIPELINE_VERSION
 
         memory.enriched = True
         memory.enriched_at = _dt.now(tz=UTC)
@@ -310,7 +310,7 @@ async def test_for_update_lock_released_before_per_memory_update(
     a second connection can UPDATE a row only after the first connection's FOR
     UPDATE transaction commits.
     """
-    from oracle.enrichment.run import _make_session_factory
+    from grove.enrichment.run import _make_session_factory
 
     factory = _make_session_factory()
 
@@ -321,7 +321,7 @@ async def test_for_update_lock_released_before_per_memory_update(
         from datetime import UTC
         from datetime import datetime as _dt
 
-        from oracle.enrichment.run import PIPELINE_VERSION
+        from grove.enrichment.run import PIPELINE_VERSION
 
         m.enriched = True
         m.enriched_at = _dt.now(tz=UTC)

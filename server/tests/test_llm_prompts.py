@@ -1,4 +1,4 @@
-"""Unit tests for oracle.llm.prompts typed prompt loaders.
+"""Unit tests for grove.llm.prompts typed prompt loaders.
 
 Coverage:
   - load_synthesis_prompts: valid YAML → SynthesisBundle with expected fields.
@@ -17,7 +17,7 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from oracle.llm.prompts import (
+from grove.llm.prompts import (
     IntentBundle,
     SynthesisBundle,
     load_intent_prompts,
@@ -88,7 +88,7 @@ class TestLoadSynthesisPromptsMissing:
 class TestLoadSynthesisPromptsSchemaViolation:
     def test_schema_violation_raises_validation_error(self, tmp_path: Path, monkeypatch) -> None:
         """YAML missing required fields raises pydantic.ValidationError."""
-        import oracle.llm.prompts as prompts_module
+        import grove.llm.prompts as prompts_module
 
         # Write a YAML that omits the required 'system_prompt' field.
         bad_yaml = tmp_path / "synthesize.v42.yaml"
@@ -160,7 +160,7 @@ class TestLoadIntentPromptsMissing:
 class TestLoadIntentPromptsSchemaViolation:
     def test_schema_violation_raises_validation_error(self, tmp_path: Path, monkeypatch) -> None:
         """YAML missing required fields raises pydantic.ValidationError."""
-        import oracle.llm.prompts as prompts_module
+        import grove.llm.prompts as prompts_module
 
         bad_yaml = tmp_path / "intent.v42.yaml"
         _write_yaml(bad_yaml, {"version": 42, "user_prompt_template": "hello"})

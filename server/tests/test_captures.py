@@ -22,11 +22,11 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.core.db import get_session
-from oracle.embeddings import EMBEDDING_DIM
-from oracle.embeddings.tokenizer import count_tokens
-from oracle.models.memory import Memory, MemoryChunk
+from grove.core.config import settings
+from grove.core.db import get_session
+from grove.embeddings import EMBEDDING_DIM
+from grove.embeddings.tokenizer import count_tokens
+from grove.models.memory import Memory, MemoryChunk
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -81,7 +81,7 @@ def override_db(monkeypatch) -> None:  # type: ignore[misc]
     progress" errors: the app and the test queries share the same pool (NullPool
     gives each call a fresh connection, so they don't race).
     """
-    from oracle.main import app
+    from grove.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
     yield
@@ -111,7 +111,7 @@ def _long_content(target_tokens: int = 600) -> str:
 @pytest.mark.asyncio
 @respx.mock
 async def test_happy_path_creates_memory(payload: dict, db_session: AsyncSession) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     respx.post(_OPENAI_EMBEDDINGS_URL).mock(
         return_value=httpx.Response(200, json=_make_openai_response(1))
@@ -155,7 +155,7 @@ async def test_happy_path_creates_memory(payload: dict, db_session: AsyncSession
 @pytest.mark.asyncio
 @respx.mock
 async def test_happy_path_with_explicit_language(payload: dict, db_session: AsyncSession) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     respx.post(_OPENAI_EMBEDDINGS_URL).mock(
         return_value=httpx.Response(200, json=_make_openai_response(1))
@@ -182,7 +182,7 @@ async def test_embedding_model_from_provider_not_sentinel(
     payload: dict, db_session: AsyncSession
 ) -> None:
     """embedding_model is taken from provider.name, not a hardcoded sentinel (#38)."""
-    from oracle.main import app
+    from grove.main import app
 
     respx.post(_OPENAI_EMBEDDINGS_URL).mock(
         return_value=httpx.Response(200, json=_make_openai_response(1))
@@ -197,7 +197,7 @@ async def test_embedding_model_from_provider_not_sentinel(
     result = await db_session.execute(select(Memory).where(Memory.client_id == client_id))
     row = result.scalar_one()
     # The provider's name property (not a hardcoded constant) drove the value.
-    from oracle.embeddings import get_embedding_provider
+    from grove.embeddings import get_embedding_provider
 
     assert row.embedding_model == get_embedding_provider().name
 
@@ -213,7 +213,7 @@ async def test_embedding_model_from_provider_not_sentinel(
 @pytest.mark.asyncio
 @respx.mock
 async def test_long_capture_uses_chunks(payload: dict, db_session: AsyncSession) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     long_content = _long_content(target_tokens=700)
     assert count_tokens(long_content) > 500
@@ -271,7 +271,7 @@ async def test_long_capture_uses_chunks(payload: dict, db_session: AsyncSession)
 @pytest.mark.asyncio
 @respx.mock
 async def test_provider_failure_rolls_back(payload: dict, db_session: AsyncSession) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     respx.post(_OPENAI_EMBEDDINGS_URL).mock(
         return_value=httpx.Response(500, json={"error": {"message": "internal server error"}})
@@ -299,7 +299,7 @@ async def test_provider_failure_rolls_back(payload: dict, db_session: AsyncSessi
 async def test_idempotent_second_post_returns_200_with_same_id(
     payload: dict, db_session: AsyncSession
 ) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     embed_route = respx.post(_OPENAI_EMBEDDINGS_URL).mock(
         return_value=httpx.Response(200, json=_make_openai_response(1))
@@ -333,7 +333,7 @@ async def test_idempotent_second_post_returns_200_with_same_id(
 
 @pytest.mark.asyncio
 async def test_missing_required_field_returns_422() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     incomplete = {k: v for k, v in BASE_PAYLOAD.items() if k != "content"}
     incomplete["client_id"] = str(uuid.uuid4())
@@ -345,7 +345,7 @@ async def test_missing_required_field_returns_422() -> None:
 
 @pytest.mark.asyncio
 async def test_empty_content_returns_422() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     payload = {**BASE_PAYLOAD, "client_id": str(uuid.uuid4()), "content": "   "}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -356,7 +356,7 @@ async def test_empty_content_returns_422() -> None:
 
 @pytest.mark.asyncio
 async def test_invalid_source_modality_returns_422() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     payload = {**BASE_PAYLOAD, "client_id": str(uuid.uuid4()), "source_modality": "video"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -367,7 +367,7 @@ async def test_invalid_source_modality_returns_422() -> None:
 
 @pytest.mark.asyncio
 async def test_wrong_typed_client_id_returns_422() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     payload = {**BASE_PAYLOAD, "client_id": "not-a-uuid"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -378,7 +378,7 @@ async def test_wrong_typed_client_id_returns_422() -> None:
 
 @pytest.mark.asyncio
 async def test_tz_naive_captured_at_returns_422() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     payload = {
         **BASE_PAYLOAD,
@@ -398,7 +398,7 @@ async def test_tz_naive_captured_at_returns_422() -> None:
 
 @pytest.mark.asyncio
 async def test_missing_auth_returns_401() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -410,7 +410,7 @@ async def test_missing_auth_returns_401() -> None:
 
 @pytest.mark.asyncio
 async def test_wrong_token_returns_401() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -432,7 +432,7 @@ async def test_idempotent_null_captured_at_returns_200(db_session: AsyncSession)
     """Pre-0010 row with captured_at=NULL must not cause a Pydantic error on the
     idempotent response path (CaptureResponse.captured_at is now datetime | None).
     """
-    from oracle.main import app
+    from grove.main import app
 
     client_id = uuid.uuid4()
     row = Memory(

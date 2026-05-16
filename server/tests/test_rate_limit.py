@@ -24,8 +24,8 @@ from unittest.mock import patch
 import pytest
 from httpx import ASGITransport, AsyncClient
 
-from oracle.core.config import Settings, settings
-from oracle.core.rate_limit import (
+from grove.core.config import Settings, settings
+from grove.core.rate_limit import (
     RouteClass,
     TokenBucket,
     _buckets,
@@ -90,7 +90,7 @@ class TestTokenBucket:
     def test_two_different_tokens_get_independent_buckets(self) -> None:
         """Token A exhausting its bucket must not affect Token B."""
         _buckets.clear()
-        from oracle.core.rate_limit import consume_for_request
+        from grove.core.rate_limit import consume_for_request
 
         # Exhaust token-A's capture bucket (rate=30, burst=2 → capacity=60)
         for _ in range(60):
@@ -209,7 +209,7 @@ class TestUnauthenticatedRequests:
         sentinel key so the limiter doesn't crash on a missing token argument.
         """
         _buckets.clear()
-        from oracle.core.rate_limit import consume_for_request
+        from grove.core.rate_limit import consume_for_request
 
         allowed, _ = consume_for_request("<anonymous>", RouteClass.DEFAULT, settings)
         assert allowed
@@ -217,7 +217,7 @@ class TestUnauthenticatedRequests:
     def test_anonymous_bucket_is_independent_from_real_token(self) -> None:
         """Anonymous sentinel key does not share state with a real token."""
         _buckets.clear()
-        from oracle.core.rate_limit import consume_for_request
+        from grove.core.rate_limit import consume_for_request
 
         # Exhaust anonymous default bucket (rate=60, burst=2 → cap=120)
         for _ in range(120):
@@ -252,7 +252,7 @@ async def rate_limit_client(clear_buckets: None) -> AsyncIterator[AsyncClient]:
     DB or embedding stubs are needed. The 429 fires inside require_bearer
     before any route handler (and therefore any DB call) runs.
     """
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
@@ -268,7 +268,7 @@ async def test_429_after_capture_limit_exceeded(rate_limit_client: AsyncClient) 
         rate_limit_capture_per_min=1,
         rate_limit_burst_multiplier=1,
     )
-    with patch("oracle.core.rate_limit._current_settings", tiny_settings):
+    with patch("grove.core.rate_limit._current_settings", tiny_settings):
         _buckets.clear()
         # Prime the bucket by consuming the only token directly — no HTTP needed.
         allowed, _ = consume_for_request(settings.bearer_token, RouteClass.CAPTURE, tiny_settings)
@@ -301,7 +301,7 @@ async def test_429_after_query_limit_exceeded(rate_limit_client: AsyncClient) ->
         rate_limit_query_per_min=1,
         rate_limit_burst_multiplier=1,
     )
-    with patch("oracle.core.rate_limit._current_settings", tiny_settings):
+    with patch("grove.core.rate_limit._current_settings", tiny_settings):
         _buckets.clear()
         consume_for_request(settings.bearer_token, RouteClass.QUERY, tiny_settings)
 
@@ -331,7 +331,7 @@ async def test_per_route_limits_are_independent(rate_limit_client: AsyncClient) 
         rate_limit_burst_multiplier=1,
     )
     auth = {"Authorization": f"Bearer {settings.bearer_token}"}
-    with patch("oracle.core.rate_limit._current_settings", tiny_settings):
+    with patch("grove.core.rate_limit._current_settings", tiny_settings):
         _buckets.clear()
         # Drain the capture bucket entirely.
         consume_for_request(settings.bearer_token, RouteClass.CAPTURE, tiny_settings)
@@ -372,7 +372,7 @@ async def test_recovery_after_window_integration(rate_limit_client: AsyncClient)
         rate_limit_capture_per_min=1,
         rate_limit_burst_multiplier=1,
     )
-    with patch("oracle.core.rate_limit._current_settings", tiny_settings):
+    with patch("grove.core.rate_limit._current_settings", tiny_settings):
         _buckets.clear()
         # Drain the bucket.
         consume_for_request(settings.bearer_token, RouteClass.CAPTURE, tiny_settings)

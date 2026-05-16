@@ -16,11 +16,11 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.core.db import get_session
-from oracle.models.appointment import Appointment
-from oracle.models.decision import Decision
-from oracle.models.memory import Memory
+from grove.core.config import settings
+from grove.core.db import get_session
+from grove.models.appointment import Appointment
+from grove.models.decision import Decision
+from grove.models.memory import Memory
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -35,7 +35,7 @@ async def _override_get_session() -> AsyncIterator[AsyncSession]:
 
 @pytest.fixture(autouse=True)
 def override_db(monkeypatch) -> None:  # type: ignore[misc]
-    from oracle.main import app
+    from grove.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
     yield
@@ -80,7 +80,7 @@ async def persisted_memory(db_session: AsyncSession) -> AsyncIterator[Memory]:
 
 @pytest.mark.asyncio
 async def test_unknown_uuid_returns_404() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     random_id = uuid.uuid4()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -97,7 +97,7 @@ async def test_unknown_uuid_returns_404() -> None:
 
 @pytest.mark.asyncio
 async def test_non_uuid_path_param_returns_422() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/v1/memories/not-a-uuid", headers=AUTH_HEADERS)
@@ -112,7 +112,7 @@ async def test_non_uuid_path_param_returns_422() -> None:
 
 @pytest.mark.asyncio
 async def test_missing_auth_returns_401() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     random_id = uuid.uuid4()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -130,7 +130,7 @@ async def test_missing_auth_returns_401() -> None:
 async def test_happy_path_returns_full_memory(
     persisted_memory: Memory, db_session: AsyncSession
 ) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     # Add a decision.
     decision = Decision(
@@ -197,7 +197,7 @@ async def test_happy_path_returns_full_memory(
 async def test_specialized_rows_grouped_correctly(
     persisted_memory: Memory, db_session: AsyncSession
 ) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     decision = Decision(
         id=uuid.uuid4(),

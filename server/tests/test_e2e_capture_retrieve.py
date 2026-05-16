@@ -37,10 +37,10 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.core.db import get_session
-from oracle.embeddings import EMBEDDING_DIM, WHOLE_VS_CHUNKS_THRESHOLD, count_tokens
-from oracle.main import app
+from grove.core.config import settings
+from grove.core.db import get_session
+from grove.embeddings import EMBEDDING_DIM, WHOLE_VS_CHUNKS_THRESHOLD, count_tokens
+from grove.main import app
 
 # ---------------------------------------------------------------------------
 # Constants

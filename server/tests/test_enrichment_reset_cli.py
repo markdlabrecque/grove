@@ -1,4 +1,4 @@
-"""CLI argument validation for `python -m oracle.enrichment.reset` (ticket #245).
+"""CLI argument validation for `python -m grove.enrichment.reset` (ticket #245).
 
 These tests cover only argparse-level behaviour and do not touch the DB or
 the module-level engine used by ``test_enrichment_reset.py``.
@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from oracle.enrichment.reset import _build_parser
+from grove.enrichment.reset import _build_parser
 
 
 def test_version_below_rejects_zero() -> None:

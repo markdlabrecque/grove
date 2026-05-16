@@ -17,9 +17,9 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.main import app
-from oracle.models.query_log import QueryLog
+from grove.core.config import settings
+from grove.main import app
+from grove.models.query_log import QueryLog
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -38,8 +38,8 @@ def _override_get_log_session_factory() -> async_sessionmaker[AsyncSession]:
 
 @pytest.fixture(autouse=True)
 def override_db(monkeypatch) -> None:  # type: ignore[misc]
-    from oracle.api.queries import get_log_session_factory
-    from oracle.core.db import get_session
+    from grove.api.queries import get_log_session_factory
+    from grove.core.db import get_session
 
     app.dependency_overrides[get_session] = _override_get_session
     app.dependency_overrides[get_log_session_factory] = _override_get_log_session_factory

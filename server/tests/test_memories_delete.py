@@ -25,14 +25,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.core.db import get_session
-from oracle.models.appointment import Appointment
-from oracle.models.decision import Decision
-from oracle.models.memory import Memory, MemoryChunk
-from oracle.models.people_interaction import PeopleInteraction
-from oracle.models.query_log import QueryLog
-from oracle.models.task import Task
+from grove.core.config import settings
+from grove.core.db import get_session
+from grove.models.appointment import Appointment
+from grove.models.decision import Decision
+from grove.models.memory import Memory, MemoryChunk
+from grove.models.people_interaction import PeopleInteraction
+from grove.models.query_log import QueryLog
+from grove.models.task import Task
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -47,7 +47,7 @@ async def _override_get_session() -> AsyncIterator[AsyncSession]:
 
 @pytest.fixture(autouse=True)
 def override_db() -> AsyncIterator[None]:
-    from oracle.main import app
+    from grove.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
     yield
@@ -72,7 +72,7 @@ async def test_delete_cascades_to_all_related_rows(db_session: AsyncSession) -> 
     The query_log that referenced the deleted memory must survive, with its
     returned_memory_ids array left unchanged (stale UUID — no FK constraint).
     """
-    from oracle.main import app
+    from grove.main import app
 
     memory_id = uuid.uuid4()
     memory = Memory(
@@ -187,7 +187,7 @@ async def test_delete_cascades_to_all_related_rows(db_session: AsyncSession) -> 
 
 @pytest.mark.asyncio
 async def test_delete_unknown_id_returns_404() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     random_id = uuid.uuid4()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -204,7 +204,7 @@ async def test_delete_unknown_id_returns_404() -> None:
 
 @pytest.mark.asyncio
 async def test_delete_missing_auth_returns_401() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     random_id = uuid.uuid4()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
