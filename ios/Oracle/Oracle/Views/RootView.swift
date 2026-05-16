@@ -21,6 +21,22 @@ import SwiftUI
 /// from an on-device OS background-task replay) can clear the banner without
 /// requiring a foreground transition.
 ///
+/// # Action Button dictation (#326)
+///
+/// When `CaptureViaDictationIntent` fires (Action Button press or Shortcut),
+/// it posts `.openDictationCapture`.  RootView observes this and sets
+/// `showDictationSheet = true`, presenting `DictationCaptureView` as a sheet.
+///
+/// If the app is backgrounded mid-dictation, `DictationCaptureViewModel`
+/// produces a `DictationDraft` containing the partial transcript.  The app
+/// delegate (or `scenePhase` transition) populates `pendingDictation`.
+/// `DictationResumeBanner` is then shown above the auth banner (auth is more
+/// urgent) — tap Resume to reopen the sheet pre-filled; tap × to discard.
+///
+/// Banner stacking order (top to bottom — most urgent first):
+///   1. AuthRequiredBanner
+///   2. DictationResumeBanner
+///
 /// # V2 forest-green (#320)
 ///
 /// Tab bar uses `.forest500` tint on the `TabView` so active icons and labels
@@ -38,6 +54,15 @@ struct RootView: View {
 
   /// Whether the auth-required banner is currently visible.
   @State private var showAuthBanner: Bool = false
+
+  // MARK: - Dictation state (#326)
+
+  /// Whether the dictation capture sheet is currently presented.
+  @State private var showDictationSheet: Bool = false
+
+  /// A partial dictation draft left when the app was backgrounded mid-session.
+  /// In-memory only (V1).  `nil` when there is no pending draft.
+  @State var pendingDictation: DictationDraft? = nil
 
   // MARK: - Environment
 
@@ -63,13 +88,33 @@ struct RootView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      // Auth-required banner — pinned above the tab bar.
+      // Auth-required banner — pinned above the dictation-resume banner.
+      // Auth failure is more urgent than an unfinished dictation.
       if showAuthBanner {
         AuthRequiredBanner {
           selectedTab = 2  // Settings tab index.
         }
         .transition(.move(edge: .top).combined(with: .opacity))
         .animation(.easeInOut(duration: 0.25), value: showAuthBanner)
+      }
+
+      // Dictation-resume banner — shown when a partial transcript is waiting.
+      if let draft = pendingDictation {
+        DictationResumeBanner(
+          draft: draft,
+          onResume: {
+            showDictationSheet = true
+            // Banner dismisses once the sheet is presented.
+            pendingDictation = nil
+          },
+          onDismiss: {
+            withAnimation(.easeInOut(duration: 0.25)) {
+              pendingDictation = nil
+            }
+          }
+        )
+        .transition(.move(edge: .top).combined(with: .opacity))
+        .animation(.easeInOut(duration: 0.25), value: pendingDictation == nil)
       }
 
       TabView(selection: $selectedTab) {
@@ -93,6 +138,15 @@ struct RootView: View {
       }
       .tint(.forest500)
     }
+    .sheet(isPresented: $showDictationSheet) {
+      if let draft = pendingDictation {
+        // Resume mode: pre-filled transcript, mic not auto-armed.
+        DictationCaptureView(initialTranscript: draft.transcript)
+      } else {
+        // Fresh mode: mic arms immediately.
+        DictationCaptureView()
+      }
+    }
     .onChange(of: scenePhase) { _, newPhase in
       if newPhase == .active {
         refreshAuthBannerState()
@@ -102,6 +156,11 @@ struct RootView: View {
       NotificationCenter.default.publisher(for: .authRequiredDidChange)
     ) { _ in
       refreshAuthBannerState()
+    }
+    .onReceive(
+      NotificationCenter.default.publisher(for: .openDictationCapture)
+    ) { _ in
+      showDictationSheet = true
     }
   }
 
