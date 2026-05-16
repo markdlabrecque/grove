@@ -17,6 +17,11 @@ import SwiftUI
 /// - The banner uses `.dynamicTypeSize` without a ceiling so the text scales
 ///   correctly at all Dynamic Type sizes.  The layout uses `.lineLimit(2)` so
 ///   very large sizes wrap rather than clipping.
+///
+/// # V2 forest-green (#320)
+///
+/// Banner background uses the semantic `destructive` color (dark red) for both
+/// light and dark mode, matching the spec palette rather than system `.red`.
 struct AuthRequiredBanner: View {
   /// Called when the user taps the banner.  In production, switches the tab
   /// selection to the Settings tab.  Tests inject a closure to verify the tap.
@@ -48,7 +53,7 @@ struct AuthRequiredBanner: View {
       }
       .padding(.horizontal, 16)
       .padding(.vertical, 12)
-      .background(Color.red.gradient)
+      .background(Color.destructive)
       .accessibilityLabel(
         "Authentication required. One or more captures could not be uploaded because your token is invalid. Tap to update your token in Settings."
       )
