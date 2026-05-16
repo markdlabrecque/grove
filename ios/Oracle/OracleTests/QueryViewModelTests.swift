@@ -243,21 +243,23 @@ struct QueryViewModelTests {
 
   @Test("real network failure surfaces error alert, not silent swallow")
   func realErrorFiresAlert() async throws {
-    let (stream, continuation) = AsyncStream<Void>.makeStream()
-
-    let vm = QueryViewModel { _ in
-      defer { continuation.yield(()) }
+    // Use the explicit `queryProvider:` label. A bare trailing closure with a
+    // throw-only body has an ambiguous return type (Never, compatible with any
+    // return), so Swift would resolve it to the LAST matching parameter of
+    // QueryViewModel.init — `recentQueriesProvider` — rather than
+    // `queryProvider`. The explicit label pins the correct parameter.
+    let vm = QueryViewModel(queryProvider: { _ in
       throw APIError.httpError(statusCode: 500, detail: "internal server error")
-    }
+    })
 
     vm.query = "anything"
     vm.ask()
 
-    // Wait until the provider closure has returned, then yield once to let
-    // performQuery finish its remaining main-actor statements.
-    var iter = stream.makeAsyncIterator()
-    _ = await iter.next()
-    await Task.yield()
+    // Capture the task handle synchronously (before it completes on the main
+    // actor), then await it so we know performQuery has fully run its catch
+    // block before inspecting state.
+    let task = vm.activeTask
+    await task?.value
 
     #expect(vm.showErrorAlert == true)
     #expect(vm.errorMessage.contains("internal server error"))
@@ -298,21 +300,23 @@ struct QueryViewModelTests {
   /// the next `ask()` call does not operate on a stale task reference.
   @Test("activeTask is nil after ask() completes with a real error")
   func activeTaskIsNilAfterError() async throws {
-    let (stream, continuation) = AsyncStream<Void>.makeStream()
-
-    let vm = QueryViewModel { _ in
-      defer { continuation.yield(()) }
+    // Use the explicit `queryProvider:` label — see `realErrorFiresAlert` for
+    // the full explanation of why bare trailing closures that only throw would
+    // resolve to `recentQueriesProvider` instead.
+    let vm = QueryViewModel(queryProvider: { _ in
       throw APIError.httpError(statusCode: 503, detail: "service unavailable")
-    }
+    })
 
     vm.query = "test query"
     vm.ask()
 
-    // Wait until the provider closure has returned, then yield once to let
-    // performQuery finish its remaining main-actor statements (activeTask = nil).
-    var iter = stream.makeAsyncIterator()
-    _ = await iter.next()
-    await Task.yield()
+    // Capture the task handle synchronously (before it completes on the main actor),
+    // then await it so we know performQuery has fully run through the catch block
+    // before checking any state. This is more reliable than the AsyncStream
+    // continuation pattern, which races on @MainActor when the provider closure
+    // is non-suspending.
+    let task = vm.activeTask
+    await task?.value
 
     #expect(vm.activeTask == nil)
   }
