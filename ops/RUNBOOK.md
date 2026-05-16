@@ -558,3 +558,82 @@ sudo systemctl start oracle-enrichment.timer
 V1 has no automated alerting. Runs are reviewed manually as part of the weekly
 review cadence. Check for `enrichment_error` rows in the database or non-zero
 exit codes in the journal if something appears wrong.
+
+---
+
+## Enrichment scheduler (macOS LaunchAgent)
+
+On a macOS dev host there is no systemd. `ops/launchd/com.affinitybridge.oracle-enrichment.plist`
+is a LaunchAgent template that fires the same enrichment worker hourly, against
+the local Docker Compose stack.
+
+### Prerequisites
+
+- Docker Desktop or OrbStack must be running whenever a scheduled window fires.
+  If it isn't, the job exits non-zero immediately; launchd logs the failure and
+  waits for the next hourly window — no retry storm.
+- The compose stack (`make up`) must be up and the `app` container healthy.
+  The LaunchAgent does not start the stack automatically.
+
+### Install
+
+Replace the two placeholders in the template (`__REPO_ROOT__` and
+`__USER_HOME__`) and drop the rendered plist into `~/Library/LaunchAgents/`:
+
+```bash
+REPO_ROOT="$HOME/Projects/the-oracle"   # adjust to your actual checkout path
+
+mkdir -p ~/Library/LaunchAgents ~/Library/Logs/oracle
+
+sed \
+    -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
+    -e "s|__USER_HOME__|${HOME}|g" \
+    "${REPO_ROOT}/ops/launchd/com.affinitybridge.oracle-enrichment.plist" \
+    > ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+
+launchctl bootstrap gui/$(id -u) \
+    ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+```
+
+Verify it is registered:
+
+```bash
+launchctl list | grep oracle
+# should show: -  0  com.affinitybridge.oracle-enrichment
+```
+
+### Trigger an ad-hoc run
+
+```bash
+launchctl kickstart -k gui/$(id -u)/com.affinitybridge.oracle-enrichment
+```
+
+### Read recent run output
+
+```bash
+tail -f ~/Library/Logs/oracle/enrichment.out.log
+tail -f ~/Library/Logs/oracle/enrichment.err.log
+```
+
+### Unload / remove
+
+```bash
+launchctl bootout gui/$(id -u)/com.affinitybridge.oracle-enrichment
+rm ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+```
+
+### Docker binary path
+
+`/usr/local/bin/docker` is the canonical symlink on both Homebrew Intel and
+OrbStack macOS installs. If your Docker binary is elsewhere, update
+`ProgramArguments[0]` in the installed plist and reload:
+
+```bash
+# Find your docker binary:
+which docker
+
+# After editing the installed plist, reload:
+launchctl bootout gui/$(id -u)/com.affinitybridge.oracle-enrichment
+launchctl bootstrap gui/$(id -u) \
+    ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+```
