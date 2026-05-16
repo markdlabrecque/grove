@@ -13,6 +13,13 @@ import Foundation
 /// use `KeychainStore.bearerTokenKey` / `KeychainStore.serverURLKey` at call
 /// sites.  This minimises blast radius: `Config.swift` and `KeychainStoreTests`
 /// are unaffected.
+///
+/// Visibility note: this protocol is `public` rather than `package` because
+/// the sole consumer (`SettingsViewModel` in the `Oracle` app target) lives
+/// outside the OracleCore Swift package and depends on it as an external SPM
+/// product. `package` access would not be visible across that boundary.
+/// `internal` is likewise insufficient. Treat this protocol as an
+/// implementation-detail seam — do not extend it for external API use.
 public protocol KeychainStoreProtocol: Sendable {
 
   /// Read the `String` value for the given `key`.
