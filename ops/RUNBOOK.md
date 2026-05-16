@@ -7,6 +7,10 @@ In examples below, `$TAILSCALE_HOSTNAME` refers to your laptop's MagicDNS name
 (e.g. `your-laptop.tailXXXXXX.ts.net`). It's set in `.env` and read by the
 Makefile, the Apache container's entrypoint, and the cert scripts.
 
+`$REPO_ROOT` is your local checkout root — e.g. `/opt/grove` on the deploy box
+or `~/Projects/grove` on a dev workstation. Adjust any path that mentions it to
+match your actual clone location.
+
 ## Architecture (Phase 0)
 
 ```
@@ -82,7 +86,7 @@ direnv allow
 Generate a fine-grained PAT at
 <https://github.com/settings/tokens?type=beta>:
 
-- Repository access: **only `markdlabrecque/the-oracle`**
+- Repository access: **only `markdlabrecque/grove`**
 - Permissions:
   - Issues: read + write
   - Pull requests: read + write
@@ -193,7 +197,7 @@ crontab -e
 Add (replace the path with your absolute project path):
 
 ```
-0 9 * * 1 /path/to/the-oracle/ops/scripts/renew-cert.sh >> /tmp/grove-cert-renew.log 2>&1
+0 9 * * 1 $REPO_ROOT/ops/scripts/renew-cert.sh >> /tmp/grove-cert-renew.log 2>&1
 ```
 
 ## Troubleshooting
@@ -253,7 +257,7 @@ custom-format archive to a Hetzner Storage Box (or Backblaze B2 bucket).
 ```bash
 BACKUP_DIR=/mnt/storagebox/grove-backups   # or rclone-mounted B2 bucket
 DATESTAMP=$(date -u +%Y-%m-%d)
-docker compose -f /opt/the-oracle/docker-compose.yml exec -T postgres \
+docker compose -f $REPO_ROOT/docker-compose.yml exec -T postgres \
     pg_dump -U grove -d grove -Fc \
     > "${BACKUP_DIR}/grove-${DATESTAMP}.dump"
 # prune files older than 30 days
@@ -488,13 +492,14 @@ in `ops/systemd/` and must be installed once after deploy.
    sudo usermod -aG docker grove
    ```
 
-2. Confirm the project is checked out at `/opt/the-oracle` (or update
-   `WorkingDirectory=` in `grove-enrichment.service` to the actual path).
+2. Confirm the project is checked out at `$REPO_ROOT` (set in your deploy env,
+   default `/opt/grove`). Update `WorkingDirectory=` in `grove-enrichment.service`
+   if your checkout path differs.
 
 ### Install the units
 
 ```bash
-sudo cp /opt/the-oracle/ops/systemd/grove-enrichment.{service,timer} \
+sudo cp $REPO_ROOT/ops/systemd/grove-enrichment.{service,timer} \
     /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
@@ -581,7 +586,7 @@ Replace the two placeholders in the template (`__REPO_ROOT__` and
 `__USER_HOME__`) and drop the rendered plist into `~/Library/LaunchAgents/`:
 
 ```bash
-REPO_ROOT="$HOME/Projects/the-oracle"   # adjust to your actual checkout path
+REPO_ROOT="$HOME/Projects/grove"   # adjust to your actual checkout path
 
 mkdir -p ~/Library/LaunchAgents ~/Library/Logs/grove
 

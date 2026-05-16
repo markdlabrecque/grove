@@ -24,7 +24,7 @@ This plan breaks the V1 PRD into the five phases sketched in §12 of the PRD, wi
 A single repo with two top-level apps:
 
 ```
-the-oracle/
+grove/
 ├── server/                   # Python 3.12, FastAPI, SQLAlchemy 2.x, Alembic, uv
 │   ├── grove/
 │   │   ├── api/              # FastAPI routers: capture, retrieve, feedback, delete
