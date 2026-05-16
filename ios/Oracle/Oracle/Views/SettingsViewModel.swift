@@ -90,12 +90,17 @@ final class SettingsViewModel: ObservableObject {
 
   // MARK: - Private dependencies
 
-  private let keychain: KeychainStore
+  private let keychain: any KeychainStoreProtocol
   private let drainAction: () async -> Void
   /// Called with the new token value after a successful `commitToken()`.
   /// In production, delegates to `OracleApp.uploadQueue.reenqueueAuthRequired`.
   /// Tests inject a stub to assert the call without a live queue.
   private let reenqueueAction: (String) async -> Void
+  /// Called with `(baseURL, bearerToken)` after a successful credential
+  /// persist.  In production this updates `OracleAPI.shared`; tests inject a
+  /// recording closure to assert the call (or absence of it) without touching
+  /// the shared actor.
+  private let updateCredentialsAction: (URL, String) async -> Void
 
   // MARK: - Init
 
@@ -109,6 +114,9 @@ final class SettingsViewModel: ObservableObject {
       await OracleApp.uploadQueue.updateToken(newToken)
       await OracleApp.uploadQueue.reenqueueAuthRequired(newToken: newToken)
     }
+    self.updateCredentialsAction = { baseURL, token in
+      await OracleAPI.shared.updateCredentials(baseURL: baseURL, bearerToken: token)
+    }
     loadFromKeychain()
   }
 
@@ -120,14 +128,44 @@ final class SettingsViewModel: ObservableObject {
   ///   - onDrain: Closure called instead of the real `uploadQueue.tryDrain()`.
   ///   - onReenqueue: Closure called with the new token instead of
   ///     `uploadQueue.reenqueueAuthRequired(newToken:)`.
+  ///   - onUpdateCredentials: Closure called with `(baseURL, token)` instead of
+  ///     `OracleAPI.shared.updateCredentials`.
   init(
     keychainService: String,
     onDrain: @escaping () async -> Void,
-    onReenqueue: @escaping (String) async -> Void = { _ in }
+    onReenqueue: @escaping (String) async -> Void = { _ in },
+    onUpdateCredentials: @escaping (URL, String) async -> Void = { _, _ in }
   ) {
     self.keychain = KeychainStore(service: keychainService)
     self.drainAction = onDrain
     self.reenqueueAction = onReenqueue
+    self.updateCredentialsAction = onUpdateCredentials
+    loadFromKeychain()
+  }
+
+  /// Testing initialiser — injectable `KeychainStoreProtocol` conformer, drain
+  /// action, and reenqueue action.
+  ///
+  /// Use this overload when you need a stub that controls Keychain behaviour
+  /// (e.g. simulating write failures).
+  ///
+  /// - Parameters:
+  ///   - keychain: A stub conforming to `KeychainStoreProtocol`.
+  ///   - onDrain: Closure called instead of the real `uploadQueue.tryDrain()`.
+  ///   - onReenqueue: Closure called with the new token instead of
+  ///     `uploadQueue.reenqueueAuthRequired(newToken:)`.
+  ///   - onUpdateCredentials: Closure called with `(baseURL, token)` instead of
+  ///     `OracleAPI.shared.updateCredentials`.
+  init(
+    keychain: any KeychainStoreProtocol,
+    onDrain: @escaping () async -> Void = {},
+    onReenqueue: @escaping (String) async -> Void = { _ in },
+    onUpdateCredentials: @escaping (URL, String) async -> Void = { _, _ in }
+  ) {
+    self.keychain = keychain
+    self.drainAction = onDrain
+    self.reenqueueAction = onReenqueue
+    self.updateCredentialsAction = onUpdateCredentials
     loadFromKeychain()
   }
 
@@ -136,12 +174,29 @@ final class SettingsViewModel: ObservableObject {
   /// Convenience factory for tests — generates a unique Keychain namespace.
   static func makeForTest(
     onDrain: @escaping () async -> Void = {},
-    onReenqueue: @escaping (String) async -> Void = { _ in }
+    onReenqueue: @escaping (String) async -> Void = { _ in },
+    onUpdateCredentials: @escaping (URL, String) async -> Void = { _, _ in }
   ) -> SettingsViewModel {
     SettingsViewModel(
       keychainService: "com.oracle.test.\(UUID().uuidString)",
       onDrain: onDrain,
-      onReenqueue: onReenqueue
+      onReenqueue: onReenqueue,
+      onUpdateCredentials: onUpdateCredentials
+    )
+  }
+
+  /// Convenience factory for tests — injects a `KeychainStoreProtocol` stub.
+  static func makeForTest(
+    keychain: any KeychainStoreProtocol,
+    onDrain: @escaping () async -> Void = {},
+    onReenqueue: @escaping (String) async -> Void = { _ in },
+    onUpdateCredentials: @escaping (URL, String) async -> Void = { _, _ in }
+  ) -> SettingsViewModel {
+    SettingsViewModel(
+      keychain: keychain,
+      onDrain: onDrain,
+      onReenqueue: onReenqueue,
+      onUpdateCredentials: onUpdateCredentials
     )
   }
 
@@ -156,8 +211,10 @@ final class SettingsViewModel: ObservableObject {
 
   /// Validate and persist the current `serverURLText` to Keychain.
   ///
-  /// Sets `serverURLError` when the URL is invalid.  On success, updates the
-  /// live `OracleAPI.shared` actor with the new base URL.
+  /// Sets `serverURLError` when the URL is invalid.  On a successful Keychain
+  /// write, updates the live `OracleAPI.shared` actor with the new base URL.
+  /// If the Keychain write fails the live API is NOT updated — Keychain is the
+  /// source of truth; we do not propagate a value that did not persist.
   func commitServerURL() {
     let raw = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
 
@@ -173,6 +230,9 @@ final class SettingsViewModel: ObservableObject {
     } catch {
       print("[SettingsViewModel] WARN Keychain write failed for server_url: \(error)")
       // Don't surface Keychain errors to the user in V1 — fall back silently.
+      // Do NOT update the live API: if the value didn't persist to Keychain it
+      // would be lost on next launch, creating a split-brain state.
+      return
     }
 
     // Push the new URL to the live API actor so subsequent calls use it.
@@ -180,10 +240,7 @@ final class SettingsViewModel: ObservableObject {
       ? ((try? keychain.read(forKey: KeychainStore.bearerTokenKey)) ?? "")
       : bearerTokenText
     Task {
-      await OracleAPI.shared.updateCredentials(
-        baseURL: url,
-        bearerToken: currentToken
-      )
+      await updateCredentialsAction(url, currentToken)
     }
   }
 
@@ -193,6 +250,9 @@ final class SettingsViewModel: ObservableObject {
   /// actor, and auto-resume any `auth_required` items in the upload queue.
   ///
   /// An empty token is silently ignored — the existing Keychain value is kept.
+  ///
+  /// If the Keychain write fails the live API is NOT updated — Keychain is the
+  /// source of truth; we do not propagate a value that did not persist.
   ///
   /// After updating credentials, `UploadQueue.reenqueueAuthRequired(newToken:)`
   /// is called so that captures stuck in `auth_required` state are re-enqueued
@@ -205,6 +265,9 @@ final class SettingsViewModel: ObservableObject {
       try keychain.write(raw, forKey: KeychainStore.bearerTokenKey)
     } catch {
       print("[SettingsViewModel] WARN Keychain write failed for bearer_token: \(error)")
+      // Do NOT update the live API: if the value didn't persist to Keychain it
+      // would be lost on next launch, creating a split-brain state.
+      return
     }
 
     // Resolve the current base URL from Keychain for the live API update.
@@ -213,10 +276,7 @@ final class SettingsViewModel: ObservableObject {
 
     let newToken = raw
     Task {
-      await OracleAPI.shared.updateCredentials(
-        baseURL: currentURL,
-        bearerToken: newToken
-      )
+      await updateCredentialsAction(currentURL, newToken)
       // Keep the queue's token tracking in sync so idempotency works correctly.
       await reenqueueAction(newToken)
     }
