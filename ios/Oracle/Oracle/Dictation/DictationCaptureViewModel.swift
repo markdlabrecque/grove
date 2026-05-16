@@ -158,7 +158,7 @@ final class DictationCaptureViewModel {
       content: trimmed,
       sourceModality: "dictated",
       applyFillerCleanup: applyFillerCleanup,
-      detectedLanguage: nil,
+      detectedLanguage: LanguageDetector.detect(trimmed),
       languageHint: languageHint ?? "en"
     )
 
