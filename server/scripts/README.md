@@ -13,14 +13,14 @@ are needed beyond a running stack.
 ### Weekly review (~15 minutes, every Friday)
 
 ```bash
-docker compose exec -T postgres psql -U oracle -d oracle \
+docker compose exec -T postgres psql -U grove -d grove \
     < server/scripts/weekly_review.sql
 ```
 
 ### Monthly review (~30 minutes, first weekend of the month)
 
 ```bash
-docker compose exec -T postgres psql -U oracle -d oracle \
+docker compose exec -T postgres psql -U grove -d grove \
     < server/scripts/monthly_review.sql
 ```
 
@@ -47,7 +47,7 @@ docker compose exec -T postgres psql -U oracle -d oracle \
 
 ## Schema reference
 
-The queries cover these tables (all defined in `server/oracle/models/`):
+The queries cover these tables (all defined in `server/grove/models/`):
 
 - `memories` — every captured thought; `created_at`, `enriched`, `enriched_at`, `token_count`
 - `query_logs` — every retrieval request; `tables_searched` (JSONB), `synthesis_cost`,

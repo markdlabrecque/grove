@@ -33,8 +33,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Print OpenRouter monthly usage summary.")
     parser.add_argument(
         "--url",
-        default=os.getenv("ORACLE_SERVER_URL", "http://localhost:8000"),
-        help="Base URL of the Oracle server (default: http://localhost:8000)",
+        default=os.getenv("GROVE_SERVER_URL", "http://localhost:8000"),
+        help="Base URL of the Grove server (default: http://localhost:8000)",
     )
     args = parser.parse_args()
 

@@ -122,7 +122,7 @@ class TestRequestHeaders:
 
         request = route.calls.last.request
         assert "github.com" in request.headers["HTTP-Referer"]
-        assert request.headers["X-Title"] == "The Oracle"
+        assert request.headers["X-Title"] == "Grove"
 
 
 # ---------------------------------------------------------------------------

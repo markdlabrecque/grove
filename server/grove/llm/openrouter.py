@@ -26,7 +26,7 @@ logger = structlog.get_logger(__name__)
 
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _HTTP_REFERER = "https://github.com/markdlabrecque/the-oracle"
-_X_TITLE = "The Oracle"
+_X_TITLE = "Grove"
 
 
 @dataclass(frozen=True)
