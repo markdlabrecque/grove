@@ -52,6 +52,36 @@ final class MockRecognitionTask: SFSpeechRecognitionTask {
   override var error: Error? { stubbedError }
 }
 
+// MARK: - StubSpeechTranscription / StubSpeechResult
+
+/// Minimal `SFTranscription` stub carrying a fixed `formattedString`.
+///
+/// Used by #341 callback-path tests to construct `SFSpeechRecognitionResult`
+/// values without touching a real recogniser.
+final class StubSpeechTranscription: SFTranscription {
+  private let _formattedString: String
+  init(text: String) { _formattedString = text; super.init() }
+  required init?(coder: NSCoder) { fatalError("not used in tests") }
+  override var formattedString: String { _formattedString }
+}
+
+/// Minimal `SFSpeechRecognitionResult` stub.
+///
+/// Overrides `bestTranscription` and `isFinal` so `handleResult(_:error:)`
+/// can be driven without a live speech session.
+final class StubSpeechResult: SFSpeechRecognitionResult {
+  private let _transcription: SFTranscription
+  private let _isFinal: Bool
+  init(text: String, isFinal: Bool) {
+    _transcription = StubSpeechTranscription(text: text)
+    _isFinal = isFinal
+    super.init()
+  }
+  required init?(coder: NSCoder) { fatalError("not used in tests") }
+  override var bestTranscription: SFTranscription { _transcription }
+  override var isFinal: Bool { _isFinal }
+}
+
 // MARK: - DictationControllerTests
 
 /// Tests for `DictationController` that use the `SpeechRecognizing` mock seam.
@@ -190,5 +220,90 @@ final class DictationControllerTests: XCTestCase {
     }
 
     XCTAssertEqual(errorCount, 1, "Exactly one error should be emitted before stream ends")
+  }
+
+  // MARK: - Callback path (#341) — handleResult in isolation
+
+  /// `.partial` result emits a `.partial` event and keeps the stream open.
+  func test_handleResult_partialResult_emitsPartialEvent() async throws {
+    let mock = MockSpeechRecognizer()
+    let controller = DictationController(recognizer: mock)
+
+    var events: [DictationEvent] = []
+    let stream = AsyncStream<DictationEvent> { continuation in
+      controller._injectContinuationForTesting(continuation)
+    }
+
+    // Drive a partial result through the state machine synchronously.
+    let partialResult = StubSpeechResult(text: "Hello wor", isFinal: false)
+    controller.handleResult(partialResult, error: nil)
+    // Finish the stream so the for-await below terminates.
+    // (handleResult does not finish the continuation on partial.)
+    // We inject a final result to close the stream cleanly.
+    let finalResult = StubSpeechResult(text: "Hello world", isFinal: true)
+    controller.handleResult(finalResult, error: nil)
+
+    for await event in stream {
+      events.append(event)
+    }
+
+    XCTAssertEqual(events.count, 2, "Expected one partial then one final event")
+    guard case .partial(let partialText) = events[0] else {
+      return XCTFail("Expected .partial as first event, got \(events[0])")
+    }
+    XCTAssertEqual(partialText, "Hello wor")
+    guard case .final_(let finalText) = events[1] else {
+      return XCTFail("Expected .final_ as second event, got \(events[1])")
+    }
+    XCTAssertEqual(finalText, "Hello world")
+  }
+
+  /// `.final_` result emits a `.final_` event and finishes the stream.
+  func test_handleResult_finalResult_emitsFinalEventAndClosesStream() async throws {
+    let mock = MockSpeechRecognizer()
+    let controller = DictationController(recognizer: mock)
+
+    var events: [DictationEvent] = []
+    let stream = AsyncStream<DictationEvent> { continuation in
+      controller._injectContinuationForTesting(continuation)
+    }
+
+    let finalResult = StubSpeechResult(text: "Dictation complete", isFinal: true)
+    controller.handleResult(finalResult, error: nil)
+
+    for await event in stream {
+      events.append(event)
+    }
+
+    XCTAssertEqual(events.count, 1, "Expected exactly one event from a final result")
+    guard case .final_(let text) = events[0] else {
+      return XCTFail("Expected .final_, got \(events[0])")
+    }
+    XCTAssertEqual(text, "Dictation complete")
+  }
+
+  /// Error delivered via the callback emits a `.error` event and closes the stream.
+  func test_handleResult_callbackError_emitsErrorAndClosesStream() async throws {
+    let mock = MockSpeechRecognizer()
+    let controller = DictationController(recognizer: mock)
+
+    var events: [DictationEvent] = []
+    let stream = AsyncStream<DictationEvent> { continuation in
+      controller._injectContinuationForTesting(continuation)
+    }
+
+    let callbackError = NSError(domain: "com.test", code: 999, userInfo: [
+      NSLocalizedDescriptionKey: "Simulated recognition failure"
+    ])
+    controller.handleResult(nil, error: callbackError)
+
+    for await event in stream {
+      events.append(event)
+    }
+
+    XCTAssertEqual(events.count, 1, "Expected exactly one error event from a callback error")
+    guard case .error = events[0] else {
+      return XCTFail("Expected .error, got \(events[0])")
+    }
   }
 }
