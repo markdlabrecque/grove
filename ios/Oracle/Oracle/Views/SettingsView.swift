@@ -23,6 +23,11 @@ import OracleCore
 /// via `@AppStorage` using the key constants on `SettingsViewModel`.  CaptureViewModel
 /// (#187) binds to the same keys — changing the key strings here is a
 /// coordinated change.
+///
+/// # V2 forest-green (#320)
+///
+/// Settings rows have 28pt rounded-square icon badges per spec §3.11.
+/// Section labels are 11pt uppercase semibold forest700. Toggles tinted forest500.
 struct SettingsView: View {
 
   @StateObject private var viewModel = SettingsViewModel()
@@ -37,11 +42,18 @@ struct SettingsView: View {
 
   var body: some View {
     NavigationStack {
-      Form {
-        serverSection
-        captureDefaultsSection
-        syncSection
-        aboutSection
+      ZStack {
+        Color.paperWarm
+          .ignoresSafeArea()
+
+        List {
+          serverSection
+          captureDefaultsSection
+          syncSection
+          aboutSection
+        }
+        .scrollContentBackground(.hidden)
+        .background(Color.paperWarm)
       }
       .navigationTitle("Settings")
       .navigationBarTitleDisplayMode(.large)
@@ -52,119 +64,248 @@ struct SettingsView: View {
 
   private var serverSection: some View {
     Section {
-      VStack(alignment: .leading, spacing: 4) {
-        TextField("https://oracle.example.ts.net", text: $viewModel.serverURLText)
-          .textInputAutocapitalization(.never)
-          .autocorrectionDisabled(true)
-          .keyboardType(.URL)
-          .onSubmit { viewModel.commitServerURL() }
-          .accessibilityLabel("Server URL")
-          .accessibilityHint("Enter the full URL of your Oracle server")
+      // Server URL row
+      settingsRow(
+        icon: "network",
+        iconColor: .forest500,
+        content: {
+          VStack(alignment: .leading, spacing: 4) {
+            TextField("https://oracle.example.ts.net", text: $viewModel.serverURLText)
+              .textInputAutocapitalization(.never)
+              .autocorrectionDisabled(true)
+              .keyboardType(.URL)
+              .font(.system(size: 15))
+              .foregroundStyle(Color.ink900)
+              .onSubmit { viewModel.commitServerURL() }
+              .accessibilityLabel("Server URL")
+              .accessibilityHint("Enter the full URL of your Oracle server")
 
-        if let error = viewModel.serverURLError {
-          Text(error)
-            .font(.caption)
-            .foregroundStyle(.red)
-            .accessibilityLabel("Server URL error: \(error)")
+            if let error = viewModel.serverURLError {
+              Text(error)
+                .font(.caption)
+                .foregroundStyle(Color.destructive)
+                .accessibilityLabel("Server URL error: \(error)")
+            }
+          }
         }
-      }
+      )
 
-      SecureField("Bearer token", text: $viewModel.bearerTokenText)
-        .onSubmit { viewModel.commitToken() }
-        .accessibilityLabel("Bearer Token")
-        .accessibilityHint("Enter the bearer token for authenticating with the server")
+      // Bearer token row
+      settingsRow(
+        icon: "lock.fill",
+        iconColor: .forest800,
+        content: {
+          SecureField("Bearer token", text: $viewModel.bearerTokenText)
+            .font(.system(size: 15))
+            .foregroundStyle(Color.ink900)
+            .onSubmit { viewModel.commitToken() }
+            .accessibilityLabel("Bearer Token")
+            .accessibilityHint("Enter the bearer token for authenticating with the server")
+        }
+      )
     } header: {
-      Text("Server")
+      sectionHeader("Server")
     } footer: {
       Text("Changes take effect immediately. The app does not need to be restarted.")
         .font(.caption)
+        .foregroundStyle(Color.ink500)
     }
+    .listRowBackground(Color.card)
   }
 
   // MARK: - Capture defaults section
 
   private var captureDefaultsSection: some View {
-    Section("Capture Defaults") {
-      Toggle(isOn: $fillerWordCleanupEnabled) {
-        VStack(alignment: .leading, spacing: 2) {
-          Text("Filler Word Cleanup")
-          Text("Remove \"um\", \"uh\", and similar words from voice captures")
-            .font(.caption)
-            .foregroundStyle(.secondary)
+    Section {
+      // Filler word cleanup toggle row (§3.5)
+      settingsRow(
+        icon: "text.alignleft",
+        iconColor: .moss400,
+        content: {
+          Toggle(isOn: $fillerWordCleanupEnabled) {
+            VStack(alignment: .leading, spacing: 3) {
+              Text("Filler Word Cleanup")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Color.ink900)
+              Text("Remove \"um\", \"uh\", and similar words from voice captures")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.ink500)
+            }
+          }
+          .tint(.forest500)
+          .accessibilityLabel("Filler Word Cleanup")
+          .accessibilityHint("When enabled, removes filler words from voice transcriptions before saving")
         }
-      }
-      .accessibilityLabel("Filler Word Cleanup")
-      .accessibilityHint("When enabled, removes filler words from voice transcriptions before saving")
+      )
 
-      HStack {
-        Text("Language Hint")
-        Spacer()
-        TextField("e.g. en-US", text: $languageHint)
-          .multilineTextAlignment(.trailing)
-          .textInputAutocapitalization(.never)
-          .autocorrectionDisabled(true)
-          .frame(maxWidth: 120)
-          .accessibilityLabel("Language hint for voice capture")
-          .accessibilityHint("BCP-47 language code, for example en-US or fr-CA. Leave empty to use the device locale.")
-      }
+      // Language hint row
+      settingsRow(
+        icon: "globe",
+        iconColor: .forest500,
+        content: {
+          HStack {
+            VStack(alignment: .leading, spacing: 3) {
+              Text("Language Hint")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(Color.ink900)
+            }
+            Spacer()
+            TextField("e.g. en-US", text: $languageHint)
+              .multilineTextAlignment(.trailing)
+              .textInputAutocapitalization(.never)
+              .autocorrectionDisabled(true)
+              .font(.system(size: 15))
+              .foregroundStyle(Color.ink500)
+              .frame(maxWidth: 120)
+              .accessibilityLabel("Language hint for voice capture")
+              .accessibilityHint("BCP-47 language code, for example en-US or fr-CA. Leave empty to use the device locale.")
+          }
+        }
+      )
+    } header: {
+      sectionHeader("Capture Defaults")
     }
+    .listRowBackground(Color.card)
   }
 
   // MARK: - Sync section
 
   private var syncSection: some View {
     Section {
-      NavigationLink(destination: UploadQueueDebugView()) {
-        Label("Upload queue", systemImage: "tray.and.arrow.up")
+      // Upload queue row
+      settingsRow(
+        icon: "tray.and.arrow.up",
+        iconColor: .forest500,
+        content: {
+          NavigationLink(destination: UploadQueueDebugView()) {
+            Text("Upload queue")
+              .font(.system(size: 15, weight: .medium))
+              .foregroundStyle(Color.ink900)
+          }
           .accessibilityLabel("Upload Queue")
           .accessibilityHint("View upload queue items with state and error details")
-      }
-
-      Button(action: {
-        Task { await viewModel.forceResync() }
-      }) {
-        HStack {
-          if viewModel.isSyncing {
-            ProgressView()
-              .controlSize(.small)
-              .padding(.trailing, 6)
-          }
-          Text(viewModel.isSyncing ? "Syncing…" : "Force Resync")
-            .foregroundStyle(viewModel.isSyncing ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tint))
         }
-      }
-      .disabled(viewModel.isSyncing)
-      .accessibilityLabel("Force Resync")
-      .accessibilityHint("Re-uploads any captures that are pending or failed to send")
+      )
+
+      // Force resync row
+      settingsRow(
+        icon: "arrow.triangle.2.circlepath",
+        iconColor: .forest700,
+        content: {
+          Button(action: {
+            Task { await viewModel.forceResync() }
+          }) {
+            HStack {
+              if viewModel.isSyncing {
+                ProgressView()
+                  .controlSize(.small)
+                  .tint(.forest500)
+                  .padding(.trailing, 6)
+              }
+              Text(viewModel.isSyncing ? "Syncing…" : "Force Resync")
+                .font(.system(size: 15, weight: .medium))
+                .foregroundStyle(viewModel.isSyncing ? Color.ink500 : Color.forest500)
+            }
+          }
+          .disabled(viewModel.isSyncing)
+          .accessibilityLabel("Force Resync")
+          .accessibilityHint("Re-uploads any captures that are pending or failed to send")
+        }
+      )
 
       if let message = viewModel.lastSyncMessage {
         Text(message)
           .font(.caption)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Color.ink500)
+          .listRowBackground(Color.card)
           .accessibilityLabel(message)
       }
     } header: {
-      Text("Sync")
+      sectionHeader("Sync")
     } footer: {
       Text("Triggers an immediate upload of any captures waiting in the local queue.")
         .font(.caption)
+        .foregroundStyle(Color.ink500)
     }
+    .listRowBackground(Color.card)
   }
 
   // MARK: - About section
 
   private var aboutSection: some View {
-    Section("About") {
-      LabeledContent("Version", value: viewModel.appVersion)
-        .accessibilityLabel("App version \(viewModel.appVersion)")
+    Section {
+      settingsRow(
+        icon: "info.circle.fill",
+        iconColor: .forest800,
+        content: {
+          LabeledContent("Version", value: viewModel.appVersion)
+            .font(.system(size: 15))
+            .foregroundStyle(Color.ink900)
+            .accessibilityLabel("App version \(viewModel.appVersion)")
+        }
+      )
 
-      LabeledContent("Build", value: viewModel.buildNumber)
-        .accessibilityLabel("Build number \(viewModel.buildNumber)")
+      settingsRow(
+        icon: "hammer.fill",
+        iconColor: .forest800,
+        content: {
+          LabeledContent("Build", value: viewModel.buildNumber)
+            .font(.system(size: 15))
+            .foregroundStyle(Color.ink900)
+            .accessibilityLabel("Build number \(viewModel.buildNumber)")
+        }
+      )
 
-      LabeledContent("Server", value: viewModel.currentServerURL)
-        .lineLimit(1)
-        .truncationMode(.middle)
-        .accessibilityLabel("Current server URL: \(viewModel.currentServerURL)")
+      settingsRow(
+        icon: "network",
+        iconColor: .ink500,
+        content: {
+          LabeledContent("Server", value: viewModel.currentServerURL)
+            .font(.system(size: 15))
+            .foregroundStyle(Color.ink900)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .accessibilityLabel("Current server URL: \(viewModel.currentServerURL)")
+        }
+      )
+    } header: {
+      sectionHeader("About")
+    }
+    .listRowBackground(Color.card)
+  }
+
+  // MARK: - Helpers
+
+  /// Section header: 11pt uppercase semibold forest700, 0.14em tracking (spec §3.11).
+  private func sectionHeader(_ title: String) -> some View {
+    Text(title)
+      .font(.system(size: 11, weight: .semibold))
+      .foregroundStyle(Color.forest700)
+      .textCase(.uppercase)
+      .tracking(1.5)
+  }
+
+  /// A settings row with a 28pt rounded-square icon badge on the left (spec §3.11).
+  ///
+  /// `iconColor` drives the badge background; the glyph is always `paper` (warm cream).
+  @ViewBuilder
+  private func settingsRow<Content: View>(
+    icon: String,
+    iconColor: Color,
+    @ViewBuilder content: () -> Content
+  ) -> some View {
+    HStack(spacing: 12) {
+      // Icon badge: 28pt, 8pt radius, soft shadow.
+      Image(systemName: icon)
+        .font(.system(size: 14, weight: .medium))
+        .foregroundStyle(Color.paper)
+        .frame(width: 28, height: 28)
+        .background(iconColor)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .shadow(color: iconColor.opacity(0.3), radius: 4, x: 0, y: 2)
+        .accessibilityHidden(true)
+
+      content()
     }
   }
 }
