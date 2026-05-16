@@ -1,0 +1,77 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html,body{margin:0;padding:0;background:#000;overflow:hidden}
+svg{display:block;width:1024px;height:1024px}
+</style></head><body>
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#F4EFE3"/>
+      <stop offset="1" stop-color="#E8DFC4"/>
+    </linearGradient>
+    <radialGradient id="bloom" cx="0.52" cy="0.56" r="0.45">
+      <stop offset="0"    stop-color="#14271D" stop-opacity="0.48"/>
+      <stop offset="0.45" stop-color="#14271D" stop-opacity="0.20"/>
+      <stop offset="1"    stop-color="#14271D" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="lcA" clipPathUnits="userSpaceOnUse">
+      <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z"/>
+    </clipPath>
+    <clipPath id="lcB" clipPathUnits="userSpaceOnUse">
+      <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z"/>
+    </clipPath>
+    <clipPath id="lcC" clipPathUnits="userSpaceOnUse">
+      <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#bloom)"/>
+
+  <g transform="translate(340 700)">
+    <path d="M 0,0 Q -40,50 -110,110" stroke="#3F6E54" stroke-width="18" fill="none" stroke-linecap="round"/>
+
+    <!-- Leaf A: 12 o'clock, back, moss400 -->
+    <g transform="rotate(0) scale(0.95)">
+      <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z" fill="#6F9275"/>
+      <g clip-path="url(#lcA)" stroke="#284938" stroke-linecap="round" fill="none" opacity="0.55">
+        <path d="M 0,-20 L 0,-540" stroke-width="12"/>
+        <path d="M 0,-160 C  40,-180  90,-220  130,-280" stroke-width="9"/>
+        <path d="M 0,-160 C -40,-180 -90,-220 -130,-280" stroke-width="9"/>
+        <path d="M 0,-280 C  50,-310  110,-360  140,-410" stroke-width="9"/>
+        <path d="M 0,-280 C -50,-310 -110,-360 -140,-410" stroke-width="9"/>
+        <path d="M 0,-400 C  40,-430  80,-470  100,-500" stroke-width="9"/>
+        <path d="M 0,-400 C -40,-430 -80,-470 -100,-500" stroke-width="9"/>
+      </g>
+    </g>
+
+    <!-- Leaf B: 3 o'clock, middle, forest800 -->
+    <g transform="rotate(90) scale(0.92)">
+      <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z" fill="#1E382A"/>
+      <g clip-path="url(#lcB)" stroke="#6F9275" stroke-linecap="round" fill="none" opacity="0.7">
+        <path d="M 0,-20 L 0,-540" stroke-width="12"/>
+        <path d="M 0,-160 C  40,-180  90,-220  130,-280" stroke-width="9"/>
+        <path d="M 0,-160 C -40,-180 -90,-220 -130,-280" stroke-width="9"/>
+        <path d="M 0,-280 C  50,-310  110,-360  140,-410" stroke-width="9"/>
+        <path d="M 0,-280 C -50,-310 -110,-360 -140,-410" stroke-width="9"/>
+        <path d="M 0,-400 C  40,-430  80,-470  100,-500" stroke-width="9"/>
+        <path d="M 0,-400 C -40,-430 -80,-470 -100,-500" stroke-width="9"/>
+      </g>
+    </g>
+
+    <!-- Leaf C: 1:30, front, forest500 (hero) -->
+    <g transform="rotate(45) scale(1.0)">
+      <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z" fill="#3F6E54"/>
+      <g clip-path="url(#lcC)" stroke="#A4C3A0" stroke-linecap="round" fill="none" opacity="0.8">
+        <path d="M 0,-20 L 0,-540" stroke-width="13"/>
+        <path d="M 0,-160 C  40,-180  90,-220  130,-280" stroke-width="10"/>
+        <path d="M 0,-160 C -40,-180 -90,-220 -130,-280" stroke-width="10"/>
+        <path d="M 0,-280 C  50,-310  110,-360  140,-410" stroke-width="10"/>
+        <path d="M 0,-280 C -50,-310 -110,-360 -140,-410" stroke-width="10"/>
+        <path d="M 0,-400 C  40,-430  80,-470  100,-500" stroke-width="10"/>
+        <path d="M 0,-400 C -40,-430 -80,-470 -100,-500" stroke-width="10"/>
+      </g>
+    </g>
+  </g>
+</svg>
+</body></html>
