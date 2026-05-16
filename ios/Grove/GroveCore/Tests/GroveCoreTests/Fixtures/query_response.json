@@ -1,0 +1,25 @@
+{
+  "sources": [
+    {
+      "memory_id": "c1d2e3f4-a5b6-7890-cdef-012345678901",
+      "score": 0.912345,
+      "matched_via": "whole",
+      "matched_chunk_index": null,
+      "excerpt": "The project uses SwiftData as the local store and source of truth for unsynced captures.",
+      "captured_at": "2026-05-09T10:15:00+00:00",
+      "source_modality": "text"
+    },
+    {
+      "memory_id": "d2e3f4a5-b6c7-8901-defa-123456789012",
+      "score": 0.834567,
+      "matched_via": "chunk",
+      "matched_chunk_index": 2,
+      "excerpt": "URLSession with a background configuration for capture uploads must survive app suspension.",
+      "captured_at": "2026-05-08T08:45:00+00:00",
+      "source_modality": "voice"
+    }
+  ],
+  "query_id": "feedb000-0000-0000-0000-000000000001",
+  "query_token_count": 7,
+  "latency_ms": 612.4
+}

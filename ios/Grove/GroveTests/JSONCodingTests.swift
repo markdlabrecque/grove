@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import OracleCore
+import GroveCore
 @testable import Grove
 
 /// Anchor class used solely to locate the OracleTests bundle at runtime.

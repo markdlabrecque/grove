@@ -1,6 +1,6 @@
 import Foundation
 import SwiftUI
-import OracleCore
+import GroveCore
 
 // MARK: - DictationCaptureViewModel
 

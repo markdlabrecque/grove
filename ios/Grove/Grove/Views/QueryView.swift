@@ -1,5 +1,5 @@
 import SwiftUI
-import OracleCore
+import GroveCore
 
 /// Ask tab — accepts a natural-language query and displays a RAG-synthesised
 /// answer (when available) followed by ranked source snippets from

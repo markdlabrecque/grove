@@ -1,5 +1,5 @@
 import SwiftUI
-import OracleCore
+import GroveCore
 
 /// Detail view for a single memory source result.
 ///

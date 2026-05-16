@@ -44,7 +44,7 @@ ios/DerivedData/
 # Swift Package Manager local state
 ios/.swiftpm/
 ios/.build/
-ios/Grove/OracleCore/.build/
+ios/Grove/GroveCore/.build/
 
 # Xcode crash + temp files
 *.moved-aside

@@ -1,5 +1,5 @@
 import SwiftUI
-import OracleCore
+import GroveCore
 
 /// Capture tab — accepts text input and sends it to POST /v1/captures.
 ///

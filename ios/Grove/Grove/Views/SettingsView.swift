@@ -1,5 +1,5 @@
 import SwiftUI
-import OracleCore
+import GroveCore
 
 // MARK: - SettingsView
 

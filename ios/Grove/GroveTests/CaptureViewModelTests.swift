@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import OracleCore
+import GroveCore
 @testable import Grove
 
 // MARK: - SweepOrphanedTempFilesTests

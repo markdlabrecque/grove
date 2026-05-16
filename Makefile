@@ -113,7 +113,7 @@ format: ## Apply ruff formatting in-place
 # ---------- iOS tests ----------
 
 # Two targets cover the full local test matrix:
-#   ios-test-core      → swift test on the OracleCore package (mirrors the stable CI gate)
+#   ios-test-core      → swift test on the GroveCore package (mirrors the stable CI gate)
 #   ios-lint-pbxproj   → assert every GroveTests/*.swift is wired into project.pbxproj
 #   ios-test-app       → xcodebuild test on the Grove scheme  (local-only; requires Xcode 26 + xcconfig)
 #   ios-test           → runs all three in sequence; required pre-push check per AGENTS.md
@@ -124,8 +124,8 @@ format: ## Apply ruff formatting in-place
 # See TODO(ci) in .github/workflows/ios-ci.yml for when to re-add the full-app CI job.
 
 .PHONY: ios-test-core
-ios-test-core: ## Run OracleCore swift package tests (stable CI gate; no simulator needed)
-	swift test --package-path ios/Grove/OracleCore
+ios-test-core: ## Run GroveCore swift package tests (stable CI gate; no simulator needed)
+	swift test --package-path ios/Grove/GroveCore
 
 .PHONY: ios-lint-pbxproj
 ios-lint-pbxproj: ## Assert every GroveTests/*.swift is referenced in project.pbxproj
@@ -140,7 +140,7 @@ ios-test-app: ios-lint-pbxproj ## Run the full Grove scheme tests on iPhone 17 s
 		-resultBundlePath ios/build/TestResults.xcresult
 
 .PHONY: ios-test
-ios-test: ios-test-core ios-test-app ## Run all iOS tests: OracleCore package + Grove scheme (requires iOS 26 SDK)
+ios-test: ios-test-core ios-test-app ## Run all iOS tests: GroveCore package + Grove scheme (requires iOS 26 SDK)
 
 .PHONY: ios-test-clean
 ios-test-clean: ## Wipe iOS build artefacts (ios/build/ and ios/DerivedData/) then run tests

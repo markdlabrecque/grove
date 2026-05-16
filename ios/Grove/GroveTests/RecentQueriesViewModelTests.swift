@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import OracleCore
+import GroveCore
 @testable import Grove
 
 /// Unit tests for recent-queries chip strip state in `QueryViewModel`.

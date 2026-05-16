@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import OracleCore
+import GroveCore
 @testable import Grove
 
 /// Tests for OracleAPI — specifically the URLRequest builder for
@@ -15,7 +15,7 @@ import OracleCore
 /// V2 `captureRequest(for:)` does not set `httpBody` — the body is written to a
 /// temp file and passed to `uploadTask(with:fromFile:)` in `postCapture`.
 /// Body encoding is tested in `CaptureRequestBody` encoding tests below, and
-/// the full end-to-end round-trip is covered by the `OracleCore` smoke tests.
+/// the full end-to-end round-trip is covered by the `GroveCore` smoke tests.
 @Suite("OracleAPI")
 struct OracleAPITests {
 

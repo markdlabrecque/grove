@@ -50,7 +50,7 @@ jobs:
   # ---------------------------------------------------------------------------
   # stable: required check for develop branch protection.
   #
-  # Runs `swift test` against the OracleCore Swift Package only. No xcodebuild,
+  # Runs `swift test` against the GroveCore Swift Package only. No xcodebuild,
   # no simulator, no iOS 26 SDK surface area. Passes on any runner that has
   # Xcode 16+ (PackageDescription 6.0) installed.
   #
@@ -92,22 +92,22 @@ jobs:
           xcodebuild -version
           swift --version
 
-      - name: swift test (OracleCore)
+      - name: swift test (GroveCore)
         if: steps.filter.outputs.ios == 'true'
-        run: swift test --package-path ios/Grove/OracleCore --enable-code-coverage
+        run: swift test --package-path ios/Grove/GroveCore --enable-code-coverage
 
-      - name: Extract OracleCore coverage
+      - name: Extract GroveCore coverage
         if: steps.filter.outputs.ios == 'true'
         run: |
           set -euo pipefail
-          PROF=$(find ios/Grove/OracleCore/.build -name '*.profdata' | head -n1)
-          BIN=$(find ios/Grove/OracleCore/.build -name 'OracleCorePackageTests.xctest' | head -n1)
+          PROF=$(find ios/Grove/GroveCore/.build -name '*.profdata' | head -n1)
+          BIN=$(find ios/Grove/GroveCore/.build -name 'GroveCorePackageTests.xctest' | head -n1)
           if [ -z "$PROF" ] || [ -z "$BIN" ]; then
             echo "Coverage artifacts not found — skipping export." >&2
             exit 0
           fi
           # Resolve the actual test binary inside the bundle (macOS layout).
-          BIN_EXEC="$BIN/Contents/MacOS/OracleCorePackageTests"
+          BIN_EXEC="$BIN/Contents/MacOS/GroveCorePackageTests"
           if [ ! -f "$BIN_EXEC" ]; then
             BIN_EXEC="$BIN"
           fi
@@ -122,7 +122,7 @@ jobs:
             "$BIN_EXEC" \
             -ignore-filename-regex='\.build/|Tests/' | tail -n5
 
-      - name: Upload OracleCore coverage report
+      - name: Upload GroveCore coverage report
         # always() ensures the artifact is uploaded even if `swift test`
         # failed (useful for debugging), but only when iOS paths actually
         # changed in this PR.

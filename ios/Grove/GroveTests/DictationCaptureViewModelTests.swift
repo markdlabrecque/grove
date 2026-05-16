@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 import SwiftData
-import OracleCore
+import GroveCore
 @testable import Grove
 
 // MARK: - DictationCaptureViewModelTests

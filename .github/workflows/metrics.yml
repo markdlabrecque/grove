@@ -55,7 +55,7 @@ jobs:
             --csv \
             server/grove \
             ios/Grove/Grove \
-            ios/Grove/OracleCore/Sources \
+            ios/Grove/GroveCore/Sources \
             > lizard.csv
 
           python3 - <<'PY' > comment-body.md

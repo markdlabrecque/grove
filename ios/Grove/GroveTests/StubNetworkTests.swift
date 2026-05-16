@@ -1,9 +1,9 @@
 import Testing
 import Foundation
 import SwiftData
-import OracleCore
+import GroveCore
 import OracleTestSupport
-@testable import OracleCore
+@testable import GroveCore
 @testable import Grove
 
 // MARK: - StubNetworkTests

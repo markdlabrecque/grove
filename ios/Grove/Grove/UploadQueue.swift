@@ -1,6 +1,6 @@
 import Foundation
 import SwiftData
-import OracleCore
+import GroveCore
 
 // MARK: - UploadQueueTestHooks
 
