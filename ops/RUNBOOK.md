@@ -1,6 +1,6 @@
 # Operations Runbook — Local Dev
 
-One-time setup and routine ops for The Oracle running locally on macOS, served
+One-time setup and routine ops for Grove running locally on macOS, served
 to the iPhone over a private Tailnet with HTTPS.
 
 In examples below, `$TAILSCALE_HOSTNAME` refers to your laptop's MagicDNS name
@@ -193,7 +193,7 @@ crontab -e
 Add (replace the path with your absolute project path):
 
 ```
-0 9 * * 1 /path/to/the-oracle/ops/scripts/renew-cert.sh >> /tmp/oracle-cert-renew.log 2>&1
+0 9 * * 1 /path/to/the-oracle/ops/scripts/renew-cert.sh >> /tmp/grove-cert-renew.log 2>&1
 ```
 
 ## Troubleshooting
@@ -237,7 +237,7 @@ Python dict per worker). If the server is ever scaled to multiple worker
 processes (`uvicorn --workers N`) or multiple container replicas, each process
 maintains its own independent bucket dict and a client can exceed the nominal
 rate by routing requests across processes. In that scenario, replace the
-module-level storage in `oracle/core/rate_limit.py` with a Redis-backed
+module-level storage in `grove/core/rate_limit.py` with a Redis-backed
 implementation (e.g. redis-py async + a Lua script for atomic
 check-and-decrement).
 
@@ -248,16 +248,16 @@ check-and-decrement).
 The production Hetzner box runs a nightly `pg_dump` that writes a dated
 custom-format archive to a Hetzner Storage Box (or Backblaze B2 bucket).
 30-day retention.  The backup job is a host-level cron on the Hetzner box
-(`/etc/cron.d/oracle-backup` or equivalent) that executes roughly:
+(`/etc/cron.d/grove-backup` or equivalent) that executes roughly:
 
 ```bash
-BACKUP_DIR=/mnt/storagebox/oracle-backups   # or rclone-mounted B2 bucket
+BACKUP_DIR=/mnt/storagebox/grove-backups   # or rclone-mounted B2 bucket
 DATESTAMP=$(date -u +%Y-%m-%d)
 docker compose -f /opt/the-oracle/docker-compose.yml exec -T postgres \
-    pg_dump -U oracle -d oracle -Fc \
-    > "${BACKUP_DIR}/oracle-${DATESTAMP}.dump"
+    pg_dump -U grove -d grove -Fc \
+    > "${BACKUP_DIR}/grove-${DATESTAMP}.dump"
 # prune files older than 30 days
-find "${BACKUP_DIR}" -name 'oracle-*.dump' -mtime +30 -delete
+find "${BACKUP_DIR}" -name 'grove-*.dump' -mtime +30 -delete
 ```
 
 > **Note:** The backup job itself is not committed in this repo — it lives on
@@ -276,21 +276,21 @@ or satisfy the §1.6 exit criterion.  All commands are copy-pasteable.
 On the Hetzner box (or from a machine with access to the backup storage):
 
 ```bash
-BACKUP_DIR=/mnt/storagebox/oracle-backups   # adjust to actual mount
-SCRATCH=/tmp/oracle-restore-$(date -u +%Y-%m-%d)
+BACKUP_DIR=/mnt/storagebox/grove-backups   # adjust to actual mount
+SCRATCH=/tmp/grove-restore-$(date -u +%Y-%m-%d)
 mkdir -p "${SCRATCH}"
 
 # Copy the newest dated archive
-LATEST=$(ls -t "${BACKUP_DIR}"/oracle-*.dump | head -1)
-cp "${LATEST}" "${SCRATCH}/oracle.dump"
+LATEST=$(ls -t "${BACKUP_DIR}"/grove-*.dump | head -1)
+cp "${LATEST}" "${SCRATCH}/grove.dump"
 echo "Working with: ${LATEST}"
 ```
 
 If the backup target is remote (e.g. Backblaze B2 via rclone):
 
 ```bash
-rclone copy b2:oracle-backups/"$(rclone ls b2:oracle-backups | sort -k2 | tail -1 | awk '{print $2}')" "${SCRATCH}/"
-# then rename to oracle.dump as above
+rclone copy b2:grove-backups/"$(rclone ls b2:grove-backups | sort -k2 | tail -1 | awk '{print $2}')" "${SCRATCH}/"
+# then rename to grove.dump as above
 ```
 
 ### Step 2 — Spin up a throwaway Postgres+pgvector container
@@ -299,27 +299,27 @@ Use the same image tag as the production compose stack (`pgvector/pgvector:pg16`
 
 ```bash
 docker run --rm -d \
-    --name oracle-drill \
-    -e POSTGRES_DB=oracle \
-    -e POSTGRES_USER=oracle \
+    --name grove-drill \
+    -e POSTGRES_DB=grove \
+    -e POSTGRES_USER=grove \
     -e POSTGRES_PASSWORD=drillpass \
     -p 15433:5432 \
     pgvector/pgvector:pg16
 
 # Wait until ready (usually < 5 s)
-until docker exec oracle-drill pg_isready -U oracle -d oracle -q; do sleep 1; done
+until docker exec grove-drill pg_isready -U grove -d grove -q; do sleep 1; done
 echo "Ready"
 ```
 
 ### Step 3 — Create the pgvector extension and load the dump
 
 ```bash
-docker exec oracle-drill psql -U oracle -d oracle \
+docker exec grove-drill psql -U grove -d grove \
     -c "CREATE EXTENSION IF NOT EXISTS vector;"
 
-docker cp "${SCRATCH}/oracle.dump" oracle-drill:/tmp/oracle.dump
-docker exec oracle-drill \
-    pg_restore -U oracle -d oracle --no-owner --no-privileges /tmp/oracle.dump
+docker cp "${SCRATCH}/grove.dump" grove-drill:/tmp/grove.dump
+docker exec grove-drill \
+    pg_restore -U grove -d grove --no-owner --no-privileges /tmp/grove.dump
 
 echo "Restore complete"
 ```
@@ -329,10 +329,10 @@ echo "Restore complete"
 
 ### Step 4 — Sanity-count queries
 
-Run these inside the throwaway container (or via `psql -h localhost -p 15433 -U oracle -d oracle`):
+Run these inside the throwaway container (or via `psql -h localhost -p 15433 -U grove -d grove`):
 
 ```bash
-docker exec oracle-drill psql -U oracle -d oracle -c "
+docker exec grove-drill psql -U grove -d grove -c "
 SELECT 'memories'          AS tbl, COUNT(*) FROM memories
 UNION ALL
 SELECT 'memory_chunks',         COUNT(*) FROM memory_chunks
@@ -355,14 +355,14 @@ ORDER BY tbl;
 Also verify all migrations were applied (non-empty `alembic_version`):
 
 ```bash
-docker exec oracle-drill psql -U oracle -d oracle \
+docker exec grove-drill psql -U grove -d grove \
     -c "SELECT version_num FROM alembic_version;"
 ```
 
 And confirm pgvector is present:
 
 ```bash
-docker exec oracle-drill psql -U oracle -d oracle \
+docker exec grove-drill psql -U grove -d grove \
     -c "SELECT extname, extversion FROM pg_extension WHERE extname = 'vector';"
 ```
 
@@ -372,7 +372,7 @@ Before running the drill on production, capture a snapshot from the live DB:
 
 ```bash
 # On the production host (Hetzner box), before/during the same backup window:
-docker compose exec -T postgres psql -U oracle -d oracle -c "
+docker compose exec -T postgres psql -U grove -d grove -c "
 SELECT 'memories'          AS tbl, COUNT(*) FROM memories
 UNION ALL
 SELECT 'memory_chunks',         COUNT(*) FROM memory_chunks
@@ -395,7 +395,7 @@ ORDER BY tbl;
 After the restore, diff the counts:
 
 ```bash
-docker exec oracle-drill psql -U oracle -d oracle -c "
+docker exec grove-drill psql -U grove -d grove -c "
 SELECT 'memories'          AS tbl, COUNT(*) FROM memories
 UNION ALL
 SELECT 'memory_chunks',         COUNT(*) FROM memory_chunks
@@ -422,7 +422,7 @@ A clean diff (no output) means all row counts match.
 ### Step 6 — Tear down the throwaway container
 
 ```bash
-docker stop oracle-drill
+docker stop grove-drill
 # The --rm flag on docker run ensures it is deleted automatically on stop.
 ```
 
@@ -481,20 +481,20 @@ in `ops/systemd/` and must be installed once after deploy.
 
 ### Operator prerequisites
 
-1. Create the `oracle` system user and add it to the `docker` group:
+1. Create the `grove` system user and add it to the `docker` group:
 
    ```bash
-   sudo useradd --system --no-create-home oracle
-   sudo usermod -aG docker oracle
+   sudo useradd --system --no-create-home grove
+   sudo usermod -aG docker grove
    ```
 
 2. Confirm the project is checked out at `/opt/the-oracle` (or update
-   `WorkingDirectory=` in `oracle-enrichment.service` to the actual path).
+   `WorkingDirectory=` in `grove-enrichment.service` to the actual path).
 
 ### Install the units
 
 ```bash
-sudo cp /opt/the-oracle/ops/systemd/oracle-enrichment.{service,timer} \
+sudo cp /opt/the-oracle/ops/systemd/grove-enrichment.{service,timer} \
     /etc/systemd/system/
 sudo systemctl daemon-reload
 ```
@@ -502,35 +502,35 @@ sudo systemctl daemon-reload
 ### Enable and start the timer
 
 ```bash
-sudo systemctl enable --now oracle-enrichment.timer
+sudo systemctl enable --now grove-enrichment.timer
 ```
 
 To disable (stops future runs; does not abort a run in progress):
 
 ```bash
-sudo systemctl disable --now oracle-enrichment.timer
+sudo systemctl disable --now grove-enrichment.timer
 ```
 
 ### Trigger an ad-hoc run
 
 ```bash
-sudo systemctl start oracle-enrichment.service
+sudo systemctl start grove-enrichment.service
 ```
 
 ### Read recent run logs
 
 ```bash
 # Last 100 lines from all runs
-journalctl -u oracle-enrichment.service -n 100 --no-pager
+journalctl -u grove-enrichment.service -n 100 --no-pager
 
 # Follow live output during a run
-journalctl -u oracle-enrichment.service -f
+journalctl -u grove-enrichment.service -f
 ```
 
 ### Verify the timer is scheduled
 
 ```bash
-systemctl list-timers oracle-enrichment.timer
+systemctl list-timers grove-enrichment.timer
 ```
 
 ### Post-downtime behaviour
@@ -548,9 +548,9 @@ let the full stack stabilise before enabling the timer, or temporarily stop
 it during the startup window:
 
 ```bash
-sudo systemctl stop oracle-enrichment.timer
+sudo systemctl stop grove-enrichment.timer
 # ... wait for compose stack + database to be healthy ...
-sudo systemctl start oracle-enrichment.timer
+sudo systemctl start grove-enrichment.timer
 ```
 
 ### Alerting
@@ -563,7 +563,7 @@ exit codes in the journal if something appears wrong.
 
 ## Enrichment scheduler (macOS LaunchAgent)
 
-On a macOS dev host there is no systemd. `ops/launchd/com.affinitybridge.oracle-enrichment.plist`
+On a macOS dev host there is no systemd. `ops/launchd/com.affinitybridge.grove-enrichment.plist`
 is a LaunchAgent template that fires the same enrichment worker hourly, against
 the local Docker Compose stack.
 
@@ -583,43 +583,43 @@ Replace the two placeholders in the template (`__REPO_ROOT__` and
 ```bash
 REPO_ROOT="$HOME/Projects/the-oracle"   # adjust to your actual checkout path
 
-mkdir -p ~/Library/LaunchAgents ~/Library/Logs/oracle
+mkdir -p ~/Library/LaunchAgents ~/Library/Logs/grove
 
 sed \
     -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
     -e "s|__USER_HOME__|${HOME}|g" \
-    "${REPO_ROOT}/ops/launchd/com.affinitybridge.oracle-enrichment.plist" \
-    > ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+    "${REPO_ROOT}/ops/launchd/com.affinitybridge.grove-enrichment.plist" \
+    > ~/Library/LaunchAgents/com.affinitybridge.grove-enrichment.plist
 
 launchctl bootstrap gui/$(id -u) \
-    ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+    ~/Library/LaunchAgents/com.affinitybridge.grove-enrichment.plist
 ```
 
 Verify it is registered:
 
 ```bash
-launchctl list | grep oracle
-# should show: -  0  com.affinitybridge.oracle-enrichment
+launchctl list | grep grove
+# should show: -  0  com.affinitybridge.grove-enrichment
 ```
 
 ### Trigger an ad-hoc run
 
 ```bash
-launchctl kickstart -k gui/$(id -u)/com.affinitybridge.oracle-enrichment
+launchctl kickstart -k gui/$(id -u)/com.affinitybridge.grove-enrichment
 ```
 
 ### Read recent run output
 
 ```bash
-tail -f ~/Library/Logs/oracle/enrichment.out.log
-tail -f ~/Library/Logs/oracle/enrichment.err.log
+tail -f ~/Library/Logs/grove/enrichment.out.log
+tail -f ~/Library/Logs/grove/enrichment.err.log
 ```
 
 ### Unload / remove
 
 ```bash
-launchctl bootout gui/$(id -u)/com.affinitybridge.oracle-enrichment
-rm ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+launchctl bootout gui/$(id -u)/com.affinitybridge.grove-enrichment
+rm ~/Library/LaunchAgents/com.affinitybridge.grove-enrichment.plist
 ```
 
 ### Docker binary path
@@ -633,7 +633,7 @@ OrbStack macOS installs. If your Docker binary is elsewhere, update
 which docker
 
 # After editing the installed plist, reload:
-launchctl bootout gui/$(id -u)/com.affinitybridge.oracle-enrichment
+launchctl bootout gui/$(id -u)/com.affinitybridge.grove-enrichment
 launchctl bootstrap gui/$(id -u) \
-    ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+    ~/Library/LaunchAgents/com.affinitybridge.grove-enrichment.plist
 ```

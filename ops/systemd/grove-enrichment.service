@@ -1,5 +1,5 @@
 [Unit]
-Description=Oracle enrichment worker (single run)
+Description=Grove enrichment worker (single run)
 # Ensures Docker is up before the service fires.
 After=docker.service
 Requires=docker.service
@@ -11,13 +11,12 @@ Type=oneshot
 WorkingDirectory=/opt/the-oracle
 
 # Run as the system user that owns the Docker Compose project and is a member
-# of the 'docker' group.  Change 'oracle' to match what was created on the box.
-User=oracle
+# of the 'docker' group.  Change 'grove' to match what was created on the box.
+User=grove
 
-ExecStart=docker compose exec -T app python -m oracle.enrichment.run
+ExecStart=docker compose exec -T app python -m grove.enrichment.run
 
 # journald captures stdout/stderr by default for systemd services;
 # these two lines are explicit for clarity but have no net effect.
 StandardOutput=journal
 StandardError=journal
-
