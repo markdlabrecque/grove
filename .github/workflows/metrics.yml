@@ -54,7 +54,7 @@ jobs:
           lizard \
             --csv \
             server/oracle \
-            ios/Oracle/Oracle \
+            ios/Oracle/Grove \
             ios/Oracle/OracleCore/Sources \
             > lizard.csv
 
