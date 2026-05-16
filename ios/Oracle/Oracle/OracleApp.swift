@@ -95,9 +95,7 @@ struct OracleApp: App {
 
     // Donate the dictation App Intent so it appears in the Shortcuts picker
     // and the Action Button settings panel (#326).
-    if #available(iOS 16.0, *) {
-      OracleShortcutsProvider.updateAppShortcutParameters()
-    }
+    OracleShortcutsProvider.updateAppShortcutParameters()
 
     // Eager launch drain: flush any rows that were enqueued in a previous
     // session (force-kill, offline-at-save, etc.). We do this unconditionally

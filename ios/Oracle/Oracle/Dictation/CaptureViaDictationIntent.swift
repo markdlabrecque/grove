@@ -25,7 +25,6 @@ import Foundation
 /// Returns `IntentResult` with no output value.  The capture UUID is not
 /// surfaced to Shortcuts because it requires a server round-trip; a follow-up
 /// ticket can make this chainable once the sync path is synchronous.
-@available(iOS 16.0, *)
 struct CaptureViaDictationIntent: AppIntent {
 
   static var title: LocalizedStringResource = "Capture with Oracle"
@@ -57,7 +56,6 @@ struct CaptureViaDictationIntent: AppIntent {
 /// - Shortcuts app under "The Oracle"
 /// - Action Button settings picker
 /// - Siri suggestions
-@available(iOS 16.0, *)
 struct OracleShortcutsProvider: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
     AppShortcut(
