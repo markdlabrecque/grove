@@ -27,11 +27,12 @@ import SwiftUI
 /// it posts `.openDictationCapture`.  RootView observes this and sets
 /// `showDictationSheet = true`, presenting `DictationCaptureView` as a sheet.
 ///
-/// If the app is backgrounded mid-dictation, `DictationCaptureViewModel`
-/// produces a `DictationDraft` containing the partial transcript.  The app
-/// delegate (or `scenePhase` transition) populates `pendingDictation`.
-/// `DictationResumeBanner` is then shown above the auth banner (auth is more
-/// urgent) — tap Resume to reopen the sheet pre-filled; tap × to discard.
+/// If the app is backgrounded mid-dictation, `DictationCaptureView` observes
+/// `scenePhase` and calls `viewModel.makeDraftIfNeeded()`.  If a non-empty
+/// partial transcript exists it posts `.dictationDraftAvailable` carrying the
+/// `DictationDraft` in `userInfo`.  RootView receives that notification and
+/// sets `pendingDictation`, surfacing the `DictationResumeBanner`.
+/// Tap Resume to reopen the sheet pre-filled; tap × to discard.
 ///
 /// Banner stacking order (top to bottom — most urgent first):
 ///   1. AuthRequiredBanner
@@ -161,6 +162,15 @@ struct RootView: View {
       NotificationCenter.default.publisher(for: .openDictationCapture)
     ) { _ in
       showDictationSheet = true
+    }
+    .onReceive(
+      NotificationCenter.default.publisher(for: .dictationDraftAvailable)
+    ) { notification in
+      // A dictation session was backgrounded mid-recording.  Stash the draft
+      // so DictationResumeBanner can offer to resume.
+      if let draft = notification.userInfo?[dictationDraftUserInfoKey] as? DictationDraft {
+        pendingDictation = draft
+      }
     }
   }
 

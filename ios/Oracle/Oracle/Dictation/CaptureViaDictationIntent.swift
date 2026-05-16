@@ -73,10 +73,20 @@ struct OracleShortcutsProvider: AppShortcutsProvider {
   }
 }
 
-// MARK: - Notification name
+// MARK: - Notification names
 
 extension Notification.Name {
   /// Posted by ``CaptureViaDictationIntent`` when the Action Button is pressed.
   /// ``RootView`` observes this to open the dictation sheet.
   static let openDictationCapture = Notification.Name("com.oracle.openDictationCapture")
+
+  /// Posted by ``DictationCaptureView`` when the app is backgrounded mid-recording
+  /// and a partial transcript exists.  The notification's `userInfo` carries the
+  /// ``DictationDraft`` under the key ``dictationDraftUserInfoKey``.
+  /// ``RootView`` observes this to surface the ``DictationResumeBanner``.
+  static let dictationDraftAvailable = Notification.Name("com.oracle.dictationDraftAvailable")
 }
+
+/// Key used to store a ``DictationDraft`` in a `dictationDraftAvailable` notification's
+/// `userInfo` dictionary.
+let dictationDraftUserInfoKey = "draft"

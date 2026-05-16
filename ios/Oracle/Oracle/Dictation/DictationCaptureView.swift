@@ -38,6 +38,7 @@ struct DictationCaptureView: View {
   @FocusState private var transcriptFocused: Bool
   @Environment(\.dismiss) private var dismiss
   @Environment(\.colorScheme) private var colorScheme
+  @Environment(\.scenePhase) private var scenePhase
 
   // Optional initial transcript for resume mode.
   private let initialTranscript: String?
@@ -110,6 +111,20 @@ struct DictationCaptureView: View {
         Task {
           try? await Task.sleep(for: .milliseconds(800))
           dismiss()
+        }
+      }
+    }
+    .onChange(of: scenePhase) { _, newPhase in
+      // When the app moves to the background during an active recording (or
+      // while a non-empty partial transcript exists), capture a draft and
+      // notify RootView so it can surface the DictationResumeBanner.
+      if newPhase == .background {
+        if let draft = viewModel.makeDraftIfNeeded() {
+          NotificationCenter.default.post(
+            name: .dictationDraftAvailable,
+            object: nil,
+            userInfo: [dictationDraftUserInfoKey: draft]
+          )
         }
       }
     }
