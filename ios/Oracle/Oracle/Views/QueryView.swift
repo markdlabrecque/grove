@@ -15,6 +15,13 @@ import OracleCore
 ///
 /// When `answer` is nil (server skipped synthesis), the view falls back to the
 /// original snippet-list-only behaviour.
+///
+/// # V2 forest-green (#320)
+///
+/// Search bar uses card surface with hairline border (§3.7). Answer card has
+/// a 3pt vertical gradient bar on the leading edge (§3.8). Source cards use
+/// a leaf score pill (§3.9). Recent-queries strip lead chip is forest700/paper;
+/// others are outline style (§3.10).
 struct QueryView: View {
   @State private var viewModel = QueryViewModel()
   @FocusState private var isFocused: Bool
@@ -35,25 +42,29 @@ struct QueryView: View {
 
   var body: some View {
     NavigationStack(path: $navigationPath) {
-      VStack(spacing: 0) {
-        queryInputArea
-          .padding()
-
-        // Recent-queries chip strip — only shown when the list is non-empty.
-        if !viewModel.recentQueries.isEmpty {
-          recentQueriesStrip
-        }
-
-        Divider()
-
-        resultArea
-      }
-      .navigationTitle("Ask")
-      .background(
-        Color.clear
+      ZStack {
+        Color.paper
+          .ignoresSafeArea()
           .contentShape(Rectangle())
           .onTapGesture { isFocused = false }
-      )
+
+        VStack(spacing: 0) {
+          queryInputArea
+            .padding()
+
+          // Recent-queries chip strip — only shown when the list is non-empty.
+          if !viewModel.recentQueries.isEmpty {
+            recentQueriesStrip
+          }
+
+          Divider()
+            .background(Color.hairline)
+
+          resultArea
+        }
+      }
+      .navigationTitle("Ask")
+      .navigationBarTitleDisplayMode(.large)
       // Resolves QueryResult values pushed onto `navigationPath` by
       // SourceCardRow's swipe action. Both navigation paths (swipe and
       // expanded-footer link) ultimately land on MemoryDetailView; the
@@ -79,7 +90,7 @@ struct QueryView: View {
     }
   }
 
-  // MARK: - Recent-queries chip strip
+  // MARK: - Recent-queries chip strip (§3.10)
 
   /// Horizontally scrolling strip of the user's most-recent distinct queries.
   ///
@@ -90,11 +101,14 @@ struct QueryView: View {
   /// The strip is hidden when `viewModel.recentQueries` is empty (on first
   /// install, or when the strip fetch fails). It refreshes after every
   /// successful ask so the most-recent query floats to the front.
+  ///
+  /// Lead chip (first/most-recent): forest700 bg, paper text.
+  /// Other chips: outline style.
   private var recentQueriesStrip: some View {
     ScrollView(.horizontal, showsIndicators: false) {
       HStack(spacing: 8) {
-        ForEach(viewModel.recentQueries) { item in
-          RecentQueryChip(queryText: item.queryText) {
+        ForEach(Array(viewModel.recentQueries.enumerated()), id: \.element.id) { idx, item in
+          RecentQueryChip(queryText: item.queryText, isLead: idx == 0) {
             isFocused = false
             viewModel.tapRecentQuery(item)
           }
@@ -107,10 +121,16 @@ struct QueryView: View {
     .accessibilityHint("Double-tap a chip to re-run that query")
   }
 
-  // MARK: - Query input
+  // MARK: - Query input (§3.7)
 
+  /// Search bar: card surface, 50pt height, 14pt radius.
+  /// Leading magnifyingglass in forest500; trailing mic in forest500.
   private var queryInputArea: some View {
     HStack(spacing: 12) {
+      Image(systemName: "magnifyingglass")
+        .foregroundStyle(Color.forest500)
+        .accessibilityHidden(true)
+
       TextField("Ask your memory…", text: $viewModel.query)
         .submitLabel(.search)
         .onSubmit {
@@ -120,6 +140,7 @@ struct QueryView: View {
         .focused($isFocused)
         .textInputAutocapitalization(.sentences)
         .autocorrectionDisabled(false)
+        .foregroundStyle(Color.ink900)
         .accessibilityLabel("Query field")
         .accessibilityHint("Type a question to search your memories")
 
@@ -130,16 +151,25 @@ struct QueryView: View {
         if viewModel.isLoading {
           ProgressView()
             .controlSize(.small)
+            .tint(.forest500)
         } else {
           Text("Ask")
             .fontWeight(.semibold)
+            .foregroundStyle(Color.forest500)
         }
       }
-      .buttonStyle(.borderedProminent)
       .disabled(!viewModel.isAskEnabled)
       .accessibilityLabel(viewModel.isLoading ? "Ask — cancels current search and starts a new one" : "Ask")
       .accessibilityHint("Submit query to search your memories")
     }
+    .padding(.horizontal, 14)
+    .frame(height: 50)
+    .background(Color.card)
+    .clipShape(RoundedRectangle(cornerRadius: 14))
+    .overlay(
+      RoundedRectangle(cornerRadius: 14)
+        .strokeBorder(Color.hairline, lineWidth: 1)
+    )
   }
 
   // MARK: - Result area
@@ -154,6 +184,7 @@ struct QueryView: View {
       VStack {
         Spacer()
         ProgressView("Searching…")
+          .tint(.forest500)
           .accessibilityLabel("Searching memories")
         Spacer()
       }
@@ -163,7 +194,7 @@ struct QueryView: View {
         VStack {
           Spacer()
           Text("No matches")
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.ink500)
             .accessibilityLabel("No results found")
           Spacer()
         }
@@ -175,11 +206,13 @@ struct QueryView: View {
               answerCard(answer: answer, sources: sources, queryID: queryID)
                 .listRowInsets(EdgeInsets(top: 16, leading: 16, bottom: 8, trailing: 16))
                 .listRowSeparator(.hidden)
+                .listRowBackground(Color.paper)
 
               // Divider between answer card and source list.
               Divider()
                 .listRowInsets(EdgeInsets(top: 0, leading: 0, bottom: 0, trailing: 0))
                 .listRowSeparator(.hidden)
+                .listRowBackground(Color.paper)
             }
 
             // Source cards — tap the chevron to expand/collapse inline;
@@ -197,9 +230,12 @@ struct QueryView: View {
               .id("source-\(idx)")
               .listRowInsets(EdgeInsets(top: 10, leading: 16, bottom: 10, trailing: 16))
               .listRowSeparator(.hidden)
+              .listRowBackground(Color.paper)
             }
           }
           .listStyle(.plain)
+          .background(Color.paper)
+          .scrollContentBackground(.hidden)
           .onAppear { scrollProxy = proxy }
         }
       }
@@ -210,38 +246,64 @@ struct QueryView: View {
     }
   }
 
-  // MARK: - Answer card
+  // MARK: - Answer card (§3.8)
 
   private func answerCard(answer: String, sources: [QueryResult], queryID: UUID?) -> some View {
     let segments = CitationParser.parse(answer: answer, sources: sources)
 
-    return VStack(alignment: .leading, spacing: 8) {
-      Text("Answer")
-        .font(.caption)
-        .fontWeight(.semibold)
-        .foregroundStyle(.secondary)
-        .textCase(.uppercase)
+    return HStack(spacing: 0) {
+      // 3pt leading gradient bar per spec §3.8.
+      LinearGradient(
+        colors: [Color.forest500, Color.moss400],
+        startPoint: .top,
+        endPoint: .bottom
+      )
+      .frame(width: 3)
+      .clipShape(
+        UnevenRoundedRectangle(
+          topLeadingRadius: 0,
+          bottomLeadingRadius: 3,
+          bottomTrailingRadius: 0,
+          topTrailingRadius: 3
+        )
+      )
+
+      VStack(alignment: .leading, spacing: 8) {
+        // Header strip: leaf.fill + "ANSWER" in forest500 uppercase.
+        HStack(spacing: 4) {
+          Image(systemName: "leaf.fill")
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundStyle(Color.forest500)
+          Text("Answer")
+            .font(.system(size: 11, weight: .semibold))
+            .foregroundStyle(Color.forest500)
+            .textCase(.uppercase)
+            .tracking(1.5)
+        }
         .accessibilityHidden(true)
 
-      // Build the answer text with inline tappable citation badges.
-      answerText(segments: segments, sources: sources)
+        // Build the answer text with inline tappable citation badges.
+        answerText(segments: segments, sources: sources)
 
-      // Feedback chips — only shown when the server returned a query_id.
-      if let queryID {
-        FeedbackChipsView(
-          queryID: queryID,
-          currentFeedback: viewModel.feedback(for: queryID),
-          onFeedback: { feedback in
-            viewModel.submitFeedback(feedback, for: queryID)
-          }
-        )
-        .padding(.top, 4)
+        // Feedback chips — only shown when the server returned a query_id.
+        if let queryID {
+          FeedbackChipsView(
+            queryID: queryID,
+            currentFeedback: viewModel.feedback(for: queryID),
+            onFeedback: { feedback in
+              viewModel.submitFeedback(feedback, for: queryID)
+            }
+          )
+          .padding(.top, 4)
+        }
       }
+      .padding(12)
+      .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .padding(12)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color(.secondarySystemBackground))
-    .clipShape(RoundedRectangle(cornerRadius: 10))
+    .background(Color.card)
+    .clipShape(RoundedRectangle(cornerRadius: 18))
+    .shadow(color: Color(red: 0.08, green: 0.15, blue: 0.11).opacity(0.07), radius: 24, x: 0, y: 8)
+    .shadow(color: Color(red: 0.08, green: 0.15, blue: 0.11).opacity(0.05), radius: 2, x: 0, y: 1)
     .accessibilityElement(children: .combine)
     .accessibilityLabel(accessibilityAnswerLabel(answer: answer, sources: sources))
   }
@@ -285,8 +347,9 @@ struct QueryView: View {
         let n = citationButtons.count + 1
         citationButtons.append((label: "[\(n)]", sourceIndex: idx))
         var marker = AttributedString("[\(n)]")
-        marker.foregroundColor = .accentColor
-        marker.font = .caption.weight(.semibold)
+        // Citation badge styling: sage200 bg, forest800 text per spec §3.8.
+        marker.foregroundColor = UIColor(named: "forest800").map { Color($0) } ?? .accentColor
+        marker.font = .caption.weight(.bold)
         displayText += marker
       }
     }
@@ -344,7 +407,8 @@ private struct AnswerTextView: View {
   var body: some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(displayText)
-        .font(.title3)
+        .font(.system(size: 15))
+        .foregroundStyle(Color.ink900)
         .fixedSize(horizontal: false, vertical: true)
         .accessibilityHidden(true)
 
@@ -354,9 +418,14 @@ private struct AnswerTextView: View {
             Button(entry.label) {
               onCitationTap(entry.sourceIndex)
             }
-            .font(.caption.weight(.semibold))
-            .buttonStyle(.borderless)
-            .foregroundStyle(.accent)
+            // Citation badge: sage200 bg, forest800 text, 10pt bold per spec §3.8.
+            .font(.system(size: 10, weight: .bold))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .foregroundStyle(Color.forest800)
+            .background(Color.sage200)
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+            .buttonStyle(.plain)
             .accessibilityLabel("Jump to source \(entry.label)")
           }
           Spacer()
@@ -366,7 +435,7 @@ private struct AnswerTextView: View {
   }
 }
 
-// MARK: - Source card row (expandable)
+// MARK: - Source card row (expandable) (§3.9)
 
 /// A source card that can be expanded inline to show the full memory content.
 ///
@@ -408,7 +477,8 @@ private struct SourceCardRow: View {
       HStack(alignment: .top, spacing: 8) {
         VStack(alignment: .leading, spacing: 6) {
           Text(result.excerpt)
-            .font(.body)
+            .font(.system(size: 14))
+            .foregroundStyle(Color.ink900)
             .lineLimit(isExpanded ? nil : 3)
             .accessibilityLabel(isExpanded ? "Memory content: \(result.excerpt)" : "Snippet: \(result.excerpt)")
 
@@ -417,48 +487,52 @@ private struct SourceCardRow: View {
 
         Spacer(minLength: 4)
 
-        // Chevron button — the ONLY expand/collapse trigger. Isolated so that
-        // the text content above (which may receive highlight flashes from
-        // citation taps) never accidentally toggles expansion.
+        // Chevron button — the ONLY expand/collapse trigger.
         Button {
           isExpanded.toggle()
         } label: {
           Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
             .font(.caption.weight(.semibold))
-            .foregroundStyle(.secondary)
+            .foregroundStyle(Color.ink300)
             .frame(width: 28, height: 28)
-            .background(Color(.tertiarySystemBackground))
+            .background(Color.paperWarm)
             .clipShape(Circle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isExpanded ? "Collapse memory" : "Expand memory")
         .accessibilityHint("Double-tap to \(isExpanded ? "collapse" : "expand") the full content of this memory")
       }
-      .padding(8)
+      .padding(12)
 
       // --- Expanded content footer ---
       if isExpanded {
         VStack(alignment: .leading, spacing: 12) {
           Divider()
-            .padding(.horizontal, 8)
+            .background(Color.hairline)
+            .padding(.horizontal, 12)
 
           expandedMetadata
-            .padding(.horizontal, 8)
+            .padding(.horizontal, 12)
 
-          // NavigationLink to the detail view — keeps delete reachable (#172).
+          // Footer: "View detail / Delete" link in forest500 per spec §3.9.
           NavigationLink {
             MemoryDetailView(
               result: result,
               onDeleteSuccess: onDeleteSuccess
             )
           } label: {
-            Label("View detail / Delete", systemImage: "arrow.right.circle")
-              .font(.subheadline)
-              .foregroundStyle(.accent)
+            HStack(spacing: 4) {
+              Text("View detail / Delete")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(Color.forest500)
+              Image(systemName: "chevron.right")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(Color.ink300)
+            }
           }
           .buttonStyle(.plain)
-          .padding(.horizontal, 8)
-          .padding(.bottom, 8)
+          .padding(.horizontal, 12)
+          .padding(.bottom, 12)
           .accessibilityLabel("View memory detail and delete options")
           .accessibilityHint("Double-tap to open full detail view where you can delete this memory")
         }
@@ -467,41 +541,51 @@ private struct SourceCardRow: View {
     }
     // Animate the isExpanded flag on both the lineLimit change and the footer.
     .animation(.easeInOut(duration: 0.25), value: isExpanded)
-    .background(isHighlighted ? Color.accentColor.opacity(0.12) : Color.clear)
-    .clipShape(RoundedRectangle(cornerRadius: 8))
+    .background(isHighlighted ? Color.forest500.opacity(0.12) : Color.card)
+    .clipShape(RoundedRectangle(cornerRadius: 12))
+    .overlay(
+      RoundedRectangle(cornerRadius: 12)
+        .strokeBorder(Color.hairline, lineWidth: 1)
+    )
     .animation(.easeOut(duration: 0.3), value: isHighlighted)
     .accessibilityElement(children: .contain)
     // Leading swipe action — restores one-gesture detail access removed in #188.
-    // Leading (not trailing) keeps the trailing edge free for a future delete
-    // shortcut without gesture collision. The chevron tap on the card body is
-    // unaffected because swipeActions only fires on a committed swipe gesture.
     .swipeActions(edge: .leading, allowsFullSwipe: false) {
       Button {
         navigationPath.append(result)
       } label: {
         Label("View Detail", systemImage: "arrow.right.circle")
       }
-      .tint(.accentColor)
+      .tint(.forest500)
       .accessibilityLabel("View memory detail")
       .accessibilityHint("Opens the full detail view where you can delete this memory")
     }
   }
 
-  // MARK: - Metadata row (collapsed)
+  // MARK: - Metadata row (§3.9 score pill + meta)
 
   private var metadataRow: some View {
     HStack(spacing: 8) {
-      // Similarity score as a percentage — visually subordinate.
-      Text(String(format: "%.0f%%", result.score * 100))
-        .font(.caption)
-        .foregroundStyle(.secondary)
-        .accessibilityLabel("Similarity \(String(format: "%.0f", result.score * 100)) percent")
+      // Score pill: leaf-shaped tonal badge — sage200 bg, forest800 text, leaf SF Symbol.
+      HStack(spacing: 4) {
+        Image(systemName: "leaf.fill")
+          .font(.system(size: 10, weight: .semibold))
+          .foregroundStyle(Color.forest800)
+        Text(String(format: "%.0f%%", result.score * 100))
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundStyle(Color.forest800)
+      }
+      .padding(.horizontal, 8)
+      .padding(.vertical, 4)
+      .background(Color.sage200)
+      .clipShape(Capsule())
+      .accessibilityLabel("Similarity \(String(format: "%.0f", result.score * 100)) percent")
 
       // Relative capture date.
       if let capturedAt = result.capturedAt {
         Text(Self.relativeDateFormatter.localizedString(for: capturedAt, relativeTo: Date()))
-          .font(.caption)
-          .foregroundStyle(.secondary)
+          .font(.system(size: 11, weight: .semibold))
+          .foregroundStyle(Color.ink500)
           .accessibilityLabel("Captured \(Self.relativeDateFormatter.localizedString(for: capturedAt, relativeTo: Date()))")
       }
 
@@ -509,10 +593,10 @@ private struct SourceCardRow: View {
       if result.matchedVia == "chunk", let idx = result.matchedChunkIndex {
         Text("[chunk \(idx)]")
           .font(.caption2)
-          .foregroundStyle(.secondary)
+          .foregroundStyle(Color.ink500)
           .padding(.horizontal, 5)
           .padding(.vertical, 2)
-          .background(Color(.tertiarySystemBackground))
+          .background(Color.paperWarm)
           .clipShape(RoundedRectangle(cornerRadius: 4))
           .accessibilityLabel("Chunk \(idx)")
       }
@@ -545,7 +629,7 @@ private struct SourceCardRow: View {
     }
     .padding(10)
     .frame(maxWidth: .infinity, alignment: .leading)
-    .background(Color(.secondarySystemBackground))
+    .background(Color.paperWarm)
     .clipShape(RoundedRectangle(cornerRadius: 8))
   }
 
@@ -553,11 +637,11 @@ private struct SourceCardRow: View {
     HStack(alignment: .firstTextBaseline) {
       Text(label)
         .font(.caption)
-        .foregroundStyle(.secondary)
+        .foregroundStyle(Color.ink500)
         .frame(width: 72, alignment: .leading)
       Text(value)
         .font(.caption)
-        .foregroundStyle(.primary)
+        .foregroundStyle(Color.ink900)
       Spacer()
     }
     .accessibilityElement(children: .combine)
@@ -617,15 +701,15 @@ private struct FeedbackChip: View {
         .padding(.vertical, 6)
         .background(
           isSelected
-            ? Color.accentColor.opacity(0.15)
-            : Color(.tertiarySystemBackground)
+            ? Color.sage200
+            : Color.paperWarm
         )
-        .foregroundStyle(isSelected ? Color.accentColor : Color.secondary)
+        .foregroundStyle(isSelected ? Color.forest800 : Color.ink500)
         .clipShape(Capsule())
         .overlay(
           Capsule()
             .strokeBorder(
-              isSelected ? Color.accentColor.opacity(0.4) : Color.clear,
+              isSelected ? Color.sage300 : Color.clear,
               lineWidth: 1
             )
         )
@@ -636,30 +720,30 @@ private struct FeedbackChip: View {
   }
 }
 
-// MARK: - Recent query chip
+// MARK: - Recent query chip (§3.10)
 
 /// A single recent-query chip in the horizontal strip above the input field.
 ///
-/// Displays the `queryText` truncated to a single line. Tapping fires the
-/// provided `action` closure (which in production calls
-/// `QueryViewModel.tapRecentQuery(_:)` to populate the field and submit).
+/// Lead chip (idx == 0): `forest700` bg, `paper` text.
+/// Other chips: outline style (`card` bg, `hairline` border, `ink700` text).
 private struct RecentQueryChip: View {
   let queryText: String
+  let isLead: Bool
   let action: () -> Void
 
   var body: some View {
     Button(action: action) {
       Text(queryText)
-        .font(.subheadline)
+        .font(.system(size: 13, weight: .semibold))
         .lineLimit(1)
         .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .background(Color(.secondarySystemBackground))
-        .foregroundStyle(.primary)
+        .padding(.vertical, 9)
+        .background(isLead ? Color.forest700 : Color.card)
+        .foregroundStyle(isLead ? Color.paper : Color.ink700)
         .clipShape(Capsule())
         .overlay(
           Capsule()
-            .strokeBorder(Color.secondary.opacity(0.25), lineWidth: 1)
+            .strokeBorder(isLead ? Color.clear : Color.hairline, lineWidth: 1)
         )
     }
     .buttonStyle(.plain)
