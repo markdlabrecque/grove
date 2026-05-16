@@ -146,3 +146,30 @@ class TestLoadIntentPromptsMissing:
     def test_unknown_version_raises_value_error(self) -> None:
         with pytest.raises(ValueError, match="unknown version"):
             load_intent_prompts(9999)
+
+    def test_error_message_contains_version(self) -> None:
+        with pytest.raises(ValueError, match="9999"):
+            load_intent_prompts(9999)
+
+
+# ---------------------------------------------------------------------------
+# load_intent_prompts — schema violation
+# ---------------------------------------------------------------------------
+
+
+class TestLoadIntentPromptsSchemaViolation:
+    def test_schema_violation_raises_validation_error(self, tmp_path: Path, monkeypatch) -> None:
+        """YAML missing required fields raises pydantic.ValidationError."""
+        import oracle.llm.prompts as prompts_module
+
+        bad_yaml = tmp_path / "intent.v42.yaml"
+        _write_yaml(bad_yaml, {"version": 42, "user_prompt_template": "hello"})
+
+        monkeypatch.setattr(prompts_module, "_PROMPTS_DIR", tmp_path)
+        load_intent_prompts.cache_clear()
+
+        try:
+            with pytest.raises(ValidationError):
+                load_intent_prompts(42)
+        finally:
+            load_intent_prompts.cache_clear()
