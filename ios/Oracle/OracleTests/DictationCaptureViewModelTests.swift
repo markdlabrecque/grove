@@ -96,8 +96,8 @@ struct DictationCaptureViewModelDraftTests {
     #expect(draft?.transcript == "This is a partial thought")
   }
 
-  @Test("returns nil when stopped (not mid-recording)")
-  func returnsNilWhenStopped() throws {
+  @Test("returns a draft when stopped with non-empty transcript")
+  func returnsDraftWhenStoppedWithText() throws {
     let mock = MockSpeechRecognizer()
     mock.isAvailable = false
     let controller = DictationController(recognizer: mock)
@@ -106,8 +106,24 @@ struct DictationCaptureViewModelDraftTests {
       uploadQueue: try makeQueue()
     )
     vm.recordingState = .stopped
-    vm.transcript = "Some completed transcript"
-    // .stopped means the session ended — no resume banner needed.
+    vm.transcript = "Stopped but unsaved"
+    // .stopped + non-empty → draft produced so app-background doesn't silently discard.
+    let draft = vm.makeDraftIfNeeded()
+    #expect(draft != nil, "Expected a draft when stopped with non-empty transcript")
+    #expect(draft?.transcript == "Stopped but unsaved")
+  }
+
+  @Test("returns nil when stopped but transcript is empty")
+  func returnsNilWhenStoppedAndTranscriptEmpty() throws {
+    let mock = MockSpeechRecognizer()
+    mock.isAvailable = false
+    let controller = DictationController(recognizer: mock)
+    let vm = DictationCaptureViewModel(
+      controller: controller,
+      uploadQueue: try makeQueue()
+    )
+    vm.recordingState = .stopped
+    vm.transcript = ""
     #expect(vm.makeDraftIfNeeded() == nil)
   }
 }
