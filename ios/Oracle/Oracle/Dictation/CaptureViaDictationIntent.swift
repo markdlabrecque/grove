@@ -65,7 +65,7 @@ struct OracleShortcutsProvider: AppShortcutsProvider {
         "Dictate to \(.applicationName)",
         "Save a thought in \(.applicationName)",
       ],
-      shortTitle: "Capture with Oracle",
+      shortTitle: "Capture with Grove",
       systemImageName: "mic.fill"
     )
   }
