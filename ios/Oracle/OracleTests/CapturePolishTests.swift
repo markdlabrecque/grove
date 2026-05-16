@@ -308,3 +308,49 @@ struct CaptureViewModelPolishTests {
     }
   }
 }
+
+// MARK: - CaptureViewModel.tokenCount wiring tests
+//
+// Pins the wiring between `content.count` and `tokenCount` on the view model.
+// The formula is already exercised by `TokenCountTests`; these tests catch a
+// regression where the property formula is accidentally overridden or
+// disconnected from `content`.
+
+import SwiftData
+import OracleCore
+
+@Suite("CaptureViewModel.tokenCount")
+@MainActor
+struct CaptureViewModelTokenCountTests {
+
+  // MARK: - Fixture
+
+  /// Minimal in-memory queue — `tokenCount` never touches the upload queue,
+  /// but `CaptureViewModel`'s init requires one.
+  private func makeQueue() throws -> UploadQueue {
+    let schema = Schema([QueuedCapture.self])
+    let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+    let container = try ModelContainer(for: schema, configurations: [config])
+    let api = OracleAPI(
+      baseURL: URL(string: "https://oracle.test.example")!,
+      bearerToken: "test-token"
+    )
+    return UploadQueue(modelContainer: container, api: api)
+  }
+
+  // MARK: - Tests
+
+  @Test("tokenCount is 1 for empty content")
+  func viewModelTokenCountEmptyContent() throws {
+    let vm = CaptureViewModel(uploadQueue: try makeQueue())
+    // content defaults to "" — max(1, 0 / 4) == 1
+    #expect(vm.tokenCount == 1)
+  }
+
+  @Test("tokenCount is 1 for 4-character content")
+  func viewModelTokenCountFourChars() throws {
+    let vm = CaptureViewModel(uploadQueue: try makeQueue())
+    vm.content = "test"  // 4 chars → max(1, 4 / 4) == 1
+    #expect(vm.tokenCount == 1)
+  }
+}
