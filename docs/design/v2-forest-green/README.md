@@ -65,7 +65,7 @@ For each color above, create `ios/Grove/Grove/Assets.xcassets/<Name>.colorset/Co
 }
 ```
 
-### SwiftUI Color extension (drop into `OracleCore` or `Theme.swift`)
+### SwiftUI Color extension (drop into `GroveCore` or `Theme.swift`)
 
 ```swift
 import SwiftUI

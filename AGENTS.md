@@ -1,6 +1,6 @@
 # Working with the team
 
-The Oracle is built by a small team of specialised Claude subagents
+Grove is built by a small team of specialised Claude subagents
 coordinated by an orchestrator session. You can invoke any agent by
 name ("ask Margot to…", "have Theo review this"), or describe the work
 and let the orchestrator route it.
@@ -99,8 +99,8 @@ For every ticket that requires implementation work:
 
 2. **Specialist picks up the ticket.**
    - Reads the issue: `gh issue view <N>`.
-   - Reads `docs/the-oracle-prd.md` and
-     `docs/the-oracle-implementation-plan.md` if not already in
+   - Reads `docs/grove-prd.md` and
+     `docs/grove-implementation-plan.md` if not already in
      context. The PRD constrains intent; the plan constrains stack.
    - Branches off `develop`: `git checkout develop && git pull && git
      checkout -b <N>-<short-slug>` (e.g. `42-capture-endpoint`).

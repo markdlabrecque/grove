@@ -1,7 +1,7 @@
-# The Oracle — Product Requirements Document
+# Grove — Product Requirements Document
 
 **Status:** Draft v0.3
-**Working name:** The Oracle (WIP)
+**Working name:** Grove
 **Author:** Mark
 **Last updated:** 2026-05-09
 
@@ -11,7 +11,7 @@
 
 ## 1. Summary
 
-The Oracle is a personal memory and thought-capture system. It accepts text inputs of varying lengths — from short captures to long-form emails and meeting notes — stores them with semantic embeddings, and exposes a conversational retrieval interface that synthesizes answers grounded in the user's own captured content.
+Grove is a personal memory and thought-capture system. It accepts text inputs of varying lengths — from short captures to long-form emails and meeting notes — stores them with semantic embeddings, and exposes a conversational retrieval interface that synthesizes answers grounded in the user's own captured content.
 
 The product is built for a single user (the author) on iOS, backed by a server that handles persistence, embedding, retrieval-augmented synthesis, and asynchronous enrichment. The architecture leans on the iPhone for capture-time intelligence and on the server for corpus-level storage, search, and analysis.
 
@@ -468,7 +468,7 @@ These are deliberately deferred and will be answered during implementation.
 
 ## 11. Schema evolution and review cadence
 
-The Oracle is designed to grow its data model based on observed patterns rather than upfront prediction. This requires regular but lightweight review rituals.
+Grove is designed to grow its data model based on observed patterns rather than upfront prediction. This requires regular but lightweight review rituals.
 
 ### Review cadence
 

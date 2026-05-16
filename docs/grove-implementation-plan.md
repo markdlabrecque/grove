@@ -1,8 +1,8 @@
-# The Oracle — V1 Implementation Plan
+# Grove — V1 Implementation Plan
 
 **Status:** Draft v0.1
 **Last updated:** 2026-05-09
-**Related:** [the-oracle-prd.md](./the-oracle-prd.md)
+**Related:** [grove-prd.md](./grove-prd.md)
 
 This plan breaks the V1 PRD into the five phases sketched in §12 of the PRD, with concrete tasks, deliverables, and exit criteria per phase. Decisions resolved up front from PRD §10:
 
@@ -26,7 +26,7 @@ A single repo with two top-level apps:
 ```
 the-oracle/
 ├── server/                   # Python 3.12, FastAPI, SQLAlchemy 2.x, Alembic, uv
-│   ├── oracle/
+│   ├── grove/
 │   │   ├── api/              # FastAPI routers: capture, retrieve, feedback, delete
 │   │   ├── core/             # config, auth, db, logging
 │   │   ├── enrichment/       # pipeline steps, prompts/, classifier, writers
@@ -39,7 +39,7 @@ the-oracle/
 │   ├── tests/
 │   └── pyproject.toml
 ├── ios/                      # SwiftUI app, Xcode project
-│   └── Oracle/
+│   └── Grove/
 ├── ops/                      # docker-compose.yml, Caddyfile, systemd units, backup scripts
 ├── docs/
 └── .github/workflows/        # CI: ruff, pytest, alembic check
@@ -70,7 +70,7 @@ Rationale for monorepo: single-user project, server + iOS evolve together, promp
    - HNSW index on `memories.embedding` and `memory_chunks.embedding` (pgvector)
 5. **Auth**: bearer-token middleware reading a single token from env/secret; constant-time compare; 401 on miss.
 6. **Backups**: `pg_dump` nightly to a Hetzner Storage Box (or Backblaze B2), 30-day retention, restore drill documented.
-7. **Deployment**: docker-compose up, Caddy auto-TLS for `oracle.<domain>`, systemd unit wrapping `docker compose`, log rotation.
+7. **Deployment**: docker-compose up, Caddy auto-TLS for `grove.<domain>`, systemd unit wrapping `docker compose`, log rotation.
 8. **CI**: GitHub Actions running `ruff check`, `ruff format --check`, `pytest`, `alembic upgrade head` against an ephemeral Postgres.
 
 ### Schema additions (beyond PRD examples)
@@ -108,7 +108,7 @@ Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_in
 
 ### Exit criteria
 
-- `curl -H "Authorization: Bearer …" https://oracle.<domain>/healthz` returns 200.
+- `curl -H "Authorization: Bearer …" https://grove.<domain>/healthz` returns 200.
 - `alembic upgrade head` runs cleanly on a fresh DB.
 - Nightly backup runs and a test restore succeeds in a scratch container.
 
@@ -121,7 +121,7 @@ Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_in
 ### Server tasks
 
 1. `POST /v1/captures` accepting `{ client_id, content, source_modality, source_device, language, captured_at }`; UNIQUE on `client_id` makes retries idempotent.
-2. **Embedding pipeline** in `oracle.embeddings`:
+2. **Embedding pipeline** in `grove.embeddings`:
    - If `token_count <= 500`: embed whole content; store on `memories.embedding`.
    - If `> 500`: paragraph-based chunker → ~400-token chunks with ~50-token overlap, sentence-safe within paragraphs; one row per chunk in `memory_chunks`; leave `memories.embedding` NULL.
    - Tokenization via `tiktoken` (cl100k_base). Provider abstraction so re-embedding can target a different model later.
@@ -190,7 +190,7 @@ Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_in
 
 ### Tasks
 
-1. **Worker entrypoint** `python -m oracle.enrichment.run` invoked by cron on the Hetzner box (`0 * * * *`); logs to journald; emits an `enrichment_state` row per run.
+1. **Worker entrypoint** `python -m grove.enrichment.run` invoked by cron on the Hetzner box (`0 * * * *`); logs to journald; emits an `enrichment_state` row per run.
 2. **Pipeline steps** (PRD §13.2), each a pure function that's independently testable:
    1. Fetch a batch of `memories WHERE enriched = false ORDER BY created_at LIMIT N` (default 50). Lock with `FOR UPDATE SKIP LOCKED` so concurrent runs are safe.
    2. Build a single classification prompt per memory using the YAML type definitions.
@@ -200,7 +200,7 @@ Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_in
 3. **Prompt config** at `server/prompts/classify.v1.yaml`:
    - One block per type with definition, 2–3 few-shot examples, and the field schema.
    - Top-level `enrichment_version: 1`. Bumping the version is the only way to trigger selective re-enrichment.
-4. **Selective re-enrichment CLI**: `python -m oracle.enrichment.reset --version-below N` flips matching memories back to `enriched = false`.
+4. **Selective re-enrichment CLI**: `python -m grove.enrichment.reset --version-below N` flips matching memories back to `enriched = false`.
 5. **Per-memory cap**: skip enrichment for memories above ~8 000 tokens with a recorded error to keep classification cost bounded; revisit at monthly review if it bites.
 6. **Observability**: each run logs counts per type, average confidence, error count, total tokens, total cost — saved both to `enrichment_state.notes` (JSON) and structured logs.
 
