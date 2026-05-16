@@ -170,7 +170,7 @@ struct CaptureView: View {
     )
     .disabled(!viewModel.isSaveEnabled)
     .accessibilityLabel("Save capture")
-    .accessibilityHint("Saves your capture to The Oracle")
+    .accessibilityHint("Saves your capture to Grove")
   }
 
   // MARK: - Status area

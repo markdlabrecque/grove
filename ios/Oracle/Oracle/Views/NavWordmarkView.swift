@@ -14,7 +14,7 @@ import SwiftUI
 /// }
 /// ```
 ///
-/// On the Settings tab, pass `text:` to replace "THE ORACLE" with the build
+/// On the Settings tab, pass `text:` to replace "GROVE" with the build
 /// version string (same typographic style, per spec §3.2):
 ///
 /// ```swift
@@ -39,8 +39,8 @@ import SwiftUI
 ///
 /// Option 3 is used here.
 struct NavWordmarkView: View {
-  /// The label to display. Defaults to "THE ORACLE" per spec §3.2.
-  var text: String = "THE ORACLE"
+  /// The label to display. Defaults to "GROVE" per spec §3.2.
+  var text: String = "GROVE"
 
   var body: some View {
     Text(text)
