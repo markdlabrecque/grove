@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+    "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS LaunchAgent — hourly Oracle enrichment worker
+  =====================================================
+  This plist is a TEMPLATE. Two placeholders must be replaced before loading:
+
+    __REPO_ROOT__   absolute path to your local checkout
+                    e.g. /Users/mark/Projects/the-oracle
+    __USER_HOME__   your home directory, i.e. /Users/<your-username>
+
+  Quick setup — one sed invocation handles both substitutions
+  (see ops/RUNBOOK.md §Enrichment scheduler (macOS LaunchAgent) for details):
+
+    REPO_ROOT="$HOME/Projects/the-oracle"   # adjust to your checkout path
+    mkdir -p ~/Library/LaunchAgents ~/Library/Logs/oracle
+    sed \
+        -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
+        -e "s|__USER_HOME__|${HOME}|g" \
+        "${REPO_ROOT}/ops/launchd/com.affinitybridge.oracle-enrichment.plist" \
+        > ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+    launchctl bootstrap gui/$(id -u) \
+        ~/Library/LaunchAgents/com.affinitybridge.oracle-enrichment.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.affinitybridge.oracle-enrichment</string>
+
+    <!-- Fire once per hour at the top of the hour, mirroring systemd's
+         OnCalendar=hourly.  StartCalendarInterval (not StartInterval) aligns
+         to wall-clock hours rather than drifting from first-load time.
+         Minute=0 with no Hour key means "every hour, on the hour". -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <!-- Do not fire an extra run on every login/reload. -->
+    <key>RunAtLoad</key>
+    <false/>
+
+    <!-- IMPORTANT: replace __REPO_ROOT__ before loading (see header comment). -->
+    <key>WorkingDirectory</key>
+    <string>__REPO_ROOT__</string>
+
+    <!--
+      Invocation mirrors oracle-enrichment.service ExecStart exactly.
+      /usr/local/bin/docker is the canonical symlink on macOS for both
+      Homebrew and OrbStack installs.  If your Docker binary lives elsewhere
+      (verify with: which docker), update this path.
+    -->
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/docker</string>
+        <string>compose</string>
+        <string>-f</string>
+        <string>__REPO_ROOT__/docker-compose.yml</string>
+        <string>exec</string>
+        <string>-T</string>
+        <string>app</string>
+        <string>python</string>
+        <string>-m</string>
+        <string>oracle.enrichment.run</string>
+    </array>
+
+    <!-- Logs land under ~/Library/Logs/oracle/ — create the directory once
+         with: mkdir -p ~/Library/Logs/oracle -->
+    <key>StandardOutPath</key>
+    <string>__USER_HOME__/Library/Logs/oracle/enrichment.out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__USER_HOME__/Library/Logs/oracle/enrichment.err.log</string>
+
+    <!--
+      If Docker Desktop / OrbStack is not running, docker compose exec will
+      exit non-zero immediately.  launchd records the exit code and waits
+      until the next scheduled interval — no retry storm.
+    -->
+</dict>
+</plist>
