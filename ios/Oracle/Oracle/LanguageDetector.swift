@@ -8,10 +8,10 @@ import NaturalLanguage
 //
 // ## Short-string behaviour
 //
-// `NLLanguageRecognizer` requires sufficient text to make a reliable prediction.
-// For strings shorter than approximately 10 characters, or for strings that are
-// purely numeric/symbolic, the recogniser may return `.undetermined`. In those
-// cases `detect(_:)` returns `nil`. Callers should treat `nil` as undetermined
+// Inputs shorter than `minimumDetectableLength` (currently 4 characters) return
+// `nil` unconditionally — the length guard fires before the model runs. At or
+// above that threshold the recogniser may still return `nil` for ambiguous or
+// purely numeric/symbolic content. Callers should treat `nil` as undetermined
 // and fall back to a sensible default (e.g. the user's language hint from
 // Settings, or "en").
 //
