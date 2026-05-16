@@ -1,10 +1,10 @@
 [Unit]
-Description=Hourly Oracle enrichment worker timer
+Description=Hourly Grove enrichment worker timer
 
 [Timer]
 OnCalendar=hourly
 Persistent=true
-Unit=oracle-enrichment.service
+Unit=grove-enrichment.service
 
 [Install]
 WantedBy=timers.target
