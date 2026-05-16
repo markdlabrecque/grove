@@ -15,14 +15,14 @@ name: iOS CI
 #
 # The app's deployment target is iOS 26, which requires the iOS 26 SDK (Xcode
 # 26+). As of this writing, macos-latest ships Xcode 16.2 and cannot build
-# the Oracle app target or run the full Oracle scheme tests.
+# the Grove app target or run the full Grove scheme tests.
 #
 # Additionally, the xcconfig files that inject BASE_URL and BEARER_TOKEN into
 # the build are gitignored by design (they hold per-developer credentials).
-# Any xcodebuild run against the Oracle scheme on CI would fail at config
+# Any xcodebuild run against the Grove scheme on CI would fail at config
 # injection even if the SDK were available.
 #
-# For these reasons the canary job (xcodebuild test on the Oracle scheme) has
+# For these reasons the canary job (xcodebuild test on the Grove scheme) has
 # been removed from CI. The equivalent coverage runs locally via:
 #
 #   make ios-test
@@ -31,7 +31,7 @@ name: iOS CI
 # Xcode 26 environment with a populated xcconfig. This is the required
 # pre-push check per the AGENTS.md workflow.
 #
-# TODO(ci): Once macos-latest ships Xcode 26, re-add the full-app job here as
+# TODO(ci): Once macos-latest ships Xcode 26, re-add the full-app Grove job here as
 # a required check and retire the two-job split note in ios/README.md. At that
 # point the xcconfig problem will also need a CI-safe solution (e.g. a
 # separate xcconfig with placeholder values committed for CI use only).
@@ -94,14 +94,14 @@ jobs:
 
       - name: swift test (OracleCore)
         if: steps.filter.outputs.ios == 'true'
-        run: swift test --package-path ios/Oracle/OracleCore --enable-code-coverage
+        run: swift test --package-path ios/Grove/OracleCore --enable-code-coverage
 
       - name: Extract OracleCore coverage
         if: steps.filter.outputs.ios == 'true'
         run: |
           set -euo pipefail
-          PROF=$(find ios/Oracle/OracleCore/.build -name '*.profdata' | head -n1)
-          BIN=$(find ios/Oracle/OracleCore/.build -name 'OracleCorePackageTests.xctest' | head -n1)
+          PROF=$(find ios/Grove/OracleCore/.build -name '*.profdata' | head -n1)
+          BIN=$(find ios/Grove/OracleCore/.build -name 'OracleCorePackageTests.xctest' | head -n1)
           if [ -z "$PROF" ] || [ -z "$BIN" ]; then
             echo "Coverage artifacts not found — skipping export." >&2
             exit 0

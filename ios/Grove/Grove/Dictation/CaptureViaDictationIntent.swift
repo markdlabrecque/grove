@@ -3,13 +3,13 @@ import Foundation
 
 // MARK: - CaptureViaDictationIntent
 
-/// An `AppIntent` that opens The Oracle and presents the dictation capture
+/// An `AppIntent` that opens Grove and presents the dictation capture
 /// sheet with the microphone pre-armed.
 ///
 /// ## Action Button binding
 ///
 /// The user binds this intent in:
-/// **Settings → Action Button → Shortcut → The Oracle → "Capture with Oracle"**
+/// **Settings → Action Button → Shortcut → Grove → "Capture with Grove"**
 ///
 /// Once bound, a single press on the Action Button foregrounds the app and
 /// opens ``DictationCaptureView`` immediately.

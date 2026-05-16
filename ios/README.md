@@ -1,11 +1,11 @@
-# Oracle — iOS Client
+# Grove — iOS Client
 
 iPhone-only SwiftUI app for The Oracle personal memory system.
 
 - **Deployment target:** iOS 26.0+
 - **Reference device:** iPhone 17
-- **Bundle identifier:** `com.markdlabrecque.oracle`
-- **Xcode project:** `ios/Oracle/Oracle.xcodeproj`
+- **Bundle identifier:** `com.markdlabrecque.grove`
+- **Xcode project:** `ios/Grove/Grove.xcodeproj`
 
 ---
 
@@ -16,7 +16,7 @@ iPhone-only SwiftUI app for The Oracle personal memory system.
 The project uses two gitignored `.xcconfig` files — one per build configuration.
 
 ```bash
-cd ios/Oracle/Oracle
+cd ios/Grove/Grove
 cp Config.xcconfig.example Config.debug.xcconfig
 cp Config.xcconfig.example Config.release.xcconfig
 ```
@@ -36,7 +36,7 @@ it, xcconfig treats `//` as a line comment and `BASE_URL` silently becomes empty
 On first launch the app prints to the Xcode console:
 
 ```
-[Oracle] baseURL: https://oracle.your-host.ts.net
+[Grove] baseURL: https://oracle.your-host.ts.net
 ```
 
 If you see a crash with "BASE_URL is missing or malformed" or "BEARER_TOKEN is
@@ -49,19 +49,19 @@ missing", the active `.xcconfig` file has not been filled in.
 - **Release builds** (Archive, TestFlight, App Store) use
   `Config.release.xcconfig` — Xcode selects Release automatically for archives.
 
-To verify: in Xcode, open the Oracle scheme editor (Product → Scheme → Edit
+To verify: in Xcode, open the Grove scheme editor (Product → Scheme → Edit
 Scheme). The Build Configuration column shows which config each action uses.
 
 ---
 
 ## Building and running
 
-1. Open `ios/Oracle/Oracle.xcodeproj` in Xcode 26.
-2. Select the Oracle scheme.
+1. Open `ios/Grove/Grove.xcodeproj` in Xcode 26.
+2. Select the Grove scheme.
 3. Choose a simulator or your connected iPhone.
 4. Press Run (⌘R).
 
-The shared scheme (`xcshareddata/xcschemes/Oracle.xcscheme`) is committed so
+The shared scheme (`xcshareddata/xcschemes/Grove.xcscheme`) is committed so
 anyone cloning the repo can build immediately.
 
 ---
@@ -83,7 +83,7 @@ server.
 6. Leave "Automatically manage signing" checked if your Apple Developer team is
    set up in Xcode (Signing & Capabilities tab → Team).
 7. Review the distribution summary and click **Upload**.
-8. In [App Store Connect](https://appstoreconnect.apple.com), open the Oracle
+8. In [App Store Connect](https://appstoreconnect.apple.com), open the Grove
    app record → TestFlight tab. The build appears within a few minutes.
 9. Under Internal Testing, add `mark@affinitybridge.com` as an internal tester
    and enable the build.
@@ -94,9 +94,9 @@ Before the first archive, the user must:
 
 - Sign in to an Apple Developer account in Xcode (Settings → Accounts).
 - Create an App Store Connect app record with:
-  - **Name:** Oracle
-  - **Bundle ID:** `com.markdlabrecque.oracle`
-  - **SKU:** anything unique (e.g. `oracle-001`)
+  - **Name:** Grove
+  - **Bundle ID:** `com.markdlabrecque.grove`
+  - **SKU:** anything unique (e.g. `grove-001`)
   - **Primary language:** English
 
 This is a one-time manual step; it cannot be scripted without App Store Connect
@@ -118,7 +118,7 @@ This runs both targets in sequence:
 
 ```bash
 make ios-test-core   # OracleCore swift package only — no simulator needed
-make ios-test-app    # Full Oracle scheme on iPhone 17 simulator (requires xcconfig)
+make ios-test-app    # Full Grove scheme on iPhone 17 simulator (requires xcconfig)
 ```
 
 Both must be green before pushing. `make ios-test` is the local gate that
@@ -129,7 +129,7 @@ replaces the canary CI job (see CI section below for why the canary was removed)
 `make ios-test-core` is the fast, always-available check. It runs `swift test`
 against the `OracleCore` package and requires no simulator or xcconfig.
 
-`make ios-test-app` runs `xcodebuild test` against the full Oracle scheme. It
+`make ios-test-app` runs `xcodebuild test` against the full Grove scheme. It
 requires Xcode 26 and a populated `Config.debug.xcconfig` (see First-time setup
 above). After a failure:
 
@@ -143,18 +143,18 @@ To wipe build artefacts and run from a clean slate:
 make ios-test-clean
 ```
 
-**In Xcode:** Open `ios/Oracle/Oracle.xcodeproj`, select the Oracle scheme, and
-press `Cmd+U`. Both the `OracleTests` and `OracleUITests` targets run (requires
+**In Xcode:** Open `ios/Grove/Grove.xcodeproj`, select the Grove scheme, and
+press `Cmd+U`. Both the `GroveTests` and `GroveUITests` targets run (requires
 a populated xcconfig — see First-time setup above).
 
 ### Project structure: OracleCore package
 
 SDK-version-independent logic lives in a local Swift Package at
-`ios/Oracle/OracleCore/`. The package has an iOS 18 + macOS 15 deployment target,
+`ios/Grove/OracleCore/`. The package has an iOS 18 + macOS 15 deployment target,
 which allows `swift test` to run on macOS CI hosts without a simulator.
 
 ```
-ios/Oracle/
+ios/Grove/
   OracleCore/            ← Swift Package (iOS 18, macOS 15)
     Package.swift
     Sources/OracleCore/
@@ -166,29 +166,28 @@ ios/Oracle/
       JSONCodingTests.swift
       Fixtures/
         capture_response.json
-  Oracle.xcodeproj/      ← app target (iOS 26, imports OracleCore)
-  OracleTests/           ← Xcode unit test target (@testable import Oracle)
-  OracleUITests/         ← Xcode UI test target (XCUITest)
+  Grove.xcodeproj/       ← app target (iOS 26, imports OracleCore)
+  GroveTests/            ← Xcode unit test target (@testable import Grove)
+  GroveUITests/          ← Xcode UI test target (XCUITest)
 ```
 
-The `Oracle` app target keeps its iOS 26 deployment target. It will import
-`OracleCore` once the Xcode project is wired up as a local package reference
-(pending first use in `#61` / `#62`).
+The `Grove` app target keeps its iOS 26 deployment target. It imports
+`OracleCore` as a local package reference.
 
 ### What is covered
 
 | Target | Framework | Scope |
 |---|---|---|
 | `OracleCoreTests` (SPM) | Swift Testing | Unit tests: `Config`, `OracleAPI` request builder, JSON coding |
-| `OracleTests` (Xcode) | Swift Testing | Same seed tests, via `@testable import Oracle` |
-| `OracleUITests` (Xcode) | XCUITest | Placeholder only — no real UI to drive yet |
+| `GroveTests` (Xcode) | Swift Testing | Same seed tests, via `@testable import Grove` |
+| `GroveUITests` (Xcode) | XCUITest | Placeholder only — no real UI to drive yet |
 
 Seed unit tests (`#64`):
 
 - **`ConfigTests`** — verifies `Config.init(baseURL:bearerToken:)` stores the
   correct values. Uses an internal initialiser rather than `Config.shared`
   because the test bundle does not have a populated `Info.plist`. The
-  `Config.shared` path is exercised by every app build via `OracleApp.init()`.
+  `Config.shared` path is exercised by every app build via `GroveApp.init()`.
 - **`OracleAPITests`** — verifies `OracleAPI.captureRequest(for:)` produces a
   `POST` request to `baseURL/v1/captures` with correct `Authorization` and
   `Content-Type` headers and a round-trippable JSON body. No live server.
@@ -199,13 +198,6 @@ Seed unit tests (`#64`):
 
 Real UI tests (Save flow, Ask flow) are deferred to the tickets that land those
 screens (`#61`, `#62`).
-
-### Future: snapshot testing
-
-`// TODO(snapshot):` — once `#61`/`#62` have stable SwiftUI layouts, consider
-adding [swift-snapshot-testing](https://github.com/pointfreeco/swift-snapshot-testing)
-as the one third-party SPM dependency. This is noted as an explicit future
-option, not a current commitment. See ticket `#64` for the rationale.
 
 ### CI
 
@@ -219,14 +211,14 @@ option, not a current commitment. See ticket `#64` for the rationale.
 (Config, OracleAPI, Codable models) and runs without a simulator or iOS 26 SDK,
 so it passes on `macos-latest` with Xcode 16.2.
 
-The full-app job (`xcodebuild test` on the Oracle scheme) was removed from CI
+The full-app job (`xcodebuild test` on the Grove scheme) was removed from CI
 because `macos-latest` ships Xcode 16.2, which cannot build the iOS 26
 deployment target. The xcconfig files are also gitignored, so credential
 injection would fail on CI regardless. The equivalent coverage runs locally via
 `make ios-test` (see pre-push checklist above).
 
-**TODO(ci):** When `macos-latest` ships Xcode 26, re-add the full-app job as a
-required check. At that point a CI-safe xcconfig strategy (e.g. a committed
+**TODO(ci):** When `macos-latest` ships Xcode 26, re-add the full-app Grove job
+as a required check. At that point a CI-safe xcconfig strategy (e.g. a committed
 placeholder with empty credentials) will also be needed.
 
 **Manual step after `#64` merges:** add the `stable` job to the branch-protection
@@ -254,10 +246,9 @@ Config.debug.xcconfig / Config.release.xcconfig
       OracleAPI  (Authorization: Bearer …)
 ```
 
-**V1 note on bearer token storage:** The bearer token lives in `.xcconfig` for
-V1. A future ticket migrates it to iOS Keychain protected by `LAContext`
-(Face/Touch ID). `TODO(auth):` markers in `Config.swift` and `OracleAPI.swift`
-mark the migration points.
+**V1 note on bearer token storage:** As of #184, the bearer token is stored in
+Keychain at runtime; xcconfig only seeds the first launch. `TODO(auth):` markers
+in `Config.swift` and `OracleAPI.swift` mark the V2 Face/Touch ID gate.
 
 ---
 
@@ -265,7 +256,7 @@ mark the migration points.
 
 ```
 ios/
-  Oracle/
+  Grove/
     OracleCore/                ← local Swift Package (iOS 18 + macOS 15)
       Package.swift
       Sources/OracleCore/
@@ -277,26 +268,20 @@ ios/
         JSONCodingTests.swift
         Fixtures/
           capture_response.json
-    Oracle.xcodeproj/
-      xcshareddata/xcschemes/Oracle.xcscheme   ← committed; shared build scheme
+    Grove.xcodeproj/
+      xcshareddata/xcschemes/Grove.xcscheme   ← committed; shared build scheme
       project.xcworkspace/contents.xcworkspacedata
       project.pbxproj
-    Oracle/
-      OracleApp.swift          ← @main entry point
-      Config.swift             ← thin re-export / app-only init via Bundle.main
+    Grove/
+      GroveApp.swift           ← @main entry point
       Info.plist               ← references $(BASE_URL) and $(BEARER_TOKEN)
       Config.xcconfig.example  ← committed template; copy to the two below
       Config.debug.xcconfig    ← gitignored; fill in before building
       Config.release.xcconfig  ← gitignored; fill in before archiving
       Networking/
-        OracleAPI.swift        ← URLSession client; stubs for #61 and #62
       Views/
-        RootView.swift         ← TabView shell
-        CaptureView.swift      ← Save tab placeholder
-        QueryView.swift        ← Ask tab placeholder
       Assets.xcassets/
-      Preview Content/
-    OracleTests/               ← Xcode unit test target (mirrors OracleCoreTests)
-    OracleUITests/             ← Xcode UI test target (XCUITest placeholder)
+    GroveTests/                ← Xcode unit test target (@testable import Grove)
+    GroveUITests/              ← Xcode UI test target (XCUITest placeholder)
   README.md                    ← this file
 ```
