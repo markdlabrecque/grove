@@ -786,7 +786,7 @@ public struct QueryRequestBody: Codable, Sendable {
 /// `matchedVia` is either `"whole"` (whole-memory cosine match) or `"chunk"`
 /// (chunk-level match). When `"chunk"`, `matchedChunkIndex` carries the
 /// 0-based chunk index from the server.
-public struct QueryResult: Codable, Sendable {
+public struct QueryResult: Codable, Hashable, Sendable {
   public let memoryID: UUID
   public let score: Float
   public let matchedVia: String         // "whole" | "chunk"
