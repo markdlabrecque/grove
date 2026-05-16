@@ -82,19 +82,19 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg16
         env:
-          POSTGRES_DB: oracle_test
-          POSTGRES_USER: oracle
-          POSTGRES_PASSWORD: oracle
+          POSTGRES_DB: grove_test
+          POSTGRES_USER: grove
+          POSTGRES_PASSWORD: grove
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U oracle -d oracle_test"
+          --health-cmd "pg_isready -U grove -d grove_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql+asyncpg://oracle:oracle@localhost:5432/oracle_test
+      DATABASE_URL: postgresql+asyncpg://grove:grove@localhost:5432/grove_test
       BEARER_TOKEN: ci-dummy-token
       OPENAI_API_KEY: ci-stub-key
 
@@ -133,7 +133,7 @@ jobs:
         if: needs.changes.outputs.server == 'true'
         run: |
           pytest server/tests/ \
-            --cov=oracle \
+            --cov=grove \
             --cov-report=term \
             --cov-report=xml:coverage-server.xml
 
@@ -154,19 +154,19 @@ jobs:
       postgres:
         image: pgvector/pgvector:pg16
         env:
-          POSTGRES_DB: oracle_test
-          POSTGRES_USER: oracle
-          POSTGRES_PASSWORD: oracle
+          POSTGRES_DB: grove_test
+          POSTGRES_USER: grove
+          POSTGRES_PASSWORD: grove
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U oracle -d oracle_test"
+          --health-cmd "pg_isready -U grove -d grove_test"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      DATABASE_URL: postgresql+asyncpg://oracle:oracle@localhost:5432/oracle_test
+      DATABASE_URL: postgresql+asyncpg://grove:grove@localhost:5432/grove_test
       BEARER_TOKEN: ci-dummy-token
 
     steps:

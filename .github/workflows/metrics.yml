@@ -53,7 +53,7 @@ jobs:
           # will be visible in the run summary.
           lizard \
             --csv \
-            server/oracle \
+            server/grove \
             ios/Grove/Grove \
             ios/Grove/OracleCore/Sources \
             > lizard.csv

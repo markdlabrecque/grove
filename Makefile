@@ -69,7 +69,7 @@ shell: ## Open a bash shell in the app container
 
 .PHONY: psql
 psql: ## Open a psql shell against the dev database
-	$(COMPOSE) exec $(DB) psql -U oracle -d oracle
+	$(COMPOSE) exec $(DB) psql -U grove -d grove
 
 # ---------- migrations ----------
 # These use `run --rm` so they work even when the stack isn't fully up.
@@ -186,7 +186,7 @@ smoke-ingress: ## Verify Tailnet → Apache TLS → FastAPI ingress is healthy (
 	\
 	echo ""; \
 	echo "1. Apache vhost config (ServerName + SSLCertificate lines):"; \
-	VHOST=$$(docker compose exec -T apache cat /usr/local/apache2/conf/extra/oracle.conf 2>&1 | grep -E 'ServerName|SSLCertificate'); \
+	VHOST=$$(docker compose exec -T apache cat /usr/local/apache2/conf/extra/grove.conf 2>&1 | grep -E 'ServerName|SSLCertificate'); \
 	if echo "$$VHOST" | grep -q "$$HOST"; then \
 		echo "   PASS: ServerName contains $$HOST"; \
 	else \

@@ -16,7 +16,7 @@ sed "s|@@TAILSCALE_HOSTNAME@@|${TAILSCALE_HOSTNAME}|g" \
   > /usr/local/apache2/conf/httpd.conf
 
 sed "s|@@TAILSCALE_HOSTNAME@@|${TAILSCALE_HOSTNAME}|g" \
-  /etc/apache-templates/oracle.conf.template \
-  > /usr/local/apache2/conf/extra/oracle.conf
+  /etc/apache-templates/grove.conf.template \
+  > /usr/local/apache2/conf/extra/grove.conf
 
 exec "$@"
