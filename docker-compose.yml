@@ -3,13 +3,13 @@ services:
     image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: oracle
-      POSTGRES_USER: oracle
+      POSTGRES_DB: grove
+      POSTGRES_USER: grove
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U oracle -d oracle"]
+      test: ["CMD-SHELL", "pg_isready -U grove -d grove"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -23,7 +23,7 @@ services:
         condition: service_healthy
     environment:
       BEARER_TOKEN: ${BEARER_TOKEN}
-      DATABASE_URL: postgresql+asyncpg://oracle:${POSTGRES_PASSWORD}@postgres:5432/oracle
+      DATABASE_URL: postgresql+asyncpg://grove:${POSTGRES_PASSWORD}@postgres:5432/grove
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -41,10 +41,10 @@ services:
       - "443:443"
     volumes:
       - ./ops/apache/httpd.conf.template:/etc/apache-templates/httpd.conf.template:ro
-      - ./ops/apache/oracle.conf.template:/etc/apache-templates/oracle.conf.template:ro
-      - ./ops/apache/entrypoint.sh:/usr/local/bin/oracle-entrypoint.sh:ro
+      - ./ops/apache/grove.conf.template:/etc/apache-templates/grove.conf.template:ro
+      - ./ops/apache/entrypoint.sh:/usr/local/bin/grove-entrypoint.sh:ro
       - ./ops/certs:/usr/local/apache2/conf/certs:ro
-    entrypoint: ["/usr/local/bin/oracle-entrypoint.sh"]
+    entrypoint: ["/usr/local/bin/grove-entrypoint.sh"]
     command: ["httpd-foreground"]
 
 volumes:
