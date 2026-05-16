@@ -65,6 +65,17 @@ struct RootView: View {
   /// In-memory only (V1).  `nil` when there is no pending draft.
   @State var pendingDictation: DictationDraft? = nil
 
+  /// Transcript carried into the sheet when the user taps Resume on the banner.
+  ///
+  /// This is intentionally separate from `pendingDictation`.  SwiftUI
+  /// coalesces state mutations that happen in the same synchronous closure, so
+  /// if we nil out `pendingDictation` and set `showDictationSheet = true` in
+  /// the same handler, the sheet's content closure evaluates *after* the
+  /// coalesced render pass — by which point `pendingDictation` is already nil
+  /// and the resume path is never taken.  Storing the transcript here before
+  /// clearing `pendingDictation` breaks that dependency.
+  @State private var dictationResumeTranscript: String? = nil
+
   // MARK: - Environment
 
   @Environment(\.scenePhase) private var scenePhase
@@ -104,9 +115,14 @@ struct RootView: View {
         DictationResumeBanner(
           draft: draft,
           onResume: {
-            showDictationSheet = true
-            // Banner dismisses once the sheet is presented.
+            // Pin the transcript into `dictationResumeTranscript` BEFORE
+            // clearing `pendingDictation`.  SwiftUI coalesces mutations from
+            // the same synchronous closure into a single render pass, so the
+            // sheet content closure would otherwise see a nil draft and open a
+            // fresh, mic-armed sheet instead of the pre-filled resume sheet.
+            dictationResumeTranscript = draft.transcript
             pendingDictation = nil
+            showDictationSheet = true
           },
           onDismiss: {
             withAnimation(.easeInOut(duration: 0.25)) {
@@ -139,10 +155,14 @@ struct RootView: View {
       }
       .tint(.forest500)
     }
-    .sheet(isPresented: $showDictationSheet) {
-      if let draft = pendingDictation {
+    .sheet(isPresented: $showDictationSheet, onDismiss: {
+      // Clear the pinned resume transcript once the sheet is gone so a
+      // subsequent fresh Action-Button press gets a clean empty sheet.
+      dictationResumeTranscript = nil
+    }) {
+      if let transcript = dictationResumeTranscript {
         // Resume mode: pre-filled transcript, mic not auto-armed.
-        DictationCaptureView(initialTranscript: draft.transcript)
+        DictationCaptureView(initialTranscript: transcript)
       } else {
         // Fresh mode: mic arms immediately.
         DictationCaptureView()
