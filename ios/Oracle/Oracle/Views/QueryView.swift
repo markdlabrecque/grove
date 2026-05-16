@@ -26,8 +26,15 @@ struct QueryView: View {
   /// The source index that is briefly highlighted after a citation tap.
   @State private var highlightedSourceIndex: Int?
 
+  /// Navigation path for the `NavigationStack` — allows `SourceCardRow`'s
+  /// swipe action to push `MemoryDetailView` without the deprecated
+  /// `NavigationLink(isActive:)` pattern. The binding is passed down to each
+  /// `SourceCardRow` so swipe-triggered navigation appends a typed value here
+  /// and the stack's `navigationDestination(for:)` resolves it.
+  @State private var navigationPath = NavigationPath()
+
   var body: some View {
-    NavigationStack {
+    NavigationStack(path: $navigationPath) {
       VStack(spacing: 0) {
         queryInputArea
           .padding()
@@ -47,6 +54,17 @@ struct QueryView: View {
           .contentShape(Rectangle())
           .onTapGesture { isFocused = false }
       )
+      // Resolves QueryResult values pushed onto `navigationPath` by
+      // SourceCardRow's swipe action. Both navigation paths (swipe and
+      // expanded-footer link) ultimately land on MemoryDetailView; the
+      // footer link still uses the closure form so it needs no destination
+      // registration here.
+      .navigationDestination(for: QueryResult.self) { result in
+        MemoryDetailView(
+          result: result,
+          onDeleteSuccess: { deletedID in viewModel.removeSource(memoryID: deletedID) }
+        )
+      }
     }
     .alert("Query Failed", isPresented: $viewModel.showErrorAlert) {
       Button("OK", role: .cancel) {}
@@ -171,6 +189,7 @@ struct QueryView: View {
               SourceCardRow(
                 result: result,
                 isHighlighted: highlightedSourceIndex == idx,
+                navigationPath: $navigationPath,
                 onDeleteSuccess: { deletedID in
                   viewModel.removeSource(memoryID: deletedID)
                 }
@@ -363,11 +382,12 @@ private struct AnswerTextView: View {
 private struct SourceCardRow: View {
   let result: QueryResult
   let isHighlighted: Bool
+  /// Binding to the ancestor `NavigationStack`'s path — appending `result`
+  /// pushes `MemoryDetailView` via the stack's `navigationDestination(for:)`.
+  @Binding var navigationPath: NavigationPath
   let onDeleteSuccess: (UUID) -> Void
 
   @State private var isExpanded = false
-  /// Drives programmatic navigation to `MemoryDetailView` from the swipe action.
-  @State private var navigateToDetail = false
 
   private static let relativeDateFormatter: RelativeDateTimeFormatter = {
     let f = RelativeDateTimeFormatter()
@@ -457,21 +477,13 @@ private struct SourceCardRow: View {
     // unaffected because swipeActions only fires on a committed swipe gesture.
     .swipeActions(edge: .leading, allowsFullSwipe: false) {
       Button {
-        navigateToDetail = true
+        navigationPath.append(result)
       } label: {
         Label("View Detail", systemImage: "arrow.right.circle")
       }
       .tint(.accentColor)
       .accessibilityLabel("View memory detail")
       .accessibilityHint("Opens the full detail view where you can delete this memory")
-    }
-    // Hidden programmatic NavigationLink driven by the swipe action button above.
-    .background {
-      NavigationLink(isActive: $navigateToDetail) {
-        MemoryDetailView(result: result, onDeleteSuccess: onDeleteSuccess)
-      } label: {
-        EmptyView()
-      }
     }
   }
 
