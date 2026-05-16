@@ -229,12 +229,11 @@ struct LanguageDetectorTests {
 
   @Test("returns a BCP-47 code (e.g. 'en', 'fr') not an Apple locale identifier")
   func returnsBCP47Format() {
-    // NLLanguageRecognizer returns codes like "en", "fr", "de" not "en_US"
+    // NLLanguageRecognizer returns codes like "en", "fr", "de" not "en_US".
+    // Pinning the exact value catches a nil regression that an `if let` would
+    // silently skip.
     let lang = LanguageDetector.detect("Hello world, this is a test sentence.")
-    if let lang {
-      // BCP-47 codes are lowercase, 2-3 chars for base languages; no underscore
-      #expect(!lang.contains("_"), "Should be BCP-47 base code, not locale identifier")
-    }
+    #expect(lang == "en")
   }
 }
 
