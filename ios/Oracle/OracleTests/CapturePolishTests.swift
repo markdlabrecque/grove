@@ -165,16 +165,16 @@ struct TokenCountTests {
 ///
 /// # Short-string behaviour
 ///
-/// `NLLanguageRecognizer` requires sufficient text to make a reliable prediction.
-/// For strings shorter than ~10 characters the recogniser may return `.undetermined`,
-/// which `detect(_:)` maps to `nil`. Single characters like `"I"` must return `nil`
-/// (the doc contract); callers should treat `nil` as undetermined and fall back to
-/// a sensible default (e.g. the user's language hint from Settings, or "en").
+/// `detect(_:)` returns `nil` for inputs shorter than `LanguageDetector.minimumDetectableLength`
+/// (currently 4 characters). Below this threshold `NLLanguageRecognizer` routinely
+/// mis-identifies single common characters as a random language (e.g. `"I"` → `"hr"`),
+/// so the guard is enforced in code rather than relying on the model's confidence score.
 ///
 /// # Thread safety
 ///
-/// Each `detect(_:)` call must not share state across threads. The tests pin the
-/// contract; the production implementation is responsible for thread safety.
+/// Each `detect(_:)` call creates a fresh `NLLanguageRecognizer` instance. This avoids
+/// data races under Swift Testing's parallel test runner and in any future concurrent
+/// call site (the old shared-instance approach was not thread-safe).
 @Suite("LanguageDetector")
 struct LanguageDetectorTests {
 
@@ -194,19 +194,35 @@ struct LanguageDetectorTests {
 
   // MARK: - nil-return contract (pinned)
   //
-  // These replace the old crash-guard pattern with value-pinning assertions.
-  // Both cases are documented as guaranteed nil in the LanguageDetector API.
+  // These are value-pinning assertions, not crash-guards. The production length
+  // guard enforces nil independently of the language model.
 
   @Test("empty input returns nil")
   func emptyInputReturnsNil() {
+    // 0 chars < minimumDetectableLength → nil unconditionally.
     #expect(LanguageDetector.detect("") == nil)
   }
 
   @Test("single character returns nil")
   func singleCharReturnsNil() {
-    // The doc contract guarantees nil for inputs too short for reliable detection.
-    // Without an explicit length guard, NLLanguageRecognizer mis-identifies "I" as "hr".
+    // 1 char < minimumDetectableLength → nil unconditionally.
+    // Without this guard, NLLanguageRecognizer mis-identifies "I" as "hr".
     #expect(LanguageDetector.detect("I") == nil)
+  }
+
+  // MARK: - Threshold contract (pinned)
+
+  @Test("minimumDetectableLength is 4")
+  func minimumDetectableLengthIsCorrect() {
+    // Pins the threshold so accidental widening is caught immediately.
+    // Increase only with a corresponding update to the doc comment and tests.
+    #expect(LanguageDetector.minimumDetectableLength == 4)
+  }
+
+  @Test("3-character input returns nil (below threshold)")
+  func threeCharInputReturnsNil() {
+    // "ici" is a valid French word but below the minimum length.
+    #expect(LanguageDetector.detect("ici") == nil)
   }
 
   // MARK: - Format contract

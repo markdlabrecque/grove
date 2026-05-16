@@ -15,13 +15,6 @@ import NaturalLanguage
 // and fall back to a sensible default (e.g. the user's language hint from
 // Settings, or "en").
 //
-// ## Thread safety
-//
-// `NLLanguageRecognizer` is not documented as thread-safe, but it is cheap to
-// instantiate. We keep one shared instance and reset it before each call. Since
-// detection is called from `@MainActor` contexts in `CaptureViewModel`, there is
-// no concurrent access in practice.
-//
 // ## BCP-47 output format
 //
 // `NLLanguage.rawValue` returns codes like "en", "fr", "de", "zh-Hans". These
@@ -30,26 +23,41 @@ import NaturalLanguage
 
 enum LanguageDetector {
 
-  // MARK: - Shared recogniser
-
-  // A single instance is reused across calls. `processString(_:)` + reset is
-  // cheaper than creating a new recogniser on each detection call for long text.
-  private static let recogniser = NLLanguageRecognizer()
-
   // MARK: - Public API
 
   /// Detect the dominant language in `text`.
   ///
   /// Returns a BCP-47 language code string (e.g. `"en"`, `"fr"`, `"de"`) or
-  /// `nil` if the language cannot be determined (text is too short, ambiguous,
-  /// or purely non-linguistic content).
+  /// `nil` if the language cannot be determined (text is empty, too short,
+  /// ambiguous, or purely non-linguistic content).
+  ///
+  /// **Guaranteed nil cases:**
+  /// - Inputs shorter than `minimumDetectableLength` (currently 4 characters)
+  ///   return `nil` unconditionally. Below this threshold `NLLanguageRecognizer`
+  ///   routinely mis-identifies short tokens (e.g. `"I"` → `"hr"`), so the guard
+  ///   is enforced in code rather than relying on the model's confidence score.
+  /// - Inputs at or above that threshold may still return `nil` when the model
+  ///   returns `.undetermined` (ambiguous or non-linguistic text).
+  ///
+  /// **Thread safety:** A fresh `NLLanguageRecognizer` is created per call.
+  /// `NLLanguageRecognizer` is not documented as thread-safe; creating per call
+  /// avoids data races when `detect(_:)` is called from concurrent contexts
+  /// (e.g. Swift Testing parallel test runners). `NLLanguageRecognizer` is cheap
+  /// to instantiate, so the per-call overhead is negligible.
   ///
   /// - Parameter text: The text to analyse. May be empty.
   /// - Returns: A BCP-47 code, or `nil` for undetermined.
-  static func detect(_ text: String) -> String? {
-    guard !text.isEmpty else { return nil }
 
-    recogniser.reset()
+  // Minimum character count for reliable language detection.  Below this
+  // threshold `NLLanguageRecognizer` routinely mis-identifies single common
+  // characters as a random language (e.g. "I" → "hr"). The doc contract
+  // guarantees nil for inputs below this threshold.
+  static let minimumDetectableLength = 4
+
+  static func detect(_ text: String) -> String? {
+    guard text.count >= minimumDetectableLength else { return nil }
+
+    let recogniser = NLLanguageRecognizer()
     recogniser.processString(text)
 
     let language = recogniser.dominantLanguage
