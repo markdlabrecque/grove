@@ -165,13 +165,20 @@ struct TokenCountTests {
 ///
 /// # Short-string behaviour
 ///
-/// `NLLanguageRecognizer` requires sufficient text to make a reliable prediction.
-/// For strings shorter than ~10 characters, the detector may return `nil` (unknown).
-/// `LanguageDetector.detect(_:)` returns `nil` for unknown results — callers should
-/// treat `nil` as "undetermined" and fall back to a default (e.g. "en").
-/// Single characters like "I" are undefined and must not crash.
+/// `detect(_:)` returns `nil` for inputs shorter than `LanguageDetector.minimumDetectableLength`
+/// (currently 4 characters). Below this threshold `NLLanguageRecognizer` routinely
+/// mis-identifies single common characters as a random language (e.g. `"I"` → `"hr"`),
+/// so the guard is enforced in code rather than relying on the model's confidence score.
+///
+/// # Thread safety
+///
+/// Each `detect(_:)` call creates a fresh `NLLanguageRecognizer` instance. This avoids
+/// data races under Swift Testing's parallel test runner and in any future concurrent
+/// call site (the old shared-instance approach was not thread-safe).
 @Suite("LanguageDetector")
 struct LanguageDetectorTests {
+
+  // MARK: - Language detection
 
   @Test("detects English from a clear English sentence")
   func detectsEnglish() {
@@ -185,24 +192,40 @@ struct LanguageDetectorTests {
     #expect(lang == "fr")
   }
 
-  @Test("returns nil or a valid BCP-47 string — never crashes on empty input")
-  func emptyInputNoCrash() {
-    // Must not throw or crash; may return nil
-    let lang = LanguageDetector.detect("")
-    // Result is either nil or a valid non-empty BCP-47 code
-    if let lang {
-      #expect(!lang.isEmpty)
-    }
+  // MARK: - nil-return contract (pinned)
+  //
+  // These are value-pinning assertions, not crash-guards. The production length
+  // guard enforces nil independently of the language model.
+
+  @Test("empty input returns nil")
+  func emptyInputReturnsNil() {
+    // 0 chars < minimumDetectableLength → nil unconditionally.
+    #expect(LanguageDetector.detect("") == nil)
   }
 
-  @Test("returns nil or a valid BCP-47 string — never crashes on single character")
-  func singleCharNoCrash() {
-    // "I" alone is ambiguous — result undefined, but must not crash
-    let lang = LanguageDetector.detect("I")
-    if let lang {
-      #expect(!lang.isEmpty)
-    }
+  @Test("single character returns nil")
+  func singleCharReturnsNil() {
+    // 1 char < minimumDetectableLength → nil unconditionally.
+    // Without this guard, NLLanguageRecognizer mis-identifies "I" as "hr".
+    #expect(LanguageDetector.detect("I") == nil)
   }
+
+  // MARK: - Threshold contract (pinned)
+
+  @Test("minimumDetectableLength is 4")
+  func minimumDetectableLengthIsCorrect() {
+    // Pins the threshold so accidental widening is caught immediately.
+    // Increase only with a corresponding update to the doc comment and tests.
+    #expect(LanguageDetector.minimumDetectableLength == 4)
+  }
+
+  @Test("3-character input returns nil (below threshold)")
+  func threeCharInputReturnsNil() {
+    // "ici" is a valid French word but below the minimum length.
+    #expect(LanguageDetector.detect("ici") == nil)
+  }
+
+  // MARK: - Format contract
 
   @Test("returns a BCP-47 code (e.g. 'en', 'fr') not an Apple locale identifier")
   func returnsBCP47Format() {
