@@ -1,7 +1,7 @@
 import Testing
 import Foundation
 @testable import Grove
-import OracleCore
+import GroveCore
 
 /// Tests for `SettingsViewModel` Keychain write-failure paths.
 ///

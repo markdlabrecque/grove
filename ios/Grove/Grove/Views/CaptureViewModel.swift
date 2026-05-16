@@ -1,6 +1,6 @@
 import Foundation
 import SwiftUI
-import OracleCore
+import GroveCore
 
 /// View state and save logic for the capture screen.
 ///

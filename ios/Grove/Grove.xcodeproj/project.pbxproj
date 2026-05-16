@@ -33,13 +33,13 @@
 		A1000008 /* QueryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010 /* QueryViewModel.swift */; };
 		A1000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000007 /* Assets.xcassets */; };
 		A1000009 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000009 /* Preview Assets.xcassets */; };
-		A100000A /* OracleCore in Frameworks */ = {isa = PBXBuildFile; productRef = A200000D /* OracleCore */; };
+		A100000A /* GroveCore in Frameworks */ = {isa = PBXBuildFile; productRef = A200000D /* GroveCore */; };
 		B1000001 /* ConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* ConfigTests.swift */; };
 		B1000002 /* OracleAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* OracleAPITests.swift */; };
 		B1000003 /* JSONCodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* JSONCodingTests.swift */; };
 		B1000004 /* capture_response.json in Resources */ = {isa = PBXBuildFile; fileRef = B2000004 /* capture_response.json */; };
 		B1000006 /* QueryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000007 /* QueryViewModelTests.swift */; };
-		B100000A /* OracleCore in Frameworks */ = {isa = PBXBuildFile; productRef = B200000A /* OracleCore */; };
+		B100000A /* GroveCore in Frameworks */ = {isa = PBXBuildFile; productRef = B200000A /* GroveCore */; };
 		B100000D /* OracleTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = B200000D /* OracleTestSupport */; };
 		C1000001 /* GroveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* GroveUITests.swift */; };
 		B1000015 /* SyncEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000015 /* SyncEdgeCaseTests.swift */; };
@@ -150,7 +150,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A100000A /* OracleCore in Frameworks */,
+				A100000A /* GroveCore in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -158,7 +158,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				B100000A /* OracleCore in Frameworks */,
+				B100000A /* GroveCore in Frameworks */,
 				B100000D /* OracleTestSupport in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -336,7 +336,7 @@
 			);
 			name = Grove;
 			packageProductDependencies = (
-				A200000D /* OracleCore */,
+				A200000D /* GroveCore */,
 			);
 			productName = Grove;
 			productReference = A2000000 /* Grove.app */;
@@ -357,7 +357,7 @@
 			);
 			name = GroveTests;
 			packageProductDependencies = (
-				B200000A /* OracleCore */,
+				B200000A /* GroveCore */,
 				B200000D /* OracleTestSupport */,
 			);
 			productName = GroveTests;
@@ -415,7 +415,7 @@
 			);
 			mainGroup = A3000000;
 			packageReferences = (
-				A200000E /* XCLocalSwiftPackageReference "OracleCore" */,
+				A200000E /* XCLocalSwiftPackageReference "GroveCore" */,
 			);
 			productRefGroup = A3000002 /* Products */;
 			projectDirPath = "";
@@ -858,26 +858,26 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		A200000E /* XCLocalSwiftPackageReference "OracleCore" */ = {
+		A200000E /* XCLocalSwiftPackageReference "GroveCore" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = OracleCore;
+			relativePath = GroveCore;
 		};
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		A200000D /* OracleCore */ = {
+		A200000D /* GroveCore */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A200000E /* XCLocalSwiftPackageReference "OracleCore" */;
-			productName = OracleCore;
+			package = A200000E /* XCLocalSwiftPackageReference "GroveCore" */;
+			productName = GroveCore;
 		};
-		B200000A /* OracleCore */ = {
+		B200000A /* GroveCore */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A200000E /* XCLocalSwiftPackageReference "OracleCore" */;
-			productName = OracleCore;
+			package = A200000E /* XCLocalSwiftPackageReference "GroveCore" */;
+			productName = GroveCore;
 		};
 		B200000D /* OracleTestSupport */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = A200000E /* XCLocalSwiftPackageReference "OracleCore" */;
+			package = A200000E /* XCLocalSwiftPackageReference "GroveCore" */;
 			productName = OracleTestSupport;
 		};
 /* End XCSwiftPackageProductDependency section */

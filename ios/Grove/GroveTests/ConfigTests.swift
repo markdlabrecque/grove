@@ -1,6 +1,6 @@
 import Testing
 import Foundation
-import OracleCore
+import GroveCore
 @testable import Grove
 
 /// Tests for Config — the typed wrapper over Info.plist build-settings values.

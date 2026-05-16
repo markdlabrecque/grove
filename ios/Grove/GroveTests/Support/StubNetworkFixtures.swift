@@ -7,9 +7,9 @@
 // Each call site owns its own ModelContainer and UploadQueue instances.
 import Foundation
 import SwiftData
-import OracleCore
+import GroveCore
 import OracleTestSupport
-@testable import OracleCore
+@testable import GroveCore
 @testable import Grove
 
 // MARK: - Common constants

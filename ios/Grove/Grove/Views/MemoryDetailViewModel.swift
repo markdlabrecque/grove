@@ -1,5 +1,5 @@
 import Foundation
-import OracleCore
+import GroveCore
 
 /// View state and delete logic for the memory detail screen.
 ///

@@ -1,7 +1,7 @@
 import SwiftUI
 import SwiftData
 import AppIntents
-import OracleCore
+import GroveCore
 
 @main
 struct GroveApp: App {

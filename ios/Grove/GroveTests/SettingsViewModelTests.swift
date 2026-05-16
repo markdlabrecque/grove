@@ -1,14 +1,14 @@
 import Testing
 import Foundation
 @testable import Grove
-import OracleCore
+import GroveCore
 
 /// Tests for `SettingsViewModel` — URL validation, Keychain round-trip,
 /// AppStorage key consistency, and force-resync sweep.
 ///
 /// These run in the GroveTests Xcode target (host-app test bundle) so they
 /// can @testable import Grove.  KeychainStore unit-level tests live in
-/// OracleCoreTests (KeychainStoreTests.swift).
+/// GroveCoreTests (KeychainStoreTests.swift).
 ///
 /// `SettingsViewModel` is `@MainActor`-isolated, so every test that touches
 /// the ViewModel must hop to the main actor.  Swift Testing supports this via

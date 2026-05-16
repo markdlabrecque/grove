@@ -16,9 +16,9 @@ import SwiftData
 /// uses `INSERT … ON CONFLICT DO NOTHING` to make retries of the same capture a
 /// no-op. Repeated `tryDrain` calls for the same row are therefore safe.
 ///
-/// # Why this is in the app target, not OracleCore
+/// # Why this is in the app target, not GroveCore
 ///
-/// `@Model` requires the SwiftData macro expansion infrastructure. The OracleCore
+/// `@Model` requires the SwiftData macro expansion infrastructure. The GroveCore
 /// SPM package builds on macOS 15 (for `swift test` on CI) and has no dependency
 /// on SwiftData. Adding SwiftData to the package would force a macOS 14+ platform
 /// requirement and muddy the package's "pure networking layer" boundary. The

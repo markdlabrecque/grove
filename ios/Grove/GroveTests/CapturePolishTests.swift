@@ -416,7 +416,7 @@ struct CaptureViewModelPolishTests {
 // disconnected from `content`.
 
 import SwiftData
-import OracleCore
+import GroveCore
 
 @Suite("CaptureViewModel.tokenCount")
 @MainActor

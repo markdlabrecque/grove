@@ -117,7 +117,7 @@ make ios-test
 This runs both targets in sequence:
 
 ```bash
-make ios-test-core   # OracleCore swift package only — no simulator needed
+make ios-test-core   # GroveCore swift package only — no simulator needed
 make ios-test-app    # Full Grove scheme on iPhone 17 simulator (requires xcconfig)
 ```
 
@@ -127,7 +127,7 @@ replaces the canary CI job (see CI section below for why the canary was removed)
 ### Running tests
 
 `make ios-test-core` is the fast, always-available check. It runs `swift test`
-against the `OracleCore` package and requires no simulator or xcconfig.
+against the `GroveCore` package and requires no simulator or xcconfig.
 
 `make ios-test-app` runs `xcodebuild test` against the full Grove scheme. It
 requires Xcode 26 and a populated `Config.debug.xcconfig` (see First-time setup
@@ -147,38 +147,38 @@ make ios-test-clean
 press `Cmd+U`. Both the `GroveTests` and `GroveUITests` targets run (requires
 a populated xcconfig — see First-time setup above).
 
-### Project structure: OracleCore package
+### Project structure: GroveCore package
 
 SDK-version-independent logic lives in a local Swift Package at
-`ios/Grove/OracleCore/`. The package has an iOS 18 + macOS 15 deployment target,
+`ios/Grove/GroveCore/`. The package has an iOS 18 + macOS 15 deployment target,
 which allows `swift test` to run on macOS CI hosts without a simulator.
 
 ```
 ios/Grove/
-  OracleCore/            ← Swift Package (iOS 18, macOS 15)
+  GroveCore/             ← Swift Package (iOS 18, macOS 15)
     Package.swift
-    Sources/OracleCore/
+    Sources/GroveCore/
       Config.swift       ← typed wrapper for build-settings values
       OracleAPI.swift    ← URLSession client, DTOs, Codable models
-    Tests/OracleCoreTests/
+    Tests/GroveCoreTests/
       ConfigTests.swift
       OracleAPITests.swift
       JSONCodingTests.swift
       Fixtures/
         capture_response.json
-  Grove.xcodeproj/       ← app target (iOS 26, imports OracleCore)
+  Grove.xcodeproj/       ← app target (iOS 26, imports GroveCore)
   GroveTests/            ← Xcode unit test target (@testable import Grove)
   GroveUITests/          ← Xcode UI test target (XCUITest)
 ```
 
 The `Grove` app target keeps its iOS 26 deployment target. It imports
-`OracleCore` as a local package reference.
+`GroveCore` as a local package reference.
 
 ### What is covered
 
 | Target | Framework | Scope |
 |---|---|---|
-| `OracleCoreTests` (SPM) | Swift Testing | Unit tests: `Config`, `OracleAPI` request builder, JSON coding |
+| `GroveCoreTests` (SPM) | Swift Testing | Unit tests: `Config`, `OracleAPI` request builder, JSON coding |
 | `GroveTests` (Xcode) | Swift Testing | Same seed tests, via `@testable import Grove` |
 | `GroveUITests` (Xcode) | XCUITest | Placeholder only — no real UI to drive yet |
 
@@ -205,7 +205,7 @@ screens (`#61`, `#62`).
 
 | Job | Runner | Tool | Required? |
 |---|---|---|---|
-| `stable` (Core) | `macos-latest`, Xcode 16.2 | `swift test` on `OracleCore` package | Yes — merge gate |
+| `stable` (Core) | `macos-latest`, Xcode 16.2 | `swift test` on `GroveCore` package | Yes — merge gate |
 
 **The `stable` job is the only CI job.** It covers all logic-level code
 (Config, OracleAPI, Codable models) and runs without a simulator or iOS 26 SDK,
@@ -257,12 +257,12 @@ in `Config.swift` and `OracleAPI.swift` mark the V2 Face/Touch ID gate.
 ```
 ios/
   Grove/
-    OracleCore/                ← local Swift Package (iOS 18 + macOS 15)
+    GroveCore/                 ← local Swift Package (iOS 18 + macOS 15)
       Package.swift
-      Sources/OracleCore/
+      Sources/GroveCore/
         Config.swift           ← typed wrapper for build-settings values
         OracleAPI.swift        ← URLSession client, DTOs, Codable models
-      Tests/OracleCoreTests/
+      Tests/GroveCoreTests/
         ConfigTests.swift      ← seed unit tests (Swift Testing)
         OracleAPITests.swift
         JSONCodingTests.swift

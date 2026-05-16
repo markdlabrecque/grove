@@ -1,5 +1,5 @@
 import Foundation
-import OracleCore
+import GroveCore
 
 /// In-memory stub for `KeychainStoreProtocol` used by `SettingsViewModelTests`.
 ///
