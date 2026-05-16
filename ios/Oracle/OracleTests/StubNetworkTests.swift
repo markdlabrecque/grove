@@ -41,57 +41,10 @@ struct StubNetworkTests {
 
     // MARK: - Fixtures
 
-    private static let baseURL = URL(string: "https://oracle.example.ts.net")!
     private static let token = "queue-test-token"
 
-    /// Build an in-memory `ModelContainer` scoped to a single test.
-    private func makeContainer() throws -> ModelContainer {
-      let schema = Schema([QueuedCapture.self])
-      let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-      return try ModelContainer(for: schema, configurations: [config])
-    }
-
-    /// Build an `UploadQueue` using an in-memory container + a stub API session.
-    private func makeQueue(container: ModelContainer) -> (UploadQueue, OracleAPI) {
-      let config = URLSessionConfiguration.default
-      config.protocolClasses = [StubURLProtocol.self]
-      let api = OracleAPI(
-        baseURL: Self.baseURL,
-        bearerToken: Self.token,
-        configuration: config
-      )
-      let queue = UploadQueue(modelContainer: container, api: api)
-      return (queue, api)
-    }
-
-    /// Encode a minimal `CaptureRequestBody` as the `payload` bytes for testing.
-    private func makePayload(
-      clientID: UUID = UUID(),
-      content: String = "test capture"
-    ) throws -> (UUID, Data) {
-      let body = CaptureRequestBody(
-        clientID: clientID,
-        content: content,
-        sourceModality: "text",
-        sourceDevice: "iphone",
-        language: "en",
-        capturedAt: Date()
-      )
-      let encoder = JSONEncoder()
-      encoder.dateEncodingStrategy = .iso8601
-      let data = try encoder.encode(body)
-      return (clientID, data)
-    }
-
-    /// Build a `HTTPURLResponse` for a given status code.
-    private func stubResponse(statusCode: Int) -> HTTPURLResponse {
-      HTTPURLResponse(
-        url: Self.baseURL.appendingPathComponent("v1/captures"),
-        statusCode: statusCode,
-        httpVersion: nil,
-        headerFields: ["Content-Type": "application/json"]
-      )!
-    }
+    // makeContainer(), makePayload(), and stubResponse() are provided by
+    // Support/StubNetworkFixtures.swift as top-level free functions.
 
     private func captureResponseFixture() -> Data {
       // Inline fixture — same values as OracleTests/Fixtures/capture_response.json.
@@ -113,7 +66,7 @@ struct StubNetworkTests {
     @Test("enqueue inserts a row and increments pendingCount")
     func enqueueInsertsRow() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
 
@@ -130,7 +83,7 @@ struct StubNetworkTests {
     @Test("tryDrain on success deletes the row (pendingCount == 0)")
     func tryDrainSuccessDeletesRow() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload(clientID: UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!)
       let responseData = captureResponseFixture()
@@ -154,7 +107,7 @@ struct StubNetworkTests {
     @Test("tryDrain on failure keeps the row, increments attemptCount, sets lastError")
     func tryDrainFailureKeepsRow() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"internal server error"}"#.data(using: .utf8)!
@@ -183,7 +136,7 @@ struct StubNetworkTests {
     @Test("tryDrain with mixed success/failure drains successes and keeps failures")
     func tryDrainMultipleRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       // Three rows — we'll succeed for the first two and fail the third based on
       // payload content. Since `StubURLProtocol` is global, we cycle the response
@@ -245,7 +198,7 @@ struct StubNetworkTests {
     @Test("concurrent tryDrain calls collapse to a single drain pass")
     func concurrentDrainIsCollapsed() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       // Enqueue 3 rows so each successful drain makes 3 HTTP calls.
       let rowCount = 3
@@ -291,7 +244,7 @@ struct StubNetworkTests {
     @Test("5xx: row retained indefinitely (no attempt cap), backoff delay increases")
     func fiveXxRetainsRowIndefinitely() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let failResponse = stubResponse(statusCode: 503)
@@ -329,7 +282,7 @@ struct StubNetworkTests {
     @Test("5xx transient failure: exactly one modelContext.save() per drain")
     func fiveXxSingleSavePerDrain() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let failResponse = stubResponse(statusCode: 503)
@@ -367,7 +320,7 @@ struct StubNetworkTests {
     @Test("4xx (422): row transitions to failed state (not deleted)")
     func fourXxTransitionsToFailed() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let failResponse = stubResponse(statusCode: 422)
@@ -399,7 +352,7 @@ struct StubNetworkTests {
     @Test("5xx then 4xx: row in backoff on 503, then transitions to failed on 422")
     func fiveXxThenFourXxMarksRowFailed() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let transientResponse = stubResponse(statusCode: 503)
@@ -447,7 +400,7 @@ struct StubNetworkTests {
     @Test("non-HTTP URLError: row kept, attemptCount incremented to 1")
     func transientNetworkErrorRetries() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
 
@@ -472,7 +425,7 @@ struct StubNetworkTests {
     @Test("reset deletes all rows (pendingCount == 0)")
     func resetClearsAll() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id1, data1) = try makePayload(content: "alpha")
       let (id2, data2) = try makePayload(content: "beta")
@@ -729,57 +682,13 @@ struct StubNetworkTests {
 
     // MARK: - Fixtures
 
-    private static let baseURL = URL(string: "https://oracle.example.ts.net")!
     private static let token = "auth-test-token"
 
-    private func makeContainer() throws -> ModelContainer {
-      let schema = Schema([QueuedCapture.self])
-      let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-      return try ModelContainer(for: schema, configurations: [config])
-    }
-
-    private func makeQueue(container: ModelContainer) -> (UploadQueue, OracleAPI) {
-      let urlConfig = URLSessionConfiguration.default
-      urlConfig.protocolClasses = [StubURLProtocol.self]
-      let api = OracleAPI(
-        baseURL: Self.baseURL,
-        bearerToken: Self.token,
-        configuration: urlConfig
-      )
-      let queue = UploadQueue(
-        modelContainer: container,
-        api: api,
-        initialToken: Self.token
-      )
-      return (queue, api)
-    }
-
-    private func makePayload(
-      clientID: UUID = UUID(),
-      content: String = "test capture"
-    ) throws -> (UUID, Data) {
-      let body = CaptureRequestBody(
-        clientID: clientID,
-        content: content,
-        sourceModality: "text",
-        sourceDevice: "iphone",
-        language: "en",
-        capturedAt: Date()
-      )
-      let encoder = JSONEncoder()
-      encoder.dateEncodingStrategy = .iso8601
-      let data = try encoder.encode(body)
-      return (clientID, data)
-    }
-
-    private func stubResponse(statusCode: Int) -> HTTPURLResponse {
-      HTTPURLResponse(
-        url: Self.baseURL.appendingPathComponent("v1/captures"),
-        statusCode: statusCode,
-        httpVersion: nil,
-        headerFields: ["Content-Type": "application/json"]
-      )!
-    }
+    // makeContainer(), makePayload(), and stubResponse() are provided by
+    // Support/StubNetworkFixtures.swift as top-level free functions.
+    // makeQueue(container:bearerToken:initialToken:) is called with
+    // initialToken: Self.token so the queue tracks the current token for
+    // idempotency checks in the auth-required re-enqueue tests.
 
     private func captureFixture() -> Data {
       """
@@ -794,7 +703,7 @@ struct StubNetworkTests {
     @Test("401 response: row marked isAuthRequired=true, not deleted")
     func fourOhOneMarksAuthRequired() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
 
       let (id, data) = try makePayload()
       let response401 = stubResponse(statusCode: 401)
@@ -829,14 +738,14 @@ struct StubNetworkTests {
     @Test("401 on a previously-failed row: isAuthRequired=true overrides prior state")
     func fourOhOneAfterTransientFailure() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
 
       let (id, data) = try makePayload()
 
       // First: a 503 (transient) — row stays with attemptCount == 1.
       StubURLProtocol.responder = { _ in
         let r = HTTPURLResponse(
-          url: Self.baseURL.appendingPathComponent("v1/captures"),
+          url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
           statusCode: 503,
           httpVersion: nil,
           headerFields: nil
@@ -878,7 +787,7 @@ struct StubNetworkTests {
     @Test("tryDrain skips rows marked isAuthRequired (no network call, row unchanged)")
     func drainSkipsAuthRequiredRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
 
       // Enqueue a row and force it into auth_required state.
       let (id, data) = try makePayload()
@@ -900,7 +809,7 @@ struct StubNetworkTests {
       StubURLProtocol.responder = { [httpCallCount] _ in
         httpCallCount.value += 1
         let r = HTTPURLResponse(
-          url: Self.baseURL.appendingPathComponent("v1/captures"),
+          url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
           statusCode: 201, httpVersion: nil, headerFields: nil
         )!
         return (r, Data())
@@ -918,7 +827,7 @@ struct StubNetworkTests {
     @Test("authRequiredCount returns only rows with isAuthRequired=true")
     func authRequiredCountIsSelective() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
 
       let (id1, data1) = try makePayload(content: "first")
       let (id2, data2) = try makePayload(content: "second")
@@ -948,7 +857,7 @@ struct StubNetworkTests {
     @Test("reenqueueAuthRequired: clears isAuthRequired, rows re-drain successfully")
     func reenqueueClearsAndDrains() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
 
       let (id1, data1) = try makePayload(content: "alpha")
       let (id2, data2) = try makePayload(content: "beta")
@@ -965,7 +874,7 @@ struct StubNetworkTests {
       #expect(try await queue.authRequiredCount() == 2)
 
       let successResponse = HTTPURLResponse(
-        url: Self.baseURL.appendingPathComponent("v1/captures"),
+        url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
         statusCode: 201, httpVersion: nil,
         headerFields: ["Content-Type": "application/json"]
       )!
@@ -986,7 +895,7 @@ struct StubNetworkTests {
     @Test("reenqueueAuthRequired: same bad token does not re-enqueue (idempotent)")
     func reenqueueIdempotentOnSameToken() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
 
       let (id, data) = try makePayload()
       let response401 = stubResponse(statusCode: 401)
@@ -1019,7 +928,7 @@ struct StubNetworkTests {
     @Test("multiple auth_required rows: all re-enqueued when token changes")
     func multipleRowsAllReenqueued() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
 
       let count = 5
       for i in 0..<count {
@@ -1036,7 +945,7 @@ struct StubNetworkTests {
       #expect(try await queue.authRequiredCount() == count)
 
       let successResponse = HTTPURLResponse(
-        url: Self.baseURL.appendingPathComponent("v1/captures"),
+        url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
         statusCode: 201, httpVersion: nil,
         headerFields: ["Content-Type": "application/json"]
       )!
@@ -1061,7 +970,7 @@ struct StubNetworkTests {
     @Test("reenqueueAuthRequired: only clears rows with isAuthRequired=true")
     func reenqueueOnlyClearsAuthRequiredRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
 
       // Row A → auth_required (401).
       let (idA, dataA) = try makePayload(content: "auth-required row")
@@ -1140,53 +1049,10 @@ struct StubNetworkTests {
 
     // MARK: - Fixtures
 
-    private static let baseURL = URL(string: "https://oracle.example.ts.net")!
     private static let token = "edge-case-test-token"
 
-    private func makeContainer() throws -> ModelContainer {
-      let schema = Schema([QueuedCapture.self])
-      let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-      return try ModelContainer(for: schema, configurations: [config])
-    }
-
-    private func makeQueue(container: ModelContainer) -> (UploadQueue, OracleAPI) {
-      let urlConfig = URLSessionConfiguration.default
-      urlConfig.protocolClasses = [StubURLProtocol.self]
-      let api = OracleAPI(
-        baseURL: Self.baseURL,
-        bearerToken: Self.token,
-        configuration: urlConfig
-      )
-      let queue = UploadQueue(modelContainer: container, api: api)
-      return (queue, api)
-    }
-
-    private func makePayload(
-      clientID: UUID = UUID(),
-      content: String = "test capture"
-    ) throws -> (UUID, Data) {
-      let body = CaptureRequestBody(
-        clientID: clientID,
-        content: content,
-        sourceModality: "text",
-        sourceDevice: "iphone",
-        language: "en",
-        capturedAt: Date()
-      )
-      let encoder = JSONEncoder()
-      encoder.dateEncodingStrategy = .iso8601
-      let data = try encoder.encode(body)
-      return (clientID, data)
-    }
-
-    private func stubResponse(statusCode: Int) -> HTTPURLResponse {
-      HTTPURLResponse(
-        url: Self.baseURL.appendingPathComponent("v1/captures"),
-        statusCode: statusCode,
-        httpVersion: nil,
-        headerFields: ["Content-Type": "application/json"]
-      )!
-    }
+    // makeContainer(), makePayload(), and stubResponse() are provided by
+    // Support/StubNetworkFixtures.swift as top-level free functions.
 
     // MARK: - 4xx → failed (not deleted, not transient)
 
@@ -1195,7 +1061,7 @@ struct StubNetworkTests {
     @Test("422 response: row transitions to failed state, lastError set, row persists")
     func fourTwoTwoTransitionToFailed() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"unprocessable entity"}"#.data(using: .utf8)!
@@ -1232,7 +1098,7 @@ struct StubNetworkTests {
     )
     func eachPermanentFourXxMapToFailed(statusCode: Int) async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let errorBody = "{\"detail\":\"error \(statusCode)\"}".data(using: .utf8)!
@@ -1259,7 +1125,7 @@ struct StubNetworkTests {
     @Test("422 lastError: status code preserved; huge body truncated at 500 chars")
     func fourTwoTwoErrorStringPreserved() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let knownBody = #"{"detail":"validation failed: field 'content' is required"}"#
@@ -1308,7 +1174,7 @@ struct StubNetworkTests {
     @Test("tryDrain: failed rows are skipped (no network call)")
     func tryDrainSkipsFailedRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"bad entity"}"#.data(using: .utf8)!
@@ -1330,7 +1196,7 @@ struct StubNetworkTests {
       StubURLProtocol.responder = { [httpCallCount] _ in
         httpCallCount.value += 1
         let r = HTTPURLResponse(
-          url: Self.baseURL.appendingPathComponent("v1/captures"),
+          url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
           statusCode: 201, httpVersion: nil, headerFields: nil
         )!
         return (r, Data())
@@ -1350,7 +1216,7 @@ struct StubNetworkTests {
     @Test("retryFailed: clears isFailed, resets attemptCount, row becomes pending")
     func retryFailedResetsToPending() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"bad"}"#.data(using: .utf8)!
@@ -1385,7 +1251,7 @@ struct StubNetworkTests {
     @Test("discardFailed: row is removed from queue (pendingCount == 0)")
     func discardFailedRemovesRow() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"bad"}"#.data(using: .utf8)!
@@ -1456,7 +1322,7 @@ struct StubNetworkTests {
     @Test("5xx: nextAttemptAt set to ~now + delay(forAttempt: 1) = 5s")
     func fiveXxSetsNextAttemptAt() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"unavailable"}"#.data(using: .utf8)!
@@ -1500,7 +1366,7 @@ struct StubNetworkTests {
     @Test("tryDrain: rows with nextAttemptAt in future are skipped")
     func tryDrainSkipsFutureBackoffRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
 
@@ -1517,7 +1383,7 @@ struct StubNetworkTests {
       StubURLProtocol.responder = { [httpCallCount] _ in
         httpCallCount.value += 1
         let r = HTTPURLResponse(
-          url: Self.baseURL.appendingPathComponent("v1/captures"),
+          url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
           statusCode: 201, httpVersion: nil, headerFields: nil
         )!
         return (r, Data())
@@ -1534,7 +1400,7 @@ struct StubNetworkTests {
     @Test("tryDrain: rows with nextAttemptAt in past are processed")
     func tryDrainProcessesPastBackoffRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload(
         clientID: UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
@@ -1548,7 +1414,7 @@ struct StubNetworkTests {
       )
 
       let successResponse = HTTPURLResponse(
-        url: Self.baseURL.appendingPathComponent("v1/captures"),
+        url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
         statusCode: 201, httpVersion: nil,
         headerFields: ["Content-Type": "application/json"]
       )!
@@ -1575,7 +1441,7 @@ struct StubNetworkTests {
     @Test("backoff: attempt count after two 5xx failures matches delay(forAttempt: 2) = 10s")
     func backoffAttemptCountTracksSchedule() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"unavailable"}"#.data(using: .utf8)!
@@ -1615,7 +1481,7 @@ struct StubNetworkTests {
     @Test("failedCount: only counts rows with isFailed=true")
     func failedCountIsSelective() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container)
+      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
 
       let (id1, data1) = try makePayload(content: "failed-one")
       let (id2, data2) = try makePayload(content: "failed-two")

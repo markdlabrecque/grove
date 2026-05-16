@@ -46,6 +46,7 @@
 		B1000016 /* CapturePolishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000016 /* CapturePolishTests.swift */; };
 		B1000017 /* KeychainStoreStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000017 /* KeychainStoreStub.swift */; };
 		B1000018 /* SettingsViewModelKeychainFailureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000018 /* SettingsViewModelKeychainFailureTests.swift */; };
+		B1000019 /* StubNetworkFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000019 /* StubNetworkFixtures.swift */; };
 		A100001B /* UploadQueueDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001B /* UploadQueueDebugView.swift */; };
 		A100001C /* BackoffScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001C /* BackoffScheduler.swift */; };
 		A100001D /* FillerWordCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001D /* FillerWordCleaner.swift */; };
@@ -101,6 +102,7 @@
 		B2000016 /* CapturePolishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePolishTests.swift; sourceTree = "<group>"; };
 		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
 		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
+		B2000019 /* StubNetworkFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubNetworkFixtures.swift; sourceTree = "<group>"; };
 		A2000006 /* CaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModel.swift; sourceTree = "<group>"; };
 		A2000010 /* QueryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModel.swift; sourceTree = "<group>"; };
 		A2000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -244,6 +246,7 @@
 				B2000017 /* KeychainStoreStub.swift */,
 				B2000018 /* SettingsViewModelKeychainFailureTests.swift */,
 				B3000002 /* Fixtures */,
+				B3000003 /* Support */,
 			);
 			path = OracleTests;
 			sourceTree = "<group>";
@@ -254,6 +257,14 @@
 				B2000004 /* capture_response.json */,
 			);
 			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		B3000003 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				B2000019 /* StubNetworkFixtures.swift */,
+			);
+			path = Support;
 			sourceTree = "<group>";
 		};
 		C3000001 /* OracleUITests */ = {
@@ -448,6 +459,7 @@
 				B1000016 /* CapturePolishTests.swift in Sources */,
 				B1000017 /* KeychainStoreStub.swift in Sources */,
 				B1000018 /* SettingsViewModelKeychainFailureTests.swift in Sources */,
+				B1000019 /* StubNetworkFixtures.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
