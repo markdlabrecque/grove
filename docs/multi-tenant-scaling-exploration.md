@@ -1,6 +1,6 @@
-# The Oracle — Multi-Tenant Scaling Exploration
+# Grove — Multi-Tenant Scaling Exploration
 
-**Status:** Exploratory — no tickets, no implementation. A picture of what it would take to evolve The Oracle from a single-user personal system into a multi-tenant product, sketched at three user-count milestones (100 / 1,000 / 10,000).
+**Status:** Exploratory — no tickets, no implementation. A picture of what it would take to evolve Grove from a single-user personal system into a multi-tenant product, sketched at three user-count milestones (100 / 1,000 / 10,000).
 
 **Date:** 2026-05-10
 **Branch:** `worktree-multitenant-exploration`
@@ -9,7 +9,7 @@
 
 ## 1. Where we are today (the baseline)
 
-The Oracle is intentionally single-tenant in V1. Every architectural decision — auth, schema, deployment, enrichment cadence — assumes exactly one user. That is not an oversight; the PRD lists "no multi-user" as an explicit non-goal. This is fine: it means there is no legacy multi-tenancy code to undo, but it also means there is essentially nothing to build on. Multi-tenancy is a re-foundation, not a feature.
+Grove is intentionally single-tenant in V1. Every architectural decision — auth, schema, deployment, enrichment cadence — assumes exactly one user. That is not an oversight; the PRD lists "no multi-user" as an explicit non-goal. This is fine: it means there is no legacy multi-tenancy code to undo, but it also means there is essentially nothing to build on. Multi-tenancy is a re-foundation, not a feature.
 
 ### Today's stack at a glance
 
@@ -92,7 +92,7 @@ Honestly? **The Hetzner CX22 still handles it.** A hundred users at personal-sca
 ### Risks at this scale
 
 - **Schema migration without downtime is harder than the migration itself.** With 100 users you can probably take a maintenance window. Don't pretend you can't.
-- **Apple Sign-In + family-share edge cases.** Worth deciding early whether one Apple ID = one Oracle account, or whether you allow rebinding.
+- **Apple Sign-In + family-share edge cases.** Worth deciding early whether one Apple ID = one Grove account, or whether you allow rebinding.
 - **The single bearer token still exists in old app builds.** Plan a hard cutover, not a soft migration, or you'll support two auth modes forever.
 
 ---

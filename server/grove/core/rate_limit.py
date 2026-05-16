@@ -18,7 +18,7 @@ Bucket storage
 Buckets are kept in the module-level ``_buckets`` dict (in-process memory).
 This is correct and sufficient for V1, which runs as a single process.
 
-IMPORTANT — multi-process caveat: if The Oracle is ever scaled to more than one
+IMPORTANT — multi-process caveat: if Grove is ever scaled to more than one
 worker process (e.g. ``uvicorn --workers N`` or multiple container replicas),
 each process will maintain its own independent bucket dict. A client can then
 exceed the nominal rate by routing requests across processes. When that happens,

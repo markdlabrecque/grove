@@ -1,4 +1,4 @@
-# Privacy posture — The Oracle V1
+# Privacy posture — Grove V1
 
 **Last updated:** 2026-05-15
 **Scope:** What leaves the box, who receives it, what stays local, and how deletion works in V1. Single-author document — not a compliance template. Revisit when topology or providers change.
