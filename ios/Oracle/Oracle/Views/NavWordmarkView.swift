@@ -45,7 +45,6 @@ struct NavWordmarkView: View {
   var body: some View {
     Text(text)
       .font(.system(size: 11, weight: .semibold))
-      .textCase(.uppercase)
       .tracking(1.3)
       .foregroundStyle(Color.forest500)
       .accessibilityHidden(true)
