@@ -51,6 +51,7 @@
 		A100001C /* BackoffScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001C /* BackoffScheduler.swift */; };
 		A100001D /* FillerWordCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001D /* FillerWordCleaner.swift */; };
 		A100001E /* LanguageDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001E /* LanguageDetector.swift */; };
+		A100001F /* NavWordmarkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001F /* NavWordmarkView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -99,6 +100,7 @@
 		A200001C /* BackoffScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffScheduler.swift; sourceTree = "<group>"; };
 		A200001D /* FillerWordCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordCleaner.swift; sourceTree = "<group>"; };
 		A200001E /* LanguageDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageDetector.swift; sourceTree = "<group>"; };
+		A200001F /* NavWordmarkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavWordmarkView.swift; sourceTree = "<group>"; };
 		B2000016 /* CapturePolishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePolishTests.swift; sourceTree = "<group>"; };
 		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
 		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
@@ -206,6 +208,7 @@
 				A2000019 /* SettingsViewModel.swift */,
 				A200001A /* AuthRequiredBanner.swift */,
 				A200001B /* UploadQueueDebugView.swift */,
+				A200001F /* NavWordmarkView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -436,6 +439,7 @@
 				A100001C /* BackoffScheduler.swift in Sources */,
 				A100001D /* FillerWordCleaner.swift in Sources */,
 				A100001E /* LanguageDetector.swift in Sources */,
+				A100001F /* NavWordmarkView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
