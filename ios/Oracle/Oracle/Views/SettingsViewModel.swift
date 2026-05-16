@@ -47,6 +47,13 @@ final class SettingsViewModel: ObservableObject {
   /// `UserDefaults` key for the voice capture language hint (BCP-47, e.g. "en").
   static let languageHintKey = "capture.languageHint"
 
+  /// `UserDefaults` key for the explicit appearance (colour-scheme) override (#336).
+  ///
+  /// Valid stored values: `"system"` (default — follows OS), `"light"`, `"dark"`.
+  /// Missing key at first launch defaults to `"system"` via `@AppStorage`'s
+  /// type-default, so existing users see no visible change on upgrade.
+  static let appearancePreferenceKey = "appearance.preference"
+
   // MARK: - Editable fields
 
   /// Current text in the Server URL field.  Committed (and validated) on blur

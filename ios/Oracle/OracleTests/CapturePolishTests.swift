@@ -350,6 +350,48 @@ struct CaptureViewModelPolishTests {
     #expect(decoded.sourceModality == "dictated", "Dictation capture should have sourceModality 'dictated'")
   }
 
+  // MARK: - Settings-driven filler cleanup (#335)
+  //
+  // The filler-word toggle was removed from the Save screen in #335.
+  // The save action now reads the persisted @AppStorage value and passes it
+  // directly to buildPayload. These value-pin tests confirm that the
+  // buildPayload pathway still applies cleanup correctly when the Settings
+  // value is true, so the removal of the UI toggle causes no behaviour change.
+
+  @Test("Settings-enabled filler cleanup strips fillers from save payload (#335)")
+  func settingsEnabledFillerCleanupAppliedOnSave() throws {
+    // Simulate: Settings has fillerWordCleanup = true.
+    // The save action reads the persisted value and calls buildPayload with it.
+    let rawContent = "Uh, I wanted to capture this thought."
+    let payload = CaptureViewModel.buildPayload(
+      content: rawContent,
+      sourceModality: "typed",
+      applyFillerCleanup: true,   // mirrors what CaptureView reads from @AppStorage
+      detectedLanguage: "en",
+      languageHint: nil
+    )
+    let encoded = try CaptureViewModel.encodePayload(payload)
+    let decoded = try JSONDecoder().decode(DecodedBody.self, from: encoded)
+    #expect(!decoded.content.lowercased().hasPrefix("uh"), "Filler 'Uh,' should be stripped when Settings value is true")
+    #expect(decoded.content != rawContent, "Cleaned content must differ from raw input")
+  }
+
+  @Test("Settings-disabled filler cleanup leaves save payload unchanged (#335)")
+  func settingsDisabledFillerCleanupPreservesPayload() throws {
+    // Simulate: Settings has fillerWordCleanup = false (the default).
+    let rawContent = "Uh, I wanted to capture this thought."
+    let payload = CaptureViewModel.buildPayload(
+      content: rawContent,
+      sourceModality: "typed",
+      applyFillerCleanup: false,  // mirrors what CaptureView reads from @AppStorage
+      detectedLanguage: "en",
+      languageHint: nil
+    )
+    let encoded = try CaptureViewModel.encodePayload(payload)
+    let decoded = try JSONDecoder().decode(DecodedBody.self, from: encoded)
+    #expect(decoded.content == rawContent, "Raw content must be preserved when Settings cleanup is false")
+  }
+
   // MARK: - Helpers
 
   /// Minimal decodable shape matching the CaptureRequestBody wire format.
