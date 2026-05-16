@@ -20,6 +20,13 @@ import SwiftUI
 /// from `UploadQueue` also re-evaluate the count so a spontaneous drain (e.g.
 /// from an on-device OS background-task replay) can clear the banner without
 /// requiring a foreground transition.
+///
+/// # V2 forest-green (#320)
+///
+/// Tab bar uses `.forest500` tint on the `TabView` so active icons and labels
+/// render in the primary forest green. Inactive items fall back to `ink300`
+/// via the system's default unselected color, which is overridden by
+/// `UITabBar.appearance()` in `init` to match the palette.
 struct RootView: View {
 
   // MARK: - Tab selection
@@ -35,6 +42,22 @@ struct RootView: View {
   // MARK: - Environment
 
   @Environment(\.scenePhase) private var scenePhase
+
+  // MARK: - Init
+
+  init() {
+    // Apply forest-green palette to the tab bar chrome.
+    // Active tint is handled by SwiftUI `.tint(.forest500)` below;
+    // inactive items get ink300 via UITabBarAppearance.
+    let appearance = UITabBarAppearance()
+    appearance.configureWithDefaultBackground()
+    // Inactive tab icon + label color.
+    let ink300 = UIColor(named: "ink300") ?? .systemGray
+    appearance.stackedLayoutAppearance.normal.iconColor = ink300
+    appearance.stackedLayoutAppearance.normal.titleTextAttributes = [.foregroundColor: ink300]
+    UITabBar.appearance().standardAppearance = appearance
+    UITabBar.appearance().scrollEdgeAppearance = appearance
+  }
 
   // MARK: - Body
 
@@ -64,10 +87,11 @@ struct RootView: View {
 
         SettingsView()
           .tabItem {
-            Label("Settings", systemImage: "gear")
+            Label("Settings", systemImage: "gearshape.fill")
           }
           .tag(2)
       }
+      .tint(.forest500)
     }
     .onChange(of: scenePhase) { _, newPhase in
       if newPhase == .active {
