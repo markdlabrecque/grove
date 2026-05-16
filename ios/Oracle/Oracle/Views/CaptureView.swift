@@ -10,31 +10,31 @@ import OracleCore
 ///
 /// # Capture polish (#187)
 ///
-/// Three quality-of-life affordances are shown below the text editor:
+/// Two quality-of-life affordances are shown below the text editor:
 ///
 ///   - **Char/token count chip**: updates on every keystroke using the
 ///     `max(1, chars / 4)` heuristic.
 ///   - **Detected-language chip**: shows the BCP-47 language code detected by
 ///     `NLLanguageRecognizer`, debounced at 200 ms. Hidden when detection
 ///     returns undetermined.
-///   - **Filler-word cleanup toggle**: when on, common fillers ("um", "uh",
-///     "you know", "like,") are stripped from the outgoing payload before Save.
-///     The text field always shows the original typed/dictated text.
-///     Persisted via `@AppStorage(SettingsViewModel.fillerWordCleanupKey)` so it
-///     round-trips with the Settings screen.
+///
+/// Filler-word cleanup is now a Settings-only control (#335). The Save action
+/// silently reads the persisted `@AppStorage(SettingsViewModel.fillerWordCleanupKey)`
+/// value at save time — no per-capture toggle is shown here.
 ///
 /// # V2 forest-green (#320)
 ///
 /// Editor card uses `card` surface with `hairline` border, 18pt radius, subtle
 /// drop shadow, and a `leaf.fill` accent in the corner. Save button uses the
 /// `forest500 → forest700` gradient with `paper` foreground. Chips use tonal
-/// (sage200) and outline styles per spec §3.4. Toggle row matches §3.5.
+/// (sage200) and outline styles per spec §3.4.
 struct CaptureView: View {
   @State private var viewModel = CaptureViewModel()
   @FocusState private var isFocused: Bool
   @Environment(\.colorScheme) private var colorScheme
 
-  // Filler-word toggle — shared key with SettingsView (#184).
+  // Filler-word cleanup preference — read from the shared Settings key at
+  // save time (#335). No toggle shown here; controlled via Settings only.
   @AppStorage(SettingsViewModel.fillerWordCleanupKey) private var fillerCleanupEnabled: Bool = false
 
   // Language hint from Settings (optional BCP-47 code, e.g. "en").
@@ -55,9 +55,6 @@ struct CaptureView: View {
 
           // MARK: Metadata row — char/token count + language chip
           metadataRow
-
-          // MARK: Filler cleanup toggle (§3.5)
-          fillerToggleRow
 
           // MARK: Save button (§3.6)
           saveButton
@@ -138,37 +135,6 @@ struct CaptureView: View {
           .accessibilityLabel("Detected language: \(lang)")
       }
     }
-  }
-
-  // MARK: - Filler cleanup toggle row (§3.5)
-
-  private var fillerToggleRow: some View {
-    Toggle(isOn: $fillerCleanupEnabled) {
-      VStack(alignment: .leading, spacing: 3) {
-        Label("Clean up filler words", systemImage: "text.alignleft")
-          .font(.system(size: 15, weight: .medium))
-          .foregroundStyle(Color.ink900)
-        Text("Removes \"um\", \"uh\", and similar words before saving")
-          .font(.system(size: 12))
-          .foregroundStyle(Color.ink500)
-      }
-    }
-    .toggleStyle(.switch)
-    .tint(.forest500)
-    .padding(.horizontal, 14)
-    .padding(.vertical, 16)
-    .background(Color.card)
-    .clipShape(RoundedRectangle(cornerRadius: 16))
-    .overlay(
-      RoundedRectangle(cornerRadius: 16)
-        .strokeBorder(Color.hairline, lineWidth: 1)
-    )
-    .accessibilityLabel("Filler word cleanup")
-    .accessibilityHint(
-      fillerCleanupEnabled
-        ? "On. Words like um and uh will be removed before saving."
-        : "Off. Your text will be saved as spoken."
-    )
   }
 
   // MARK: - Save button (§3.6)
