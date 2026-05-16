@@ -56,12 +56,24 @@ struct RootView: View {
   @AppStorage(SettingsViewModel.appearancePreferenceKey)
   private var appearancePreference: String = "system"
 
-  private var preferredColorScheme: ColorScheme? {
-    switch appearancePreference {
+  /// Maps a raw appearance-preference string to `ColorScheme?`.
+  ///
+  /// Extracted as a `static` helper so it can be unit-tested without
+  /// instantiating a `View` (#346).
+  ///
+  /// - `"light"` → `.light`
+  /// - `"dark"` → `.dark`
+  /// - `"system"` (or any unrecognised value) → `nil` (follows OS)
+  static func colorScheme(for preference: String) -> ColorScheme? {
+    switch preference {
     case "light": return .light
     case "dark": return .dark
     default: return nil
     }
+  }
+
+  private var preferredColorScheme: ColorScheme? {
+    RootView.colorScheme(for: appearancePreference)
   }
 
   // MARK: - Tab selection
