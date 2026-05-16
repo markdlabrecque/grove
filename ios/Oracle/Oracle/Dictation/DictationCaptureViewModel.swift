@@ -158,7 +158,7 @@ final class DictationCaptureViewModel {
       content: trimmed,
       sourceModality: "dictated",
       applyFillerCleanup: applyFillerCleanup,
-      detectedLanguage: nil,
+      detectedLanguage: LanguageDetector.detect(trimmed),
       languageHint: languageHint ?? "en"
     )
 
@@ -196,7 +196,8 @@ final class DictationCaptureViewModel {
   /// Returns a ``DictationDraft`` capturing the current partial transcript,
   /// or `nil` if there is no in-progress dictation worth resuming.
   func makeDraftIfNeeded() -> DictationDraft? {
-    guard recordingState == .recording,
+    let isActive = recordingState == .recording || recordingState == .stopped
+    guard isActive,
           !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
       return nil
     }

@@ -213,9 +213,28 @@ final class DictationController {
     armSilenceTimer()
   }
 
+  // MARK: - Test seam (#341)
+
+  /// Arms the continuation directly without starting `AVAudioEngine`.
+  ///
+  /// Call this from unit tests to set up the emission path, then drive the
+  /// state machine by calling `handleResult(_:error:)`. This bypasses
+  /// `beginSession()` entirely so no real audio hardware is touched.
+  ///
+  /// - Parameter continuation: The `AsyncStream` continuation created by the caller.
+  func _injectContinuationForTesting(_ continuation: AsyncStream<DictationEvent>.Continuation) {
+    self.continuation = continuation
+  }
+
   // MARK: - Result handling (always on @MainActor)
 
-  private func handleResult(_ result: SFSpeechRecognitionResult?, error: Error?) {
+  /// Processes one recogniser callback.
+  ///
+  /// Exposed as `internal` (rather than `private`) so that `DictationControllerTests`
+  /// can drive the callback path directly without touching `AVAudioEngine`. Call
+  /// sites outside the test target should not use this method; it is an
+  /// implementation detail of the `start()` stream (#341).
+  func handleResult(_ result: SFSpeechRecognitionResult?, error: Error?) {
     if let error {
       emit(.error(mapSpeechError(error)))
       teardown()
