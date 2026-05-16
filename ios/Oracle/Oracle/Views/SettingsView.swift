@@ -7,9 +7,10 @@ import OracleCore
 ///
 /// Reachable from the Settings tab (gear icon).  Sections:
 ///   1. **Server** — URL and bearer token (persisted to Keychain).
-///   2. **Capture defaults** — language hint, filler-word cleanup (UserDefaults).
-///   3. **Sync** — Force-resync button.
-///   4. **About** — App version, build number, current server URL.
+///   2. **Appearance** — Light / Dark / System colour-scheme override (#336).
+///   3. **Capture defaults** — language hint, filler-word cleanup (UserDefaults).
+///   4. **Sync** — Force-resync button.
+///   5. **About** — App version, build number, current server URL.
 ///
 /// # Accessibility
 ///
@@ -19,10 +20,10 @@ import OracleCore
 ///
 /// # @AppStorage bindings
 ///
-/// `fillerWordCleanupEnabled` and `languageHint` are stored in `UserDefaults`
-/// via `@AppStorage` using the key constants on `SettingsViewModel`.  CaptureViewModel
-/// (#187) binds to the same keys — changing the key strings here is a
-/// coordinated change.
+/// `fillerWordCleanupEnabled`, `languageHint`, and `appearancePreference` are
+/// stored in `UserDefaults` via `@AppStorage` using the key constants on
+/// `SettingsViewModel`.  `CaptureViewModel` (#187) binds to the filler and
+/// language keys — changing the key strings here is a coordinated change.
 ///
 /// # V2 forest-green (#320)
 ///
@@ -40,6 +41,11 @@ struct SettingsView: View {
   @AppStorage(SettingsViewModel.languageHintKey)
   private var languageHint: String = ""
 
+  // Appearance override (#336).  Default "system" — follows the OS setting.
+  // Applied app-wide via .preferredColorScheme() in OracleApp/RootView.
+  @AppStorage(SettingsViewModel.appearancePreferenceKey)
+  private var appearancePreference: String = "system"
+
   var body: some View {
     NavigationStack {
       ZStack {
@@ -48,6 +54,7 @@ struct SettingsView: View {
 
         List {
           serverSection
+          appearanceSection
           captureDefaultsSection
           syncSection
           aboutSection
@@ -114,6 +121,39 @@ struct SettingsView: View {
       sectionHeader("Server")
     } footer: {
       Text("Changes take effect immediately. The app does not need to be restarted.")
+        .font(.caption)
+        .foregroundStyle(Color.ink500)
+    }
+    .listRowBackground(Color.card)
+  }
+
+  // MARK: - Appearance section (#336)
+
+  private var appearanceSection: some View {
+    Section {
+      settingsRow(
+        icon: "circle.lefthalf.filled",
+        iconColor: .forest700,
+        content: {
+          Picker(selection: $appearancePreference) {
+            Text("System").tag("system")
+            Text("Light").tag("light")
+            Text("Dark").tag("dark")
+          } label: {
+            Text("Appearance")
+              .font(.system(size: 15, weight: .medium))
+              .foregroundStyle(Color.ink900)
+          }
+          .pickerStyle(.menu)
+          .tint(.forest500)
+          .accessibilityLabel("Appearance")
+          .accessibilityHint("Choose whether the app follows the system setting or stays in Light or Dark mode")
+        }
+      )
+    } header: {
+      sectionHeader("Appearance")
+    } footer: {
+      Text("Override the system Light/Dark setting. \"System\" follows your device's appearance.")
         .font(.caption)
         .foregroundStyle(Color.ink500)
     }

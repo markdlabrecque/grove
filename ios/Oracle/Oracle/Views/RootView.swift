@@ -46,6 +46,24 @@ import SwiftUI
 /// `UITabBar.appearance()` in `init` to match the palette.
 struct RootView: View {
 
+  // MARK: - Appearance override (#336)
+
+  /// Reads the persisted appearance preference and maps it to a
+  /// `ColorScheme?` value for `.preferredColorScheme(_:)`.
+  ///
+  /// `"system"` (or any unrecognised value) → `nil` (follows OS).
+  /// `"light"` → `.light`, `"dark"` → `.dark`.
+  @AppStorage(SettingsViewModel.appearancePreferenceKey)
+  private var appearancePreference: String = "system"
+
+  private var preferredColorScheme: ColorScheme? {
+    switch appearancePreference {
+    case "light": return .light
+    case "dark": return .dark
+    default: return nil
+    }
+  }
+
   // MARK: - Tab selection
 
   /// Drives programmatic tab switching.  The Settings tab is index 2.
@@ -192,6 +210,10 @@ struct RootView: View {
         pendingDictation = draft
       }
     }
+    // Apply the user's appearance preference app-wide (#336).
+    // nil → follows OS; .light / .dark → explicit override.
+    // @AppStorage binding means the update is live — no restart needed.
+    .preferredColorScheme(preferredColorScheme)
   }
 
   // MARK: - Helpers

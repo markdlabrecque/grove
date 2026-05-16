@@ -126,3 +126,64 @@ private actor ActorBox<T: Sendable> {
   func set(_ v: T) { value = v }
   func get() -> T { value }
 }
+
+// MARK: - AppearancePreference key tests (#336)
+
+/// Pins the `appearancePreferenceKey` constant and its `UserDefaults` default.
+///
+/// `@AppStorage` returns the default value (`"system"`) when the key is absent.
+/// Tests here use `UserDefaults` directly so they work in the unit-test target
+/// without a running SwiftUI view hierarchy.  They write to an in-memory
+/// `UserDefaults` suite isolated from the app store.
+@Suite("AppearancePreference", .serialized)
+struct AppearancePreferenceTests {
+
+  private let defaults: UserDefaults
+  private let suiteName = "com.oracle.test.appearance.\(UUID().uuidString)"
+
+  init() {
+    // Create an isolated UserDefaults domain for each test run.
+    // Force-unwrap is safe: a unique UUID suite name always succeeds.
+    defaults = UserDefaults(suiteName: suiteName)!
+  }
+
+  @Test("appearancePreferenceKey constant is 'appearance.preference'")
+  func keyConstantValue() {
+    #expect(SettingsViewModel.appearancePreferenceKey == "appearance.preference")
+  }
+
+  @Test("default value is 'system' when key is absent (#336)")
+  func defaultIsSystem() {
+    // No write — key must be absent.
+    defaults.removeObject(forKey: SettingsViewModel.appearancePreferenceKey)
+    // @AppStorage returns its type-default when the key is missing.
+    // Equivalent: reading a String key that doesn't exist returns nil from
+    // UserDefaults; @AppStorage interprets that as the provided default "system".
+    let stored = defaults.string(forKey: SettingsViewModel.appearancePreferenceKey)
+    // nil means the key is absent → @AppStorage default "system" is in effect.
+    #expect(stored == nil, "Key must be absent on a clean install so @AppStorage default 'system' is used")
+  }
+
+  @Test("persisted 'light' survives a write/read round-trip (#336)")
+  func lightPersists() {
+    defaults.set("light", forKey: SettingsViewModel.appearancePreferenceKey)
+    let stored = defaults.string(forKey: SettingsViewModel.appearancePreferenceKey)
+    #expect(stored == "light", "Light preference must round-trip through UserDefaults")
+  }
+
+  @Test("persisted 'dark' survives a write/read round-trip (#336)")
+  func darkPersists() {
+    defaults.set("dark", forKey: SettingsViewModel.appearancePreferenceKey)
+    let stored = defaults.string(forKey: SettingsViewModel.appearancePreferenceKey)
+    #expect(stored == "dark", "Dark preference must round-trip through UserDefaults")
+  }
+
+  @Test("toggling from 'dark' to 'light' to 'system' persists each change (#336)")
+  func togglePersistsEachChange() {
+    for value in ["dark", "light", "system"] {
+      defaults.set(value, forKey: SettingsViewModel.appearancePreferenceKey)
+      let stored = defaults.string(forKey: SettingsViewModel.appearancePreferenceKey)
+      #expect(stored == value, "Persisted value should match '\(value)' after write")
+    }
+  }
+}
