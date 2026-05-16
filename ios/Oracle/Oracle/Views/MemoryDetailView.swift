@@ -15,9 +15,11 @@ import OracleCore
 ///
 /// ## Navigation
 ///
-/// Presented via `NavigationLink` from `QueryResultRow` inside `QueryView`'s
-/// `NavigationStack`. The back button returns to the Ask results list without
-/// any side-effect.
+/// Presented from `SourceCardRow` inside `QueryView`'s `NavigationStack` —
+/// via either the leading swipe action (which appends a typed `QueryResult`
+/// value to the stack's `NavigationPath`) or the expanded-footer
+/// `NavigationLink` closure. The back button returns to the Ask results list
+/// without any side-effect.
 struct MemoryDetailView: View {
   @State private var viewModel: MemoryDetailViewModel
   @Environment(\.dismiss) private var dismiss
