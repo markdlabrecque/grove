@@ -30,7 +30,7 @@ final class QueuedCapture {
   // MARK: - Stored properties
 
   /// Stable UUID generated at capture time. Matches the `clientID` UUID passed to
-  /// `OracleAPI.postCapture(_:)` and the `client_id` field the server de-dupes on.
+  /// `GroveAPI.postCapture(_:)` and the `client_id` field the server de-dupes on.
   /// Stored as a String because SwiftData's UUID support is reliable but we want
   /// the raw string available for constructing `CapturePayload` without a
   /// failable conversion at drain time.

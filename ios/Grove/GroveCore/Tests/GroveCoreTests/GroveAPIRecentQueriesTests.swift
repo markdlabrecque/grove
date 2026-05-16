@@ -1,27 +1,27 @@
 import Testing
 import Foundation
-import OracleTestSupport
+import GroveTestSupport
 @testable import GroveCore
 
-/// Tests for `OracleAPI.recentQueries(limit:)` — GET /v1/queries/recent.
+/// Tests for `GroveAPI.recentQueries(limit:)` — GET /v1/queries/recent.
 ///
 /// Uses `RecentQueriesStubURLProtocol` — a dedicated protocol class with its
 /// own static `responder` state, isolated from other stub protocols to prevent
 /// inter-suite global-state contamination.
 ///
 /// The suite is `.serialized` to prevent concurrent access within the suite.
-@Suite("OracleAPI recentQueries", .serialized)
-struct OracleAPIRecentQueriesTests {
+@Suite("GroveAPI recentQueries", .serialized)
+struct GroveAPIRecentQueriesTests {
 
   // MARK: - Fixtures
 
   private static let baseURL = URL(string: "https://oracle.example.ts.net")!
   private static let token = "recent-queries-test-token"
 
-  private func makeAPI() -> OracleAPI {
+  private func makeAPI() -> GroveAPI {
     let config = URLSessionConfiguration.default
     config.protocolClasses = [RecentQueriesStubURLProtocol.self]
-    return OracleAPI(
+    return GroveAPI(
       baseURL: Self.baseURL,
       bearerToken: Self.token,
       configuration: config

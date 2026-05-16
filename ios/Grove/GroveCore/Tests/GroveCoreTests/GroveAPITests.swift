@@ -1,11 +1,11 @@
 import Testing
 import Foundation
-@testable import OracleCore
+@testable import GroveCore
 
-/// Tests for OracleAPI — specifically the URLRequest builder for
+/// Tests for GroveAPI — specifically the URLRequest builder for
 /// POST /v1/captures and POST /v1/queries.
 ///
-/// These tests do NOT make live network calls. They construct an OracleAPI
+/// These tests do NOT make live network calls. They construct an GroveAPI
 /// instance via the public `init(baseURL:bearerToken:captureSession:querySession:)` and assert
 /// on the resulting URLRequest produced by `captureRequest(for:)`.
 ///
@@ -15,18 +15,18 @@ import Foundation
 /// temp file and passed to `uploadTask(with:fromFile:)` in `postCapture`. Body
 /// encoding is tested separately in `CaptureRequestBodyEncodingTests` below,
 /// and the full end-to-end round-trip (including the body arriving at the server)
-/// is covered by `OracleAPISmokeTests`.
-@Suite("OracleAPI")
-struct OracleAPITests {
+/// is covered by `GroveAPISmokeTests`.
+@Suite("GroveAPI")
+struct GroveAPITests {
 
   // Shared test fixtures
   private static let baseURL = URL(string: "https://oracle.example.ts.net")!
   private static let token = "test-bearer-token"
 
-  private func makeAPI() -> OracleAPI {
-    OracleAPI(
-      baseURL: OracleAPITests.baseURL,
-      bearerToken: OracleAPITests.token
+  private func makeAPI() -> GroveAPI {
+    GroveAPI(
+      baseURL: GroveAPITests.baseURL,
+      bearerToken: GroveAPITests.token
     )
   }
 
@@ -63,7 +63,7 @@ struct OracleAPITests {
   func captureRequestURL() async throws {
     let api = makeAPI()
     let request = try await api.captureRequest(for: makePayload())
-    let expected = OracleAPITests.baseURL
+    let expected = GroveAPITests.baseURL
       .appendingPathComponent("v1/captures")
     #expect(request.url == expected)
   }
@@ -75,7 +75,7 @@ struct OracleAPITests {
     let api = makeAPI()
     let request = try await api.captureRequest(for: makePayload())
     let header = request.value(forHTTPHeaderField: "Authorization")
-    #expect(header == "Bearer \(OracleAPITests.token)")
+    #expect(header == "Bearer \(GroveAPITests.token)")
   }
 
   @Test("captureRequest sets Content-Type header")

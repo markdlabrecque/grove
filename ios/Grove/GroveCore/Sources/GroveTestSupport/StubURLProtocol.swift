@@ -4,7 +4,7 @@ import Foundation
 /// configured response without touching the network.
 ///
 /// Both `GroveCoreTests` and the Xcode-project-side `GroveTests` bundle
-/// import this type from the shared `OracleTestSupport` module, which is the
+/// import this type from the shared `GroveTestSupport` module, which is the
 /// single source of truth.
 ///
 /// Usage in a test (success path):
@@ -22,7 +22,7 @@ import Foundation
 ///
 /// let config = URLSessionConfiguration.default
 /// config.protocolClasses = [StubURLProtocol.self]
-/// let api = OracleAPI(baseURL: url, bearerToken: "tok", configuration: config)
+/// let api = GroveAPI(baseURL: url, bearerToken: "tok", configuration: config)
 /// ```
 ///
 /// Usage in a test (error path):
@@ -34,7 +34,7 @@ import Foundation
 ///
 /// let config = URLSessionConfiguration.default
 /// config.protocolClasses = [StubURLProtocol.self]
-/// let api = OracleAPI(baseURL: url, bearerToken: "tok", configuration: config)
+/// let api = GroveAPI(baseURL: url, bearerToken: "tok", configuration: config)
 /// ```
 ///
 /// Reset both `StubURLProtocol.responder = nil` and

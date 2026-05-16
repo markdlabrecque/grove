@@ -1,9 +1,9 @@
 import Testing
 import Foundation
-import OracleTestSupport
-@testable import OracleCore
+import GroveTestSupport
+@testable import GroveCore
 
-/// Tests for `OracleAPI.deleteMemory(id:)` — DELETE /v1/memories/{id}.
+/// Tests for `GroveAPI.deleteMemory(id:)` — DELETE /v1/memories/{id}.
 ///
 /// Uses `DeleteStubURLProtocol` — a dedicated protocol class that carries its
 /// own static `responder` state, isolated from `StubURLProtocol` used by other
@@ -11,8 +11,8 @@ import OracleTestSupport
 /// Testing runs multiple suites concurrently.
 ///
 /// The suite is also serialised to prevent concurrent access within the suite.
-@Suite("OracleAPI deleteMemory", .serialized)
-struct OracleAPIDeleteTests {
+@Suite("GroveAPI deleteMemory", .serialized)
+struct GroveAPIDeleteTests {
 
   // MARK: - Fixtures
 
@@ -20,10 +20,10 @@ struct OracleAPIDeleteTests {
   private static let token = "delete-test-token"
   private static let memoryID = UUID(uuidString: "DEADBEEF-0000-0000-0000-000000000001")!
 
-  private func makeAPI() -> OracleAPI {
+  private func makeAPI() -> GroveAPI {
     let config = URLSessionConfiguration.default
     config.protocolClasses = [DeleteStubURLProtocol.self]
-    return OracleAPI(
+    return GroveAPI(
       baseURL: Self.baseURL,
       bearerToken: Self.token,
       configuration: config
@@ -187,10 +187,10 @@ struct OracleAPIDeleteTests {
 
 /// A dedicated `URLProtocol` subclass for delete tests that carries its own
 /// static `responder` state, isolated from `StubURLProtocol` (which is used by
-/// `OracleAPISmokeTests` and `OracleAPIBridgeTests`). This prevents inter-suite
+/// `GroveAPISmokeTests` and `GroveAPIBridgeTests`). This prevents inter-suite
 /// global-state contamination when Swift Testing runs multiple suites concurrently.
 ///
-/// Pattern mirrors `SlowURLProtocol` in `OracleAPICancelTests`.
+/// Pattern mirrors `SlowURLProtocol` in `GroveAPICancelTests`.
 private final class DeleteStubURLProtocol: URLProtocol {
 
   /// Configure this before each test. The suite is `.serialized` so access is

@@ -7,16 +7,16 @@ import GroveCore
 /// without any `@Published` boilerplate. Requires iOS 17+.
 ///
 /// The `queryProvider` closure is the only network touchpoint. Production code
-/// uses `OracleAPI.shared.postQuery(_:)` (the default). Tests inject a stub
+/// uses `GroveAPI.shared.postQuery(_:)` (the default). Tests inject a stub
 /// closure to exercise cancel/result/error paths without a live server.
 ///
 /// The `feedbackProvider` closure is injected the same way for feedback submission.
-/// In production it calls `OracleAPI.shared.submitFeedback(queryID:feedback:)`.
+/// In production it calls `GroveAPI.shared.submitFeedback(queryID:feedback:)`.
 /// The call is fire-and-forget: errors are swallowed silently; the chip stays
 /// selected regardless of server response.
 ///
 /// The `recentQueriesProvider` closure is injected for the chip strip.
-/// In production it calls `OracleAPI.shared.recentQueries(limit:)`.
+/// In production it calls `GroveAPI.shared.recentQueries(limit:)`.
 /// A 5xx from this provider is swallowed silently — the strip shows empty
 /// but the Ask flow is unaffected.
 @Observable
@@ -30,21 +30,21 @@ final class QueryViewModel {
   // MARK: - Injectable query provider
 
   /// The async function that executes the query. Defaults to the production
-  /// `OracleAPI.shared.postQuery` path; override in tests via the designated
+  /// `GroveAPI.shared.postQuery` path; override in tests via the designated
   /// initialiser.
   var queryProvider: (String) async throws -> QueryResponseBody
 
   // MARK: - Injectable feedback provider
 
   /// The async function that submits feedback for a query. Defaults to the
-  /// production `OracleAPI.shared.submitFeedback(queryID:feedback:)` path.
+  /// production `GroveAPI.shared.submitFeedback(queryID:feedback:)` path.
   /// Tests inject a stub to verify the fire-and-forget error-swallow path.
   var feedbackProvider: (UUID, Feedback) async throws -> Void
 
   // MARK: - Injectable recent-queries provider
 
   /// The async function that fetches the recent-queries chip strip.
-  /// Defaults to `OracleAPI.shared.recentQueries(limit:)`.
+  /// Defaults to `GroveAPI.shared.recentQueries(limit:)`.
   /// Tests inject a stub to verify the fetch, empty, and 5xx paths.
   var recentQueriesProvider: (Int) async throws -> [RecentQueryItem]
 
@@ -149,13 +149,13 @@ final class QueryViewModel {
 
   init(
     queryProvider: @escaping (String) async throws -> QueryResponseBody = { text in
-      try await OracleAPI.shared.postQuery(text)
+      try await GroveAPI.shared.postQuery(text)
     },
     feedbackProvider: @escaping (UUID, Feedback) async throws -> Void = { queryID, feedback in
-      try await OracleAPI.shared.submitFeedback(queryID: queryID, feedback: feedback)
+      try await GroveAPI.shared.submitFeedback(queryID: queryID, feedback: feedback)
     },
     recentQueriesProvider: @escaping (Int) async throws -> [RecentQueryItem] = { limit in
-      try await OracleAPI.shared.recentQueries(limit: limit)
+      try await GroveAPI.shared.recentQueries(limit: limit)
     }
   ) {
     self.queryProvider = queryProvider

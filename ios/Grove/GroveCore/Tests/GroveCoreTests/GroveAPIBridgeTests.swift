@@ -1,9 +1,9 @@
 import Testing
 import Foundation
-import OracleTestSupport
+import GroveTestSupport
 @testable import GroveCore
 
-/// Unit tests for the `OracleAPI` delegate bridge internals.
+/// Unit tests for the `GroveAPI` delegate bridge internals.
 ///
 /// These tests exercise `appendData`, `completeTask`,
 /// `storeBackgroundCompletionHandler`, `drainBackgroundCompletionHandlers`,
@@ -11,9 +11,9 @@ import OracleTestSupport
 /// The bridge methods are driven directly on the actor, simulating the sequence
 /// of callbacks the OS would deliver via `UploadSessionDelegate`.
 ///
-/// # Relationship to OracleAPISmokeTests
+/// # Relationship to GroveAPISmokeTests
 ///
-/// `OracleAPISmokeTests` owns full `postCapture` round-trip integration tests
+/// `GroveAPISmokeTests` owns full `postCapture` round-trip integration tests
 /// using `StubURLProtocol`. This suite focuses on bridge internals: continuation
 /// map bookkeeping, data accumulation, HTTP and network error propagation, and
 /// temp-file cleanup. The suites are complementary, not overlapping.
@@ -36,14 +36,14 @@ import OracleTestSupport
 /// consuming the entire runner budget.
 ///
 /// Serialised to prevent concurrent access to shared static state.
-@Suite("OracleAPI delegate bridge", .serialized)
-struct OracleAPIBridgeTests {
+@Suite("GroveAPI delegate bridge", .serialized)
+struct GroveAPIBridgeTests {
 
   private static let baseURL = URL(string: "https://oracle.example.ts.net")!
   private static let token = "bridge-test-token"
 
-  private func makeAPI() -> OracleAPI {
-    OracleAPI(baseURL: Self.baseURL, bearerToken: Self.token)
+  private func makeAPI() -> GroveAPI {
+    GroveAPI(baseURL: Self.baseURL, bearerToken: Self.token)
   }
 
   /// Write a stub temp file and return its URL.

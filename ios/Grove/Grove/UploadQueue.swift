@@ -32,7 +32,7 @@ internal struct UploadQueueTestHooks {
 /// 1. `CaptureViewModel` calls `enqueue(clientID:payload:)` at save time — before
 ///    any network call. The row is inserted synchronously (relative to the actor's
 ///    serial executor) and the local UI confirms save.
-/// 2. `tryDrain()` iterates pending rows and calls `OracleAPI.postCapture` for
+/// 2. `tryDrain()` iterates pending rows and calls `GroveAPI.postCapture` for
 ///    each. On success the row is deleted immediately. On failure the row is kept
 ///    with `attemptCount` and `lastError` updated, subject to the retry cap.
 /// 3. `NWPathMonitor` calls `tryDrain()` whenever connectivity is re-established.
@@ -86,7 +86,7 @@ public actor UploadQueue {
   /// `init(modelContainer:)` compiles without needing to initialise this property.
   /// The property is written once during `init` before any concurrent access is
   /// possible, so the `unsafe` annotation is safe here.
-  nonisolated(unsafe) private var api: OracleAPI!
+  nonisolated(unsafe) private var api: GroveAPI!
 
   // MARK: - Drain guard
 
@@ -107,10 +107,10 @@ public actor UploadQueue {
 
   /// The bearer token the queue currently uses when posting captures.
   ///
-  /// Kept in sync with `OracleAPI` via `updateToken(_:)`. Stored here so
+  /// Kept in sync with `GroveAPI` via `updateToken(_:)`. Stored here so
   /// `drainRow` can record which token produced a 401, and so
   /// `reenqueueAuthRequired(newToken:)` can compare the incoming token against
-  /// `lastKnownBadToken` without crossing the `OracleAPI` actor boundary.
+  /// `lastKnownBadToken` without crossing the `GroveAPI` actor boundary.
   ///
   /// `nonisolated(unsafe)` for the same reason as `api` — written once during
   /// `init` before concurrent access begins; subsequently mutated only from
@@ -130,7 +130,7 @@ public actor UploadQueue {
 
   /// Update the bearer token tracked by this queue.
   ///
-  /// Called by `GroveApp` after `OracleAPI.shared.updateCredentials` succeeds,
+  /// Called by `GroveApp` after `GroveAPI.shared.updateCredentials` succeeds,
   /// so the queue always knows the live token value for idempotency comparison
   /// in `reenqueueAuthRequired`.
   public func updateToken(_ token: String) {
@@ -160,8 +160,8 @@ public actor UploadQueue {
   /// - Parameters:
   ///   - modelContainer: The `ModelContainer` whose concurrency domain backs
   ///     this actor's serial executor (provided via the `@ModelActor` macro).
-  ///   - api: The `OracleAPI` instance used to post captures.
-  public init(modelContainer: ModelContainer, api: OracleAPI, initialToken: String = "") {
+  ///   - api: The `GroveAPI` instance used to post captures.
+  public init(modelContainer: ModelContainer, api: GroveAPI, initialToken: String = "") {
     let context = ModelContext(modelContainer)
     self.modelExecutor = DefaultSerialModelExecutor(modelContext: context)
     self.modelContainer = modelContainer
@@ -365,7 +365,7 @@ public actor UploadQueue {
   /// `credentialsDidUpdate` notification observer wired in `GroveApp`.
   ///
   /// - Parameter newToken: The new bearer token value that has just been
-  ///   written to the Keychain and pushed to `OracleAPI.shared`.
+  ///   written to the Keychain and pushed to `GroveAPI.shared`.
   public func reenqueueAuthRequired(newToken: String) async {
     // Idempotency check — same bad token means nothing will change.
     if newToken == lastKnownBadToken {
@@ -406,7 +406,7 @@ public actor UploadQueue {
     lastKnownBadToken = nil
     print("[UploadQueue] reenqueueAuthRequired: cleared \(rows.count) row(s), triggering drain")
 
-    // Drain immediately — the new token is already live in OracleAPI.shared
+    // Drain immediately — the new token is already live in GroveAPI.shared
     // because SettingsViewModel called updateCredentials before calling us.
     await tryDrain()
   }

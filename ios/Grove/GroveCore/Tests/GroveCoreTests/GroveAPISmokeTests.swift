@@ -1,21 +1,21 @@
 import Testing
 import Foundation
-import OracleTestSupport
+import GroveTestSupport
 @testable import GroveCore
 
-/// Smoke tests that exercise `OracleAPI` through the same `URLSession(configuration:)`
-/// code path as the production singleton (`OracleAPI.shared`).
+/// Smoke tests that exercise `GroveAPI` through the same `URLSession(configuration:)`
+/// code path as the production singleton (`GroveAPI.shared`).
 ///
 /// # Why this suite exists
 ///
-/// `OracleAPITests` only exercises request-building (`captureRequest(for:)`) and
+/// `GroveAPITests` only exercises request-building (`captureRequest(for:)`) and
 /// never actually calls `session.data(for:)`. The bug fixed in #87 — constructing
-/// `OracleAPI.shared` with a background `URLSessionConfiguration`, then calling
+/// `GroveAPI.shared` with a background `URLSessionConfiguration`, then calling
 /// the async `data(for:)` API — was invisible to that suite because the broken
 /// code path was never executed.
 ///
 /// These smoke tests use `StubURLProtocol` injected via the internal
-/// `OracleAPI.init(baseURL:bearerToken:configuration:)` so that `URLSession` is
+/// `GroveAPI.init(baseURL:bearerToken:configuration:)` so that `URLSession` is
 /// constructed the same way the singleton does it (via
 /// `URLSession(configuration:)`), but with a `.default`-shaped config rather
 /// than a `.background(...)` one. This makes the async `data(for:)` call legal
@@ -26,22 +26,22 @@ import OracleTestSupport
 /// `StubURLProtocol.responder` is a static property, so tests must not run in
 /// parallel — the `@Suite(.serialized)` annotation opts out of Swift Testing's
 /// default concurrent runner.
-@Suite("OracleAPI Smoke Tests", .serialized)
-struct OracleAPISmokeTests {
+@Suite("GroveAPI Smoke Tests", .serialized)
+struct GroveAPISmokeTests {
 
   // MARK: - Fixtures
 
   private static let baseURL = URL(string: "https://oracle.example.ts.net")!
   private static let token = "smoke-test-token"
 
-  /// Build an `OracleAPI` whose `URLSession` uses a `.default` configuration
+  /// Build an `GroveAPI` whose `URLSession` uses a `.default` configuration
   /// augmented with `StubURLProtocol`. This mirrors the singleton's session
   /// construction path (`.default` config → `URLSession(configuration:)`) and
   /// is the path that the #87 regression broke.
-  private func makeAPI() -> OracleAPI {
+  private func makeAPI() -> GroveAPI {
     let config = URLSessionConfiguration.default
     config.protocolClasses = [StubURLProtocol.self]
-    return OracleAPI(
+    return GroveAPI(
       baseURL: Self.baseURL,
       bearerToken: Self.token,
       configuration: config
@@ -191,7 +191,7 @@ struct OracleAPISmokeTests {
   ///
   /// Instead, we document the limitation here and rely on code review to keep
   /// the singleton's `private init()` using `.default`. The comment block in
-  /// `OracleAPI.swift`'s `private init()` is the source of truth for that
+  /// `GroveAPI.swift`'s `private init()` is the source of truth for that
   /// constraint.
   @Test("postCapture succeeds through URLSession(configuration: .default) path")
   func defaultConfigPathSucceeds() async throws {
@@ -211,10 +211,10 @@ struct OracleAPISmokeTests {
     }
     defer { StubURLProtocol.responder = nil }
 
-    // Explicit .default config — same shape as OracleAPI.shared's session.
+    // Explicit .default config — same shape as GroveAPI.shared's session.
     let config = URLSessionConfiguration.default
     config.protocolClasses = [StubURLProtocol.self]
-    let api = OracleAPI(
+    let api = GroveAPI(
       baseURL: Self.baseURL,
       bearerToken: Self.token,
       configuration: config

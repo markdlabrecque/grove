@@ -8,7 +8,7 @@
 import Foundation
 import SwiftData
 import GroveCore
-import OracleTestSupport
+import GroveTestSupport
 @testable import GroveCore
 @testable import Grove
 
@@ -32,7 +32,7 @@ func makeContainer() throws -> ModelContainer {
 ///
 /// - Parameters:
 ///   - container: An in-memory `ModelContainer` created by `makeContainer()`.
-///   - bearerToken: The bearer token to embed in `OracleAPI`.
+///   - bearerToken: The bearer token to embed in `GroveAPI`.
 ///   - initialToken: Passed as `initialToken:` to `UploadQueue.init`. Suites that
 ///     test token-expiry flows (e.g. `AuthRequiredTests`) pass their own token here
 ///     so the queue tracks the "last known bad token". Defaults to `""`.
@@ -40,10 +40,10 @@ func makeQueue(
   container: ModelContainer,
   bearerToken: String,
   initialToken: String = ""
-) -> (UploadQueue, OracleAPI) {
+) -> (UploadQueue, GroveAPI) {
   let config = URLSessionConfiguration.default
   config.protocolClasses = [StubURLProtocol.self]
-  let api = OracleAPI(
+  let api = GroveAPI(
     baseURL: stubNetworkBaseURL,
     bearerToken: bearerToken,
     configuration: config

@@ -62,7 +62,7 @@ struct GroveApp: App {
   nonisolated(unsafe) static let uploadQueue: UploadQueue = {
     UploadQueue(
       modelContainer: GroveApp.modelContainer,
-      api: OracleAPI.shared,
+      api: GroveAPI.shared,
       initialToken: Config.shared.bearerToken
     )
   }()
@@ -90,7 +90,7 @@ struct GroveApp: App {
     // one hour are removed; legitimate in-flight uploads complete or are
     // replayed by the OS well within that window.
     Task {
-      await OracleAPI.shared.sweepOrphanedTempFiles()
+      await GroveAPI.shared.sweepOrphanedTempFiles()
     }
 
     // Donate the dictation App Intent so it appears in the Shortcuts picker

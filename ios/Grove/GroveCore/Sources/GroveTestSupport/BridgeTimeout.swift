@@ -6,7 +6,7 @@ import Foundation
 /// resumed within the allowed window. Turns a silent hang into a fast failure.
 ///
 /// Both `GroveCoreTests` and the Xcode-project-side `GroveTests` bundle
-/// import this type from the shared `OracleTestSupport` module, which is the
+/// import this type from the shared `GroveTestSupport` module, which is the
 /// single source of truth.
 public struct BridgeTimeoutError: Error, CustomStringConvertible {
   public let seconds: Double

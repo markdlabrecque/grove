@@ -19,7 +19,7 @@ import GroveCore
 /// # Production bug fixed in this PR
 ///
 /// Prior to #254 both `commitServerURL()` and `commitToken()` called
-/// `OracleAPI.shared.updateCredentials(...)` even when the Keychain write
+/// `GroveAPI.shared.updateCredentials(...)` even when the Keychain write
 /// threw.  The `return` added to each catch block, plus the injectable
 /// `updateCredentialsAction`, closes that gap and makes it testable.
 ///

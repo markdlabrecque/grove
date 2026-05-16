@@ -18,7 +18,7 @@ let package = Package(
     // Shared test helpers consumed by both GroveCoreTests (SPM) and
     // GroveTests (Xcode). Declared as a regular library target so both
     // test bundles can import it — a .testTarget cannot be shared.
-    .library(name: "OracleTestSupport", targets: ["OracleTestSupport"]),
+    .library(name: "GroveTestSupport", targets: ["GroveTestSupport"]),
   ],
   targets: [
     .target(
@@ -26,12 +26,12 @@ let package = Package(
       path: "Sources/GroveCore"
     ),
     .target(
-      name: "OracleTestSupport",
-      path: "Sources/OracleTestSupport"
+      name: "GroveTestSupport",
+      path: "Sources/GroveTestSupport"
     ),
     .testTarget(
       name: "GroveCoreTests",
-      dependencies: ["GroveCore", "OracleTestSupport"],
+      dependencies: ["GroveCore", "GroveTestSupport"],
       path: "Tests/GroveCoreTests",
       resources: [
         .process("Fixtures"),

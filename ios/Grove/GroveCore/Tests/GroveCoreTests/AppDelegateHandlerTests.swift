@@ -1,18 +1,18 @@
 import Testing
 import Foundation
-import OracleTestSupport
+import GroveTestSupport
 @testable import GroveCore
 
 /// Unit tests for the AppDelegate background-completion-handler contract.
 ///
 /// `AppDelegate.application(_:handleEventsForBackgroundURLSession:completionHandler:)`
-/// (wired in PR 2) stores the system-supplied handler into `OracleAPI` keyed by
-/// the session identifier, then `OracleAPI.drainBackgroundCompletionHandlers()`
+/// (wired in PR 2) stores the system-supplied handler into `GroveAPI` keyed by
+/// the session identifier, then `GroveAPI.drainBackgroundCompletionHandlers()`
 /// calls it on the main thread.
 ///
 /// These tests exercise that round-trip from the actor side — no `UIApplication`
 /// required. They verify:
-///   - A handler stored with `OracleAPI.backgroundSessionIdentifier` is called
+///   - A handler stored with `GroveAPI.backgroundSessionIdentifier` is called
 ///     after `drainBackgroundCompletionHandlers`.
 ///   - A handler stored for an unknown identifier is also drained (the drain is
 ///     not restricted to the canonical identifier; AppDelegate may receive
@@ -26,8 +26,8 @@ import OracleTestSupport
 @Suite("AppDelegate background handler contract", .serialized)
 struct AppDelegateHandlerTests {
 
-  private func makeAPI() -> OracleAPI {
-    OracleAPI(
+  private func makeAPI() -> GroveAPI {
+    GroveAPI(
       baseURL: URL(string: "https://oracle.example.ts.net")!,
       bearerToken: "test-token"
     )
@@ -44,7 +44,7 @@ struct AppDelegateHandlerTests {
 
     await api.storeBackgroundCompletionHandler(
       { box.called = true },
-      forIdentifier: OracleAPI.backgroundSessionIdentifier
+      forIdentifier: GroveAPI.backgroundSessionIdentifier
     )
 
     #expect(await api.backgroundHandlerCount == 1)
@@ -111,12 +111,12 @@ struct AppDelegateHandlerTests {
 
     await api.storeBackgroundCompletionHandler(
       { counter.count += 10 },
-      forIdentifier: OracleAPI.backgroundSessionIdentifier
+      forIdentifier: GroveAPI.backgroundSessionIdentifier
     )
     // Replace with a different handler before drain.
     await api.storeBackgroundCompletionHandler(
       { counter.count += 1 },
-      forIdentifier: OracleAPI.backgroundSessionIdentifier
+      forIdentifier: GroveAPI.backgroundSessionIdentifier
     )
 
     // Only one entry in the map (replaced, not appended).

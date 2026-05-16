@@ -281,7 +281,7 @@ final class CaptureViewModel {
   /// Encodes the capture payload to JSON bytes for persistence in the
   /// SwiftData queue. The bytes are decoded back to `CaptureRequestBody`
   /// inside `UploadQueue.drainRow`, then re-encoded by
-  /// `OracleAPI.writeBodyToTempFile` before the POST. Both encoders must
+  /// `GroveAPI.writeBodyToTempFile` before the POST. Both encoders must
   /// agree on the wire format; if you change one, update the other.
   nonisolated static func encodePayload(_ payload: CapturePayload) throws -> Data {
     let encoder = JSONEncoder()
