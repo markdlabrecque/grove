@@ -54,8 +54,8 @@ For each ticket:
 6. **Run a clean build + tests locally and confirm green BEFORE pushing.** This is a hard gate, not a suggestion.
    - Clean build for the iPhone 17 simulator (or via Xcode `Cmd+B`):
      ```
-     xcodebuild -project ios/Oracle/Oracle.xcodeproj \
-       -scheme Oracle \
+     xcodebuild -project ios/Grove/Grove.xcodeproj \
+       -scheme Grove \
        -configuration Debug \
        -destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
        build

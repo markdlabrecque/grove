@@ -25,8 +25,8 @@ ops/certs/*
 # Xcode / iOS
 
 # Local secrets — never commit. Use Config.xcconfig.example as the template.
-ios/Oracle/Grove/Config.debug.xcconfig
-ios/Oracle/Grove/Config.release.xcconfig
+ios/Grove/Grove/Config.debug.xcconfig
+ios/Grove/Grove/Config.release.xcconfig
 
 # Per-user Xcode state (project-level).
 # Note: xcshareddata/xcschemes/ is intentionally NOT ignored — shared schemes
@@ -44,7 +44,7 @@ ios/DerivedData/
 # Swift Package Manager local state
 ios/.swiftpm/
 ios/.build/
-ios/Oracle/OracleCore/.build/
+ios/Grove/OracleCore/.build/
 
 # Xcode crash + temp files
 *.moved-aside

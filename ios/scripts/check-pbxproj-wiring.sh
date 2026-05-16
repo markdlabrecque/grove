@@ -19,15 +19,15 @@
 # TODO if the team ever needs it.
 #
 # HOW TO FIX a failure:
-#   Open ios/Oracle/Grove.xcodeproj in Xcode, select the file in the Project
+#   Open ios/Grove/Grove.xcodeproj in Xcode, select the file in the Project
 #   navigator, open the File inspector (right panel), and tick the GroveTests
 #   checkbox under "Target Membership". Xcode will re-write project.pbxproj.
 
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-TESTS_DIR="$REPO_ROOT/ios/Oracle/GroveTests"
-PBXPROJ="$REPO_ROOT/ios/Oracle/Grove.xcodeproj/project.pbxproj"
+TESTS_DIR="$REPO_ROOT/ios/Grove/GroveTests"
+PBXPROJ="$REPO_ROOT/ios/Grove/Grove.xcodeproj/project.pbxproj"
 
 if [ ! -d "$TESTS_DIR" ]; then
   echo "ERROR: GroveTests directory not found at $TESTS_DIR" >&2

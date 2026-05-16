@@ -125,7 +125,7 @@ format: ## Apply ruff formatting in-place
 
 .PHONY: ios-test-core
 ios-test-core: ## Run OracleCore swift package tests (stable CI gate; no simulator needed)
-	swift test --package-path ios/Oracle/OracleCore
+	swift test --package-path ios/Grove/OracleCore
 
 .PHONY: ios-lint-pbxproj
 ios-lint-pbxproj: ## Assert every GroveTests/*.swift is referenced in project.pbxproj
@@ -134,7 +134,7 @@ ios-lint-pbxproj: ## Assert every GroveTests/*.swift is referenced in project.pb
 .PHONY: ios-test-app
 ios-test-app: ios-lint-pbxproj ## Run the full Grove scheme tests on iPhone 17 simulator (canary CI job)
 	xcodebuild test \
-		-project ios/Oracle/Grove.xcodeproj \
+		-project ios/Grove/Grove.xcodeproj \
 		-scheme Grove \
 		-destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
 		-resultBundlePath ios/build/TestResults.xcresult
@@ -144,7 +144,7 @@ ios-test: ios-test-core ios-test-app ## Run all iOS tests: OracleCore package + 
 
 .PHONY: ios-test-clean
 ios-test-clean: ## Wipe iOS build artefacts (ios/build/ and ios/DerivedData/) then run tests
-	rm -rf ios/build/ ios/Oracle/DerivedData/
+	rm -rf ios/build/ ios/Grove/DerivedData/
 	$(MAKE) ios-test
 
 # ---------- certs ----------

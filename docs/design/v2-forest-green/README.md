@@ -39,7 +39,7 @@ as the new app-wide tint. Keep `AccentColor` as an alias for compatibility.
 
 ### Asset Catalog JSON (drop-in)
 
-For each color above, create `ios/Oracle/Oracle/Assets.xcassets/<Name>.colorset/Contents.json`:
+For each color above, create `ios/Grove/Grove/Assets.xcassets/<Name>.colorset/Contents.json`:
 
 ```json
 {
