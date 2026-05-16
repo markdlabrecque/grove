@@ -6,8 +6,17 @@
 # appears only in a comment inside project.pbxproj would pass this check.
 # In practice, pbxproj comments always appear alongside the real entry (Xcode
 # writes "/* Foo.swift */" as a human-readable annotation next to the UUID),
-# so the false-positive rate is negligible for V1. A stricter check would parse
-# the PBXSourcesBuildPhase stanza — left as a TODO if the team ever needs it.
+# so the false-positive rate is negligible for V1.
+#
+# Also note a false-NEGATIVE edge case: if a *Tests.swift file is renamed on
+# disk while project.pbxproj is only partially updated (a known Xcode quirk
+# during rename), the new filename may not be wired even though a stale
+# comment for the old name remains in pbxproj. This script catches the new
+# name being absent, but cannot detect orphaned comment annotations for the
+# old name. Requires a rename + partial pbxproj write, so unlikely in practice.
+#
+# A stricter check would parse the PBXSourcesBuildPhase stanza — left as a
+# TODO if the team ever needs it.
 #
 # HOW TO FIX a failure:
 #   Open ios/Oracle/Oracle.xcodeproj in Xcode, select the file in the Project
