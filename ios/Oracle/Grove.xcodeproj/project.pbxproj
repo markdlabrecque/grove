@@ -1,0 +1,886 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A1000001 /* GroveApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* GroveApp.swift */; };
+		A1000011 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011 /* AppDelegate.swift */; };
+		A1000012 /* QueuedCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000012 /* QueuedCapture.swift */; };
+		A1000013 /* UploadQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000013 /* UploadQueue.swift */; };
+		A1000014 /* NetworkMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000014 /* NetworkMonitor.swift */; };
+		A1000015 /* QueuedCaptureSchemaV1.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000015 /* QueuedCaptureSchemaV1.swift */; };
+		A1000018 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000018 /* SettingsView.swift */; };
+		A1000019 /* SettingsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000019 /* SettingsViewModel.swift */; };
+		A100001A /* AuthRequiredBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001A /* AuthRequiredBanner.swift */; };
+		B1000014 /* SettingsViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000014 /* SettingsViewModelTests.swift */; };
+		B100000E /* MigrationPlanTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000E /* MigrationPlanTests.swift */; };
+		B1000009 /* NetworkMonitorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000B /* NetworkMonitorTests.swift */; };
+		B100000C /* CaptureViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200000C /* CaptureViewModelTests.swift */; };
+		B1000011 /* StubNetworkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000011 /* StubNetworkTests.swift */; };
+		B1000010 /* MemoryDetailViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000010 /* MemoryDetailViewModelTests.swift */; };
+		B1000012 /* RecentQueriesViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000012 /* RecentQueriesViewModelTests.swift */; };
+		B1000013 /* FeedbackViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000013 /* FeedbackViewModelTests.swift */; };
+		A1000003 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* RootView.swift */; };
+		A1000004 /* CaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000004 /* CaptureView.swift */; };
+		A1000005 /* QueryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000005 /* QueryView.swift */; };
+		A1000016 /* MemoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000016 /* MemoryDetailView.swift */; };
+		A1000017 /* MemoryDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000017 /* MemoryDetailViewModel.swift */; };
+		A1000006 /* CaptureViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006 /* CaptureViewModel.swift */; };
+		A1000008 /* QueryViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010 /* QueryViewModel.swift */; };
+		A1000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000007 /* Assets.xcassets */; };
+		A1000009 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000009 /* Preview Assets.xcassets */; };
+		A100000A /* OracleCore in Frameworks */ = {isa = PBXBuildFile; productRef = A200000D /* OracleCore */; };
+		B1000001 /* ConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* ConfigTests.swift */; };
+		B1000002 /* OracleAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* OracleAPITests.swift */; };
+		B1000003 /* JSONCodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* JSONCodingTests.swift */; };
+		B1000004 /* capture_response.json in Resources */ = {isa = PBXBuildFile; fileRef = B2000004 /* capture_response.json */; };
+		B1000006 /* QueryViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000007 /* QueryViewModelTests.swift */; };
+		B100000A /* OracleCore in Frameworks */ = {isa = PBXBuildFile; productRef = B200000A /* OracleCore */; };
+		B100000D /* OracleTestSupport in Frameworks */ = {isa = PBXBuildFile; productRef = B200000D /* OracleTestSupport */; };
+		C1000001 /* GroveUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2000001 /* GroveUITests.swift */; };
+		B1000015 /* SyncEdgeCaseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000015 /* SyncEdgeCaseTests.swift */; };
+		B1000016 /* CapturePolishTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000016 /* CapturePolishTests.swift */; };
+		B1000017 /* KeychainStoreStub.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000017 /* KeychainStoreStub.swift */; };
+		B1000018 /* SettingsViewModelKeychainFailureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000018 /* SettingsViewModelKeychainFailureTests.swift */; };
+		B1000019 /* StubNetworkFixtures.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000019 /* StubNetworkFixtures.swift */; };
+		A100001B /* UploadQueueDebugView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001B /* UploadQueueDebugView.swift */; };
+		A100001C /* BackoffScheduler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001C /* BackoffScheduler.swift */; };
+		A100001D /* FillerWordCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001D /* FillerWordCleaner.swift */; };
+		A100001E /* LanguageDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001E /* LanguageDetector.swift */; };
+		A100001F /* NavWordmarkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001F /* NavWordmarkView.swift */; };
+		A1000020 /* DictationEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000020 /* DictationEvent.swift */; };
+		A1000021 /* SpeechRecognizing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000021 /* SpeechRecognizing.swift */; };
+		A1000022 /* DictationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000022 /* DictationController.swift */; };
+		A1000023 /* DictationCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000023 /* DictationCaptureView.swift */; };
+		A1000024 /* DictationCaptureViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024 /* DictationCaptureViewModel.swift */; };
+		A1000025 /* DictationResumeBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025 /* DictationResumeBanner.swift */; };
+		A1000026 /* CaptureViaDictationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026 /* CaptureViaDictationIntent.swift */; };
+		B100001A /* DictationControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001A /* DictationControllerTests.swift */; };
+		B100001B /* DictationCaptureViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001B /* DictationCaptureViewModelTests.swift */; };
+		B100001C /* DictationResumeBannerStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001C /* DictationResumeBannerStateTests.swift */; };
+		B100001D /* RootViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001D /* RootViewTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B9000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A4000000;
+			remoteInfo = Grove;
+		};
+		C9000002 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A7000000 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A4000000;
+			remoteInfo = Grove;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		A2000000 /* Grove.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Grove.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A2000001 /* GroveApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroveApp.swift; sourceTree = "<group>"; };
+		A2000011 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A2000012 /* QueuedCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedCapture.swift; sourceTree = "<group>"; };
+		A2000013 /* UploadQueue.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueue.swift; sourceTree = "<group>"; };
+		A2000014 /* NetworkMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitor.swift; sourceTree = "<group>"; };
+		A2000015 /* QueuedCaptureSchemaV1.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueuedCaptureSchemaV1.swift; sourceTree = "<group>"; };
+		B200000E /* MigrationPlanTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationPlanTests.swift; sourceTree = "<group>"; };
+		B200000B /* NetworkMonitorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkMonitorTests.swift; sourceTree = "<group>"; };
+		B200000C /* CaptureViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModelTests.swift; sourceTree = "<group>"; };
+		B2000011 /* StubNetworkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubNetworkTests.swift; sourceTree = "<group>"; };
+		B2000010 /* MemoryDetailViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDetailViewModelTests.swift; sourceTree = "<group>"; };
+		B2000012 /* RecentQueriesViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecentQueriesViewModelTests.swift; sourceTree = "<group>"; };
+		B2000013 /* FeedbackViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeedbackViewModelTests.swift; sourceTree = "<group>"; };
+		A2000003 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootView.swift; sourceTree = "<group>"; };
+		A2000004 /* CaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureView.swift; sourceTree = "<group>"; };
+		A2000005 /* QueryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryView.swift; sourceTree = "<group>"; };
+		A2000016 /* MemoryDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDetailView.swift; sourceTree = "<group>"; };
+		A2000017 /* MemoryDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryDetailViewModel.swift; sourceTree = "<group>"; };
+		A2000018 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		A2000019 /* SettingsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModel.swift; sourceTree = "<group>"; };
+		A200001A /* AuthRequiredBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthRequiredBanner.swift; sourceTree = "<group>"; };
+		B2000014 /* SettingsViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelTests.swift; sourceTree = "<group>"; };
+		B2000015 /* SyncEdgeCaseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncEdgeCaseTests.swift; sourceTree = "<group>"; };
+		A200001B /* UploadQueueDebugView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UploadQueueDebugView.swift; sourceTree = "<group>"; };
+		A200001C /* BackoffScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackoffScheduler.swift; sourceTree = "<group>"; };
+		A200001D /* FillerWordCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordCleaner.swift; sourceTree = "<group>"; };
+		A200001E /* LanguageDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageDetector.swift; sourceTree = "<group>"; };
+		A200001F /* NavWordmarkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavWordmarkView.swift; sourceTree = "<group>"; };
+		A2000020 /* DictationEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationEvent.swift; sourceTree = "<group>"; };
+		A2000021 /* SpeechRecognizing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizing.swift; sourceTree = "<group>"; };
+		A2000022 /* DictationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationController.swift; sourceTree = "<group>"; };
+		A2000023 /* DictationCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCaptureView.swift; sourceTree = "<group>"; };
+		A2000024 /* DictationCaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCaptureViewModel.swift; sourceTree = "<group>"; };
+		A2000025 /* DictationResumeBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationResumeBanner.swift; sourceTree = "<group>"; };
+		A2000026 /* CaptureViaDictationIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViaDictationIntent.swift; sourceTree = "<group>"; };
+		B200001A /* DictationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationControllerTests.swift; sourceTree = "<group>"; };
+		B200001B /* DictationCaptureViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCaptureViewModelTests.swift; sourceTree = "<group>"; };
+		B200001C /* DictationResumeBannerStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationResumeBannerStateTests.swift; sourceTree = "<group>"; };
+		B200001D /* RootViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RootViewTests.swift; sourceTree = "<group>"; };
+		B2000016 /* CapturePolishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePolishTests.swift; sourceTree = "<group>"; };
+		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
+		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
+		B2000019 /* StubNetworkFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubNetworkFixtures.swift; sourceTree = "<group>"; };
+		A2000006 /* CaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViewModel.swift; sourceTree = "<group>"; };
+		A2000010 /* QueryViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModel.swift; sourceTree = "<group>"; };
+		A2000007 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A2000008 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A2000009 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		A200000A /* Config.xcconfig.example */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.xcconfig.example; sourceTree = "<group>"; };
+		A200000B /* Config.debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.debug.xcconfig; sourceTree = "<group>"; };
+		A200000C /* Config.release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Config.release.xcconfig; sourceTree = "<group>"; };
+		B2000001 /* ConfigTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfigTests.swift; sourceTree = "<group>"; };
+		B2000002 /* OracleAPITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OracleAPITests.swift; sourceTree = "<group>"; };
+		B2000003 /* JSONCodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONCodingTests.swift; sourceTree = "<group>"; };
+		B2000004 /* capture_response.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = capture_response.json; sourceTree = "<group>"; };
+		B2000007 /* QueryViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QueryViewModelTests.swift; sourceTree = "<group>"; };
+		B2000005 /* GroveTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GroveTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C2000001 /* GroveUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GroveUITests.swift; sourceTree = "<group>"; };
+		C2000002 /* GroveUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = GroveUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A6000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A100000A /* OracleCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B6000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B100000A /* OracleCore in Frameworks */,
+				B100000D /* OracleTestSupport in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C6000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A3000000 = {
+			isa = PBXGroup;
+			children = (
+				A3000001 /* Grove */,
+				B3000001 /* GroveTests */,
+				C3000001 /* GroveUITests */,
+				A3000002 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		A3000001 /* Grove */ = {
+			isa = PBXGroup;
+			children = (
+				A2000001 /* GroveApp.swift */,
+				A2000011 /* AppDelegate.swift */,
+				A2000012 /* QueuedCapture.swift */,
+				A2000013 /* UploadQueue.swift */,
+				A2000014 /* NetworkMonitor.swift */,
+				A2000015 /* QueuedCaptureSchemaV1.swift */,
+				A200001C /* BackoffScheduler.swift */,
+				A200001D /* FillerWordCleaner.swift */,
+				A200001E /* LanguageDetector.swift */,
+				A2000008 /* Info.plist */,
+				A200000A /* Config.xcconfig.example */,
+				A200000B /* Config.debug.xcconfig */,
+				A200000C /* Config.release.xcconfig */,
+				A3000004 /* Views */,
+				A3000007 /* Dictation */,
+				A3000005 /* Resources */,
+				A3000006 /* Preview Content */,
+			);
+			path = Grove;
+			sourceTree = "<group>";
+		};
+		A3000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				A2000000 /* Grove.app */,
+				B2000005 /* GroveTests.xctest */,
+				C2000002 /* GroveUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		A3000004 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A2000003 /* RootView.swift */,
+				A2000004 /* CaptureView.swift */,
+				A2000006 /* CaptureViewModel.swift */,
+				A2000005 /* QueryView.swift */,
+				A2000010 /* QueryViewModel.swift */,
+				A2000016 /* MemoryDetailView.swift */,
+				A2000017 /* MemoryDetailViewModel.swift */,
+				A2000018 /* SettingsView.swift */,
+				A2000019 /* SettingsViewModel.swift */,
+				A200001A /* AuthRequiredBanner.swift */,
+				A200001B /* UploadQueueDebugView.swift */,
+				A200001F /* NavWordmarkView.swift */,
+				A2000025 /* DictationResumeBanner.swift */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		A3000007 /* Dictation */ = {
+			isa = PBXGroup;
+			children = (
+				A2000020 /* DictationEvent.swift */,
+				A2000021 /* SpeechRecognizing.swift */,
+				A2000022 /* DictationController.swift */,
+				A2000023 /* DictationCaptureView.swift */,
+				A2000024 /* DictationCaptureViewModel.swift */,
+				A2000026 /* CaptureViaDictationIntent.swift */,
+			);
+			path = Dictation;
+			sourceTree = "<group>";
+		};
+		A3000005 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				A2000007 /* Assets.xcassets */,
+			);
+			name = Resources;
+			sourceTree = "<group>";
+		};
+		A3000006 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				A2000009 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		B3000001 /* GroveTests */ = {
+			isa = PBXGroup;
+			children = (
+				B2000001 /* ConfigTests.swift */,
+				B2000002 /* OracleAPITests.swift */,
+				B2000003 /* JSONCodingTests.swift */,
+				B2000007 /* QueryViewModelTests.swift */,
+				B200000B /* NetworkMonitorTests.swift */,
+				B200000C /* CaptureViewModelTests.swift */,
+				B2000011 /* StubNetworkTests.swift */,
+				B200000E /* MigrationPlanTests.swift */,
+				B2000010 /* MemoryDetailViewModelTests.swift */,
+				B2000012 /* RecentQueriesViewModelTests.swift */,
+				B2000013 /* FeedbackViewModelTests.swift */,
+				B2000014 /* SettingsViewModelTests.swift */,
+				B2000015 /* SyncEdgeCaseTests.swift */,
+				B2000016 /* CapturePolishTests.swift */,
+				B200001A /* DictationControllerTests.swift */,
+				B200001B /* DictationCaptureViewModelTests.swift */,
+				B200001C /* DictationResumeBannerStateTests.swift */,
+				B200001D /* RootViewTests.swift */,
+				B2000017 /* KeychainStoreStub.swift */,
+				B2000018 /* SettingsViewModelKeychainFailureTests.swift */,
+				B3000002 /* Fixtures */,
+				B3000003 /* Support */,
+			);
+			path = GroveTests;
+			sourceTree = "<group>";
+		};
+		B3000002 /* Fixtures */ = {
+			isa = PBXGroup;
+			children = (
+				B2000004 /* capture_response.json */,
+			);
+			path = Fixtures;
+			sourceTree = "<group>";
+		};
+		B3000003 /* Support */ = {
+			isa = PBXGroup;
+			children = (
+				B2000019 /* StubNetworkFixtures.swift */,
+			);
+			path = Support;
+			sourceTree = "<group>";
+		};
+		C3000001 /* GroveUITests */ = {
+			isa = PBXGroup;
+			children = (
+				C2000001 /* GroveUITests.swift */,
+			);
+			path = GroveUITests;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A4000000 /* Grove */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A5000000 /* Build configuration list for PBXNativeTarget "Grove" */;
+			buildPhases = (
+				A6000000 /* Sources */,
+				A6000001 /* Resources */,
+				A6000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Grove;
+			packageProductDependencies = (
+				A200000D /* OracleCore */,
+			);
+			productName = Grove;
+			productReference = A2000000 /* Grove.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B4000001 /* GroveTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B5000000 /* Build configuration list for PBXNativeTarget "GroveTests" */;
+			buildPhases = (
+				B6000000 /* Sources */,
+				B6000001 /* Resources */,
+				B6000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B9000001 /* PBXTargetDependency */,
+			);
+			name = GroveTests;
+			packageProductDependencies = (
+				B200000A /* OracleCore */,
+				B200000D /* OracleTestSupport */,
+			);
+			productName = GroveTests;
+			productReference = B2000005 /* GroveTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		C4000001 /* GroveUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C5000000 /* Build configuration list for PBXNativeTarget "GroveUITests" */;
+			buildPhases = (
+				C6000000 /* Sources */,
+				C6000001 /* Resources */,
+				C6000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C9000001 /* PBXTargetDependency */,
+			);
+			name = GroveUITests;
+			productName = GroveUITests;
+			productReference = C2000002 /* GroveUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A7000000 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					A4000000 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					B4000001 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A4000000;
+					};
+					C4000001 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = A4000000;
+					};
+				};
+			};
+			buildConfigurationList = A5000001 /* Build configuration list for PBXProject "Grove" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = A3000000;
+			packageReferences = (
+				A200000E /* XCLocalSwiftPackageReference "OracleCore" */,
+			);
+			productRefGroup = A3000002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				A4000000 /* Grove */,
+				B4000001 /* GroveTests */,
+				C4000001 /* GroveUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A6000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000007 /* Assets.xcassets in Resources */,
+				A1000009 /* Preview Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B6000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000004 /* capture_response.json in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C6000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A6000000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A1000001 /* GroveApp.swift in Sources */,
+				A1000011 /* AppDelegate.swift in Sources */,
+				A1000012 /* QueuedCapture.swift in Sources */,
+				A1000013 /* UploadQueue.swift in Sources */,
+				A1000014 /* NetworkMonitor.swift in Sources */,
+				A1000015 /* QueuedCaptureSchemaV1.swift in Sources */,
+				A1000003 /* RootView.swift in Sources */,
+				A1000004 /* CaptureView.swift in Sources */,
+				A1000006 /* CaptureViewModel.swift in Sources */,
+				A1000005 /* QueryView.swift in Sources */,
+				A1000008 /* QueryViewModel.swift in Sources */,
+				A1000016 /* MemoryDetailView.swift in Sources */,
+				A1000017 /* MemoryDetailViewModel.swift in Sources */,
+				A1000018 /* SettingsView.swift in Sources */,
+				A1000019 /* SettingsViewModel.swift in Sources */,
+				A100001A /* AuthRequiredBanner.swift in Sources */,
+				A100001B /* UploadQueueDebugView.swift in Sources */,
+				A100001C /* BackoffScheduler.swift in Sources */,
+				A100001D /* FillerWordCleaner.swift in Sources */,
+				A100001E /* LanguageDetector.swift in Sources */,
+				A100001F /* NavWordmarkView.swift in Sources */,
+				A1000020 /* DictationEvent.swift in Sources */,
+				A1000021 /* SpeechRecognizing.swift in Sources */,
+				A1000022 /* DictationController.swift in Sources */,
+				A1000023 /* DictationCaptureView.swift in Sources */,
+				A1000024 /* DictationCaptureViewModel.swift in Sources */,
+				A1000025 /* DictationResumeBanner.swift in Sources */,
+				A1000026 /* CaptureViaDictationIntent.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B6000000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B1000001 /* ConfigTests.swift in Sources */,
+				B1000002 /* OracleAPITests.swift in Sources */,
+				B1000003 /* JSONCodingTests.swift in Sources */,
+				B1000006 /* QueryViewModelTests.swift in Sources */,
+				B1000009 /* NetworkMonitorTests.swift in Sources */,
+				B100000C /* CaptureViewModelTests.swift in Sources */,
+				B1000011 /* StubNetworkTests.swift in Sources */,
+				B100000E /* MigrationPlanTests.swift in Sources */,
+				B1000010 /* MemoryDetailViewModelTests.swift in Sources */,
+				B1000012 /* RecentQueriesViewModelTests.swift in Sources */,
+				B1000013 /* FeedbackViewModelTests.swift in Sources */,
+				B1000014 /* SettingsViewModelTests.swift in Sources */,
+				B1000015 /* SyncEdgeCaseTests.swift in Sources */,
+				B1000016 /* CapturePolishTests.swift in Sources */,
+				B1000017 /* KeychainStoreStub.swift in Sources */,
+				B1000018 /* SettingsViewModelKeychainFailureTests.swift in Sources */,
+				B1000019 /* StubNetworkFixtures.swift in Sources */,
+				B100001A /* DictationControllerTests.swift in Sources */,
+				B100001B /* DictationCaptureViewModelTests.swift in Sources */,
+				B100001C /* DictationResumeBannerStateTests.swift in Sources */,
+				B100001D /* RootViewTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		C6000000 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C1000001 /* GroveUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B9000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A4000000 /* Grove */;
+			targetProxy = B9000002 /* PBXContainerItemProxy */;
+		};
+		C9000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A4000000 /* Grove */;
+			targetProxy = C9000002 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		A8000000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A200000B /* Config.debug.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		A8000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			baseConfigurationReference = A200000C /* Config.release.xcconfig */;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		A8000002 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Grove/Preview Content\"";
+				DEVELOPMENT_TEAM = QS946Z5WWB;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Grove/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = NO;
+				INFOPLIST_KEY_UILaunchScreen_Generation = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.markdlabrecque.oracle;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		A8000003 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Grove/Preview Content\"";
+				DEVELOPMENT_TEAM = QS946Z5WWB;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Grove/Info.plist;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = NO;
+				INFOPLIST_KEY_UILaunchScreen_Generation = NO;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.markdlabrecque.oracle;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		B8000000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.markdlabrecque.oracle.OracleTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Grove.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Grove";
+			};
+			name = Debug;
+		};
+		B8000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.markdlabrecque.oracle.OracleTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Grove.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Grove";
+			};
+			name = Release;
+		};
+		C8000000 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.markdlabrecque.oracle.OracleUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Grove;
+			};
+			name = Debug;
+		};
+		C8000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.markdlabrecque.oracle.OracleUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTS_MACCATALYST = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
+				TEST_TARGET_NAME = Grove;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A5000000 /* Build configuration list for PBXNativeTarget "Grove" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A8000002 /* Debug */,
+				A8000003 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A5000001 /* Build configuration list for PBXProject "Grove" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A8000000 /* Debug */,
+				A8000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B5000000 /* Build configuration list for PBXNativeTarget "GroveTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B8000000 /* Debug */,
+				B8000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C5000000 /* Build configuration list for PBXNativeTarget "GroveUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C8000000 /* Debug */,
+				C8000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A200000E /* XCLocalSwiftPackageReference "OracleCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = OracleCore;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A200000D /* OracleCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A200000E /* XCLocalSwiftPackageReference "OracleCore" */;
+			productName = OracleCore;
+		};
+		B200000A /* OracleCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A200000E /* XCLocalSwiftPackageReference "OracleCore" */;
+			productName = OracleCore;
+		};
+		B200000D /* OracleTestSupport */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A200000E /* XCLocalSwiftPackageReference "OracleCore" */;
+			productName = OracleTestSupport;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A7000000 /* Project object */;
+}

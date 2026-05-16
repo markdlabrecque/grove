@@ -114,8 +114,8 @@ format: ## Apply ruff formatting in-place
 
 # Two targets cover the full local test matrix:
 #   ios-test-core      → swift test on the OracleCore package (mirrors the stable CI gate)
-#   ios-lint-pbxproj   → assert every OracleTests/*.swift is wired into project.pbxproj
-#   ios-test-app       → xcodebuild test on the Oracle scheme  (local-only; requires Xcode 26 + xcconfig)
+#   ios-lint-pbxproj   → assert every GroveTests/*.swift is wired into project.pbxproj
+#   ios-test-app       → xcodebuild test on the Grove scheme  (local-only; requires Xcode 26 + xcconfig)
 #   ios-test           → runs all three in sequence; required pre-push check per AGENTS.md
 #
 # CI runs only ios-test-core (the stable gate) because macos-latest ships Xcode 16.2,
@@ -128,19 +128,19 @@ ios-test-core: ## Run OracleCore swift package tests (stable CI gate; no simulat
 	swift test --package-path ios/Oracle/OracleCore
 
 .PHONY: ios-lint-pbxproj
-ios-lint-pbxproj: ## Assert every OracleTests/*.swift is referenced in project.pbxproj
+ios-lint-pbxproj: ## Assert every GroveTests/*.swift is referenced in project.pbxproj
 	./ios/scripts/check-pbxproj-wiring.sh
 
 .PHONY: ios-test-app
-ios-test-app: ios-lint-pbxproj ## Run the full Oracle scheme tests on iPhone 17 simulator (canary CI job)
+ios-test-app: ios-lint-pbxproj ## Run the full Grove scheme tests on iPhone 17 simulator (canary CI job)
 	xcodebuild test \
-		-project ios/Oracle/Oracle.xcodeproj \
-		-scheme Oracle \
+		-project ios/Oracle/Grove.xcodeproj \
+		-scheme Grove \
 		-destination 'platform=iOS Simulator,name=iPhone 17,OS=latest' \
 		-resultBundlePath ios/build/TestResults.xcresult
 
 .PHONY: ios-test
-ios-test: ios-test-core ios-test-app ## Run all iOS tests: OracleCore package + Oracle scheme (requires iOS 26 SDK)
+ios-test: ios-test-core ios-test-app ## Run all iOS tests: OracleCore package + Grove scheme (requires iOS 26 SDK)
 
 .PHONY: ios-test-clean
 ios-test-clean: ## Wipe iOS build artefacts (ios/build/ and ios/DerivedData/) then run tests
