@@ -52,6 +52,14 @@
 		A100001D /* FillerWordCleaner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001D /* FillerWordCleaner.swift */; };
 		A100001E /* LanguageDetector.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001E /* LanguageDetector.swift */; };
 		A100001F /* NavWordmarkView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200001F /* NavWordmarkView.swift */; };
+		A1000020 /* DictationEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000020 /* DictationEvent.swift */; };
+		A1000021 /* SpeechRecognizing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000021 /* SpeechRecognizing.swift */; };
+		A1000022 /* DictationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000022 /* DictationController.swift */; };
+		A1000023 /* DictationCaptureView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000023 /* DictationCaptureView.swift */; };
+		A1000024 /* DictationCaptureViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000024 /* DictationCaptureViewModel.swift */; };
+		A1000025 /* DictationResumeBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025 /* DictationResumeBanner.swift */; };
+		A1000026 /* CaptureViaDictationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026 /* CaptureViaDictationIntent.swift */; };
+		B100001A /* DictationControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001A /* DictationControllerTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +109,14 @@
 		A200001D /* FillerWordCleaner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FillerWordCleaner.swift; sourceTree = "<group>"; };
 		A200001E /* LanguageDetector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageDetector.swift; sourceTree = "<group>"; };
 		A200001F /* NavWordmarkView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavWordmarkView.swift; sourceTree = "<group>"; };
+		A2000020 /* DictationEvent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationEvent.swift; sourceTree = "<group>"; };
+		A2000021 /* SpeechRecognizing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeechRecognizing.swift; sourceTree = "<group>"; };
+		A2000022 /* DictationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationController.swift; sourceTree = "<group>"; };
+		A2000023 /* DictationCaptureView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCaptureView.swift; sourceTree = "<group>"; };
+		A2000024 /* DictationCaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCaptureViewModel.swift; sourceTree = "<group>"; };
+		A2000025 /* DictationResumeBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationResumeBanner.swift; sourceTree = "<group>"; };
+		A2000026 /* CaptureViaDictationIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViaDictationIntent.swift; sourceTree = "<group>"; };
+		B200001A /* DictationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationControllerTests.swift; sourceTree = "<group>"; };
 		B2000016 /* CapturePolishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePolishTests.swift; sourceTree = "<group>"; };
 		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
 		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
@@ -178,6 +194,7 @@
 				A200000B /* Config.debug.xcconfig */,
 				A200000C /* Config.release.xcconfig */,
 				A3000004 /* Views */,
+				A3000007 /* Dictation */,
 				A3000005 /* Resources */,
 				A3000006 /* Preview Content */,
 			);
@@ -209,8 +226,22 @@
 				A200001A /* AuthRequiredBanner.swift */,
 				A200001B /* UploadQueueDebugView.swift */,
 				A200001F /* NavWordmarkView.swift */,
+				A2000025 /* DictationResumeBanner.swift */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		A3000007 /* Dictation */ = {
+			isa = PBXGroup;
+			children = (
+				A2000020 /* DictationEvent.swift */,
+				A2000021 /* SpeechRecognizing.swift */,
+				A2000022 /* DictationController.swift */,
+				A2000023 /* DictationCaptureView.swift */,
+				A2000024 /* DictationCaptureViewModel.swift */,
+				A2000026 /* CaptureViaDictationIntent.swift */,
+			);
+			path = Dictation;
 			sourceTree = "<group>";
 		};
 		A3000005 /* Resources */ = {
@@ -246,6 +277,7 @@
 				B2000014 /* SettingsViewModelTests.swift */,
 				B2000015 /* SyncEdgeCaseTests.swift */,
 				B2000016 /* CapturePolishTests.swift */,
+				B200001A /* DictationControllerTests.swift */,
 				B2000017 /* KeychainStoreStub.swift */,
 				B2000018 /* SettingsViewModelKeychainFailureTests.swift */,
 				B3000002 /* Fixtures */,
@@ -440,6 +472,13 @@
 				A100001D /* FillerWordCleaner.swift in Sources */,
 				A100001E /* LanguageDetector.swift in Sources */,
 				A100001F /* NavWordmarkView.swift in Sources */,
+				A1000020 /* DictationEvent.swift in Sources */,
+				A1000021 /* SpeechRecognizing.swift in Sources */,
+				A1000022 /* DictationController.swift in Sources */,
+				A1000023 /* DictationCaptureView.swift in Sources */,
+				A1000024 /* DictationCaptureViewModel.swift in Sources */,
+				A1000025 /* DictationResumeBanner.swift in Sources */,
+				A1000026 /* CaptureViaDictationIntent.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -464,6 +503,7 @@
 				B1000017 /* KeychainStoreStub.swift in Sources */,
 				B1000018 /* SettingsViewModelKeychainFailureTests.swift in Sources */,
 				B1000019 /* StubNetworkFixtures.swift in Sources */,
+				B100001A /* DictationControllerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
