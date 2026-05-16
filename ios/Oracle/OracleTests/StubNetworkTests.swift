@@ -629,8 +629,10 @@ struct StubNetworkTests {
       #expect(vm.showErrorAlert == false)
       #expect(vm.content == "")
 
-      // enqueue() commits to SwiftData before save() returns, so pendingCount
-      // is already 1 here — no sleep needed to wait for the drain attempt.
+      // Await the drain task via the test seam so the assertion is
+      // deterministic, rather than relying on the 1.5 s sleep in save().
+      await vm._lastDrainTask?.value
+
       let count = try await queue.pendingCount()
       #expect(count == 1, "Row should remain queued after failed drain")
     }
@@ -656,8 +658,10 @@ struct StubNetworkTests {
       #expect(vm.showErrorAlert == false, "User should see 'saved', not an error")
       #expect(vm.content == "", "Content cleared on enqueue success")
 
-      // enqueue() commits to SwiftData before save() returns, so pendingCount
-      // is already 1 here — no sleep needed to wait for the drain attempt.
+      // Await the drain task via the test seam so the assertion is
+      // deterministic, rather than relying on the 1.5 s sleep in save().
+      await vm._lastDrainTask?.value
+
       let count = try await queue.pendingCount()
       #expect(count == 1, "Row should be in queue awaiting reconnect")
     }
@@ -679,8 +683,10 @@ struct StubNetworkTests {
       vm.content = "Saved while offline"
       await vm.save()
 
-      // enqueue() commits to SwiftData before save() returns, so pendingCount
-      // is already 1 here — no sleep needed to "wait" for the drain attempt.
+      // Await the drain task via the test seam so the assertion is
+      // deterministic, rather than relying on the 1.5 s sleep in save().
+      await vm._lastDrainTask?.value
+
       let count = try await queue.pendingCount()
       #expect(count == 1, "Row should be in queue awaiting reconnect")
       #expect(vm.showErrorAlert == false, "User should see 'saved', not an error")

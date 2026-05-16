@@ -110,6 +110,28 @@ final class CaptureViewModel {
   var showErrorAlert: Bool = false
   var errorMessage: String = ""
 
+  // MARK: - Test seam
+
+  /// The last drain task spawned by `save()`.
+  ///
+  /// **Test-only.** Production code must never read or `await` this property —
+  /// the drain task is intentionally fire-and-forget in production so that
+  /// `save()` never blocks on the network.
+  ///
+  /// Tests that need a deterministic signal for drain completion (rather than
+  /// relying on the 1.5 s `Task.sleep` in `save()`) can `await` this after
+  /// calling `await vm.save()`:
+  ///
+  /// ```swift
+  /// await vm.save()
+  /// await vm._lastDrainTask?.value  // waits for the drain task to finish
+  /// #expect(try await queue.pendingCount() == 0)
+  /// ```
+  ///
+  /// The property is set to `nil` before each `save()` call so stale values
+  /// from a prior call never accidentally satisfy a later test's `await`.
+  var _lastDrainTask: Task<Void, Never>? = nil
+
   // MARK: - Language detection (debounced)
 
   private var languageDetectionTask: Task<Void, Never>? = nil
@@ -180,7 +202,12 @@ final class CaptureViewModel {
     // Step 3 — fire-and-forget drain. Attempt an immediate upload; if the
     // network is unavailable the row stays in the queue and NetworkMonitor
     // will drain on reconnect.
-    Task {
+    //
+    // The task handle is stored in `_lastDrainTask` (test seam) so tests can
+    // await it deterministically instead of relying on the 1.5 s sleep below.
+    // Production code ignores `_lastDrainTask`.
+    _lastDrainTask = nil
+    _lastDrainTask = Task {
       await uploadQueue.tryDrain()
     }
 
