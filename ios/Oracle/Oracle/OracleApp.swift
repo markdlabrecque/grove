@@ -1,5 +1,6 @@
 import SwiftUI
 import SwiftData
+import AppIntents
 import OracleCore
 
 @main
@@ -90,6 +91,12 @@ struct OracleApp: App {
     // replayed by the OS well within that window.
     Task {
       await OracleAPI.shared.sweepOrphanedTempFiles()
+    }
+
+    // Donate the dictation App Intent so it appears in the Shortcuts picker
+    // and the Action Button settings panel (#326).
+    if #available(iOS 16.0, *) {
+      OracleShortcutsProvider.updateAppShortcutParameters()
     }
 
     // Eager launch drain: flush any rows that were enqueued in a previous

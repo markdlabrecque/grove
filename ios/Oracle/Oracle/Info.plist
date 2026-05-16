@@ -26,6 +26,10 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>The Oracle uses the microphone to transcribe your spoken thoughts into captures.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>The Oracle uses on-device speech recognition to convert your voice to text when capturing thoughts.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
