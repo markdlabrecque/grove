@@ -60,6 +60,7 @@
 		A1000025 /* DictationResumeBanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000025 /* DictationResumeBanner.swift */; };
 		A1000026 /* CaptureViaDictationIntent.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000026 /* CaptureViaDictationIntent.swift */; };
 		B100001A /* DictationControllerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001A /* DictationControllerTests.swift */; };
+		B100001B /* DictationCaptureViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001B /* DictationCaptureViewModelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -117,6 +118,7 @@
 		A2000025 /* DictationResumeBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationResumeBanner.swift; sourceTree = "<group>"; };
 		A2000026 /* CaptureViaDictationIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViaDictationIntent.swift; sourceTree = "<group>"; };
 		B200001A /* DictationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationControllerTests.swift; sourceTree = "<group>"; };
+		B200001B /* DictationCaptureViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCaptureViewModelTests.swift; sourceTree = "<group>"; };
 		B2000016 /* CapturePolishTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CapturePolishTests.swift; sourceTree = "<group>"; };
 		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
 		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
@@ -278,6 +280,7 @@
 				B2000015 /* SyncEdgeCaseTests.swift */,
 				B2000016 /* CapturePolishTests.swift */,
 				B200001A /* DictationControllerTests.swift */,
+				B200001B /* DictationCaptureViewModelTests.swift */,
 				B2000017 /* KeychainStoreStub.swift */,
 				B2000018 /* SettingsViewModelKeychainFailureTests.swift */,
 				B3000002 /* Fixtures */,
@@ -504,6 +507,7 @@
 				B1000018 /* SettingsViewModelKeychainFailureTests.swift in Sources */,
 				B1000019 /* StubNetworkFixtures.swift in Sources */,
 				B100001A /* DictationControllerTests.swift in Sources */,
+				B100001B /* DictationCaptureViewModelTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

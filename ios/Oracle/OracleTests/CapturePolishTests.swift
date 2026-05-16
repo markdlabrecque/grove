@@ -250,6 +250,7 @@ struct CaptureViewModelPolishTests {
     let rawContent = "Um, I think we should ship this feature."
     let payload = CaptureViewModel.buildPayload(
       content: rawContent,
+      sourceModality: "typed",
       applyFillerCleanup: false,
       detectedLanguage: "en",
       languageHint: nil
@@ -264,6 +265,7 @@ struct CaptureViewModelPolishTests {
     let rawContent = "Um, I think we should ship this feature."
     let payload = CaptureViewModel.buildPayload(
       content: rawContent,
+      sourceModality: "typed",
       applyFillerCleanup: true,
       detectedLanguage: "en",
       languageHint: nil
@@ -278,6 +280,7 @@ struct CaptureViewModelPolishTests {
   func payloadLanguageFromDetected() throws {
     let payload = CaptureViewModel.buildPayload(
       content: "Hello world",
+      sourceModality: "typed",
       applyFillerCleanup: false,
       detectedLanguage: "fr",
       languageHint: nil
@@ -293,6 +296,7 @@ struct CaptureViewModelPolishTests {
     // (See ticket §Integration hooks: "If they differ, send detected.")
     let payload = CaptureViewModel.buildPayload(
       content: "Bonjour le monde",
+      sourceModality: "typed",
       applyFillerCleanup: false,
       detectedLanguage: "fr",
       languageHint: "en"
@@ -308,6 +312,7 @@ struct CaptureViewModelPolishTests {
     // the result is "en" regardless of which wins.
     let payload = CaptureViewModel.buildPayload(
       content: "Hello there",
+      sourceModality: "typed",
       applyFillerCleanup: false,
       detectedLanguage: "en",
       languageHint: "en"
@@ -317,16 +322,46 @@ struct CaptureViewModelPolishTests {
     #expect(decoded.language == "en")
   }
 
+  @Test("typed capture has sourceModality 'typed'")
+  func typedCaptureHasTypedModality() throws {
+    let payload = CaptureViewModel.buildPayload(
+      content: "Hello world",
+      sourceModality: "typed",
+      applyFillerCleanup: false,
+      detectedLanguage: nil,
+      languageHint: nil
+    )
+    let encoded = try CaptureViewModel.encodePayload(payload)
+    let decoded = try JSONDecoder().decode(DecodedBody.self, from: encoded)
+    #expect(decoded.sourceModality == "typed", "Keyboard capture should have sourceModality 'typed'")
+  }
+
+  @Test("dictated capture has sourceModality 'dictated'")
+  func dictatedCaptureHasDictatedModality() throws {
+    let payload = CaptureViewModel.buildPayload(
+      content: "Hello world",
+      sourceModality: "dictated",
+      applyFillerCleanup: false,
+      detectedLanguage: nil,
+      languageHint: nil
+    )
+    let encoded = try CaptureViewModel.encodePayload(payload)
+    let decoded = try JSONDecoder().decode(DecodedBody.self, from: encoded)
+    #expect(decoded.sourceModality == "dictated", "Dictation capture should have sourceModality 'dictated'")
+  }
+
   // MARK: - Helpers
 
   /// Minimal decodable shape matching the CaptureRequestBody wire format.
   private struct DecodedBody: Decodable {
     let content: String
     let language: String
+    let sourceModality: String
 
     enum CodingKeys: String, CodingKey {
       case content
       case language
+      case sourceModality = "source_modality"
     }
   }
 }
