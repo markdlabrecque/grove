@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Oracle — Concept E iterations</title>
+<style>
+  :root {
+    --forest500: #3F6E54;
+    --forest700: #284938;
+    --forest800: #1E382A;
+    --moss400:   #6F9275;
+    --sage300:   #A4C3A0;
+    --paper:     #F4EFE3;
+    --paperWarm: #EFE8D6;
+    --card:      #FFFFFF;
+    --ink500:    #5A6A5F;
+    --hairline:  #D9D1BE;
+    --ink900:    #16221A;
+    --forest900: #14271D;
+  }
+  html, body { margin: 0; padding: 0; background: var(--paperWarm); font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; color: var(--ink900); }
+  .page { padding: 56px 48px 80px; max-width: 1400px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; color: var(--forest900); }
+  .sub { font-size: 13px; color: var(--ink500); margin-bottom: 40px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 36px; }
+  .cell { text-align: center; }
+  .tile-wrap {
+    width: 100%; aspect-ratio: 1 / 1;
+    border-radius: 22.37%;
+    overflow: hidden;
+    box-shadow: 0 12px 28px -10px rgba(20,39,29,0.35), 0 2px 4px rgba(0,0,0,0.08);
+  }
+  .tile { width: 100%; height: 100%; display: block; }
+  .label-row { margin-top: 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--forest500); }
+  .name { margin-top: 4px; font-size: 15px; font-weight: 600; color: var(--forest900); }
+  .desc { margin-top: 6px; font-size: 12px; color: var(--ink500); line-height: 1.4; }
+  .small-row { margin-top: 56px; display: flex; gap: 18px; align-items: flex-end; justify-content: center; padding: 24px; background: var(--card); border: 1px solid var(--hairline); border-radius: 16px; }
+  .small-group { text-align: center; }
+  .small-group .tile-wrap { width: 80px; border-radius: 22.37%; box-shadow: 0 4px 10px -4px rgba(20,39,29,0.4); }
+  .small-group .cap { font-size: 10px; color: var(--ink500); margin-top: 6px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Concept E — refined</h1>
+  <div class="sub">Three leaves fanning 12 → 3 o'clock from a common stem origin. Three texture treatments to compare.</div>
+
+  <div class="grid">
+
+    <!-- ================== E1 — etched veins, smooth ================== -->
+    <div class="cell">
+      <div class="tile-wrap">
+        <svg class="tile" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="e1bg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#F4EFE3"/>
+              <stop offset="1" stop-color="#E8DFC4"/>
+            </linearGradient>
+          </defs>
+          <rect width="1024" height="1024" fill="url(#e1bg)"/>
+
+          <!-- Stem origin at (340, 760). Leaf coords: base at (0,0), tip at (0,-560).
+               rotate(0)=12 o'clock, rotate(45)=1:30, rotate(90)=3 o'clock. -->
+          <g transform="translate(340 760)">
+
+            <!-- LEAF 1 — 12 o'clock (back, lightest) -->
+            <g transform="rotate(0) scale(0.95)">
+              <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z" fill="#6F9275"/>
+              <g stroke="#284938" stroke-linecap="round" fill="none" opacity="0.55">
+                <path d="M 0,-20 L 0,-540" stroke-width="12"/>
+                <path d="M 0,-160 C  40,-180  90,-220  130,-280" stroke-width="9"/>
+                <path d="M 0,-160 C -40,-180 -90,-220 -130,-280" stroke-width="9"/>
+                <path d="M 0,-280 C  50,-310  110,-360  140,-410" stroke-width="9"/>
+                <path d="M 0,-280 C -50,-310 -110,-360 -140,-410" stroke-width="9"/>
+                <path d="M 0,-400 C  40,-430  80,-470  100,-500" stroke-width="9"/>
+                <path d="M 0,-400 C -40,-430 -80,-470 -100,-500" stroke-width="9"/>
+              </g>
+            </g>
+
+            <!-- LEAF 2 — 3 o'clock (middle, darkest) -->
+            <g transform="rotate(90) scale(0.92)">
+              <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z" fill="#1E382A"/>
+              <g stroke="#6F9275" stroke-linecap="round" fill="none" opacity="0.7">
+                <path d="M 0,-20 L 0,-540" stroke-width="12"/>
+                <path d="M 0,-160 C  40,-180  90,-220  130,-280" stroke-width="9"/>
+                <path d="M 0,-160 C -40,-180 -90,-220 -130,-280" stroke-width="9"/>
+                <path d="M 0,-280 C  50,-310  110,-360  140,-410" stroke-width="9"/>
+                <path d="M 0,-280 C -50,-310 -110,-360 -140,-410" stroke-width="9"/>
+                <path d="M 0,-400 C  40,-430  80,-470  100,-500" stroke-width="9"/>
+                <path d="M 0,-400 C -40,-430 -80,-470 -100,-500" stroke-width="9"/>
+              </g>
+            </g>
+
+            <!-- LEAF 3 — 1:30 (front, primary forest) -->
+            <g transform="rotate(45) scale(1.0)">
+              <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z" fill="#3F6E54"/>
+              <g stroke="#A4C3A0" stroke-linecap="round" fill="none" opacity="0.8">
+                <path d="M 0,-20 L 0,-540" stroke-width="13"/>
+                <path d="M 0,-160 C  40,-180  90,-220  130,-280" stroke-width="10"/>
+                <path d="M 0,-160 C -40,-180 -90,-220 -130,-280" stroke-width="10"/>
+                <path d="M 0,-280 C  50,-310  110,-360  140,-410" stroke-width="10"/>
+                <path d="M 0,-280 C -50,-310 -110,-360 -140,-410" stroke-width="10"/>
+                <path d="M 0,-400 C  40,-430  80,-470  100,-500" stroke-width="10"/>
+                <path d="M 0,-400 C -40,-430 -80,-470 -100,-500" stroke-width="10"/>
+              </g>
+            </g>
+
+            <!-- short stem curl at base -->
+            <path d="M 0,0 Q 30,40 70,90" stroke="#3F6E54" stroke-width="18" fill="none" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+      <div class="label-row">Variant E1</div>
+      <div class="name">Etched veins, smooth edge</div>
+      <div class="desc">Clean silhouette. Veins drawn one shade lighter than the fill. Most "design-system" feel.</div>
+    </div>
+
+    <!-- ================== E2 — two-tone fold ================== -->
+    <div class="cell">
+      <div class="tile-wrap">
+        <svg class="tile" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="e2bg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#F4EFE3"/>
+              <stop offset="1" stop-color="#E8DFC4"/>
+            </linearGradient>
+            <linearGradient id="e2leafA" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0.5" stop-color="#5A7E63"/>
+              <stop offset="0.5" stop-color="#6F9275"/>
+            </linearGradient>
+            <linearGradient id="e2leafB" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0.5" stop-color="#14271D"/>
+              <stop offset="0.5" stop-color="#1E382A"/>
+            </linearGradient>
+            <linearGradient id="e2leafC" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0.5" stop-color="#2F5640"/>
+              <stop offset="0.5" stop-color="#3F6E54"/>
+            </linearGradient>
+          </defs>
+          <rect width="1024" height="1024" fill="url(#e2bg)"/>
+          <g transform="translate(340 760)">
+            <g transform="rotate(0) scale(0.95)">
+              <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z" fill="url(#e2leafA)"/>
+              <path d="M 0,-20 L 0,-540" stroke="#F4EFE3" stroke-width="16" stroke-linecap="round" opacity="0.85"/>
+            </g>
+            <g transform="rotate(90) scale(0.92)">
+              <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z" fill="url(#e2leafB)"/>
+              <path d="M 0,-20 L 0,-540" stroke="#6F9275" stroke-width="16" stroke-linecap="round"/>
+            </g>
+            <g transform="rotate(45) scale(1.0)">
+              <path d="M 0,0 C -100,-20 -180,-140 -170,-260 C -150,-420 -70,-520 0,-560 C 70,-520 150,-420 170,-260 C 180,-140 100,-20 0,0 Z" fill="url(#e2leafC)"/>
+              <path d="M 0,-20 L 0,-540" stroke="#A4C3A0" stroke-width="16" stroke-linecap="round"/>
+            </g>
+            <path d="M 0,0 Q 30,40 70,90" stroke="#3F6E54" stroke-width="18" fill="none" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+      <div class="label-row">Variant E2</div>
+      <div class="name">Two-tone fold, bold midrib</div>
+      <div class="desc">Each leaf split light/dark down the midrib — reads like folded paper. Most graphic / "logo-mark".</div>
+    </div>
+
+    <!-- ================== E3 — serrated, full veins ================== -->
+    <div class="cell">
+      <div class="tile-wrap">
+        <svg class="tile" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="e3bg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#F4EFE3"/>
+              <stop offset="1" stop-color="#E8DFC4"/>
+            </linearGradient>
+          </defs>
+          <rect width="1024" height="1024" fill="url(#e3bg)"/>
+          <g transform="translate(340 760)">
+            <!-- serrated leaf path used for all three -->
+            <g transform="rotate(0) scale(0.95)">
+              <path d="M 0,0 C -60,-50 -120,-130 -145,-210 L -175,-260 L -130,-295 L -175,-355 L -125,-385 L -160,-455 L -100,-475 L -110,-540 L -50,-535 L 0,-560 L 50,-535 L 110,-540 L 100,-475 L 160,-455 L 125,-385 L 175,-355 L 130,-295 L 175,-260 L 145,-210 C 120,-130 60,-50 0,0 Z" fill="#6F9275"/>
+              <g stroke="#284938" stroke-linecap="round" fill="none" opacity="0.55">
+                <path d="M 0,-20 L 0,-540" stroke-width="12"/>
+                <path d="M 0,-160 C  40,-180  90,-220  130,-280" stroke-width="9"/>
+                <path d="M 0,-160 C -40,-180 -90,-220 -130,-280" stroke-width="9"/>
+                <path d="M 0,-280 C  50,-310  110,-360  140,-410" stroke-width="9"/>
+                <path d="M 0,-280 C -50,-310 -110,-360 -140,-410" stroke-width="9"/>
+              </g>
+            </g>
+            <g transform="rotate(90) scale(0.92)">
+              <path d="M 0,0 C -60,-50 -120,-130 -145,-210 L -175,-260 L -130,-295 L -175,-355 L -125,-385 L -160,-455 L -100,-475 L -110,-540 L -50,-535 L 0,-560 L 50,-535 L 110,-540 L 100,-475 L 160,-455 L 125,-385 L 175,-355 L 130,-295 L 175,-260 L 145,-210 C 120,-130 60,-50 0,0 Z" fill="#1E382A"/>
+              <g stroke="#6F9275" stroke-linecap="round" fill="none" opacity="0.7">
+                <path d="M 0,-20 L 0,-540" stroke-width="12"/>
+                <path d="M 0,-160 C  40,-180  90,-220  130,-280" stroke-width="9"/>
+                <path d="M 0,-160 C -40,-180 -90,-220 -130,-280" stroke-width="9"/>
+                <path d="M 0,-280 C  50,-310  110,-360  140,-410" stroke-width="9"/>
+                <path d="M 0,-280 C -50,-310 -110,-360 -140,-410" stroke-width="9"/>
+              </g>
+            </g>
+            <g transform="rotate(45) scale(1.0)">
+              <path d="M 0,0 C -60,-50 -120,-130 -145,-210 L -175,-260 L -130,-295 L -175,-355 L -125,-385 L -160,-455 L -100,-475 L -110,-540 L -50,-535 L 0,-560 L 50,-535 L 110,-540 L 100,-475 L 160,-455 L 125,-385 L 175,-355 L 130,-295 L 175,-260 L 145,-210 C 120,-130 60,-50 0,0 Z" fill="#3F6E54"/>
+              <g stroke="#A4C3A0" stroke-linecap="round" fill="none" opacity="0.8">
+                <path d="M 0,-20 L 0,-540" stroke-width="13"/>
+                <path d="M 0,-160 C  40,-180  90,-220  130,-280" stroke-width="10"/>
+                <path d="M 0,-160 C -40,-180 -90,-220 -130,-280" stroke-width="10"/>
+                <path d="M 0,-280 C  50,-310  110,-360  140,-410" stroke-width="10"/>
+                <path d="M 0,-280 C -50,-310 -110,-360 -140,-410" stroke-width="10"/>
+              </g>
+            </g>
+            <path d="M 0,0 Q 30,40 70,90" stroke="#3F6E54" stroke-width="18" fill="none" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+      <div class="label-row">Variant E3</div>
+      <div class="name">Serrated edge, lighter veining</div>
+      <div class="desc">Toothed silhouette. More botanical, more visual texture — busiest at 29pt.</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Oracle — V2 app icon concepts</title>
+<style>
+  :root {
+    --forest500: #3F6E54;
+    --forest700: #284938;
+    --forest800: #1E382A;
+    --forest900: #14271D;
+    --moss400:   #6F9275;
+    --sage300:   #A4C3A0;
+    --sage200:   #C9DBC0;
+    --paper:     #F4EFE3;
+    --paperWarm: #EFE8D6;
+    --card:      #FFFFFF;
+    --ink900:    #16221A;
+    --ink500:    #5A6A5F;
+    --hairline:  #D9D1BE;
+  }
+  html, body { margin: 0; padding: 0; background: var(--paperWarm); font-family: -apple-system, "SF Pro Text", system-ui, sans-serif; color: var(--ink900); }
+  .page { padding: 56px 48px 80px; max-width: 1280px; margin: 0 auto; }
+  h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 6px; color: var(--forest900); }
+  .sub { font-size: 13px; color: var(--ink500); margin-bottom: 40px; }
+  .grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 28px; }
+  .cell { text-align: center; }
+  .tile-wrap {
+    width: 100%; aspect-ratio: 1 / 1;
+    border-radius: 22.37%; /* iOS squircle approximation */
+    overflow: hidden;
+    box-shadow: 0 12px 28px -10px rgba(20,39,29,0.35), 0 2px 4px rgba(0,0,0,0.08);
+    background: var(--card);
+    position: relative;
+  }
+  .tile { width: 100%; height: 100%; display: block; }
+  .label-row { margin-top: 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.14em; color: var(--forest500); }
+  .name { margin-top: 4px; font-size: 15px; font-weight: 600; color: var(--forest900); }
+  .desc { margin-top: 6px; font-size: 12px; color: var(--ink500); line-height: 1.4; }
+
+  /* small-size preview row */
+  .small-row { margin-top: 56px; display: flex; gap: 18px; align-items: flex-end; justify-content: center; padding: 24px; background: var(--card); border: 1px solid var(--hairline); border-radius: 16px; }
+  .small-group { text-align: center; }
+  .small-group .tile-wrap { width: 60px; border-radius: 22.37%; box-shadow: 0 4px 10px -4px rgba(20,39,29,0.4); }
+  .small-group .cap { font-size: 10px; color: var(--ink500); margin-top: 6px; }
+  .small-title { font-size: 11px; text-transform: uppercase; letter-spacing: 0.14em; color: var(--forest500); font-weight: 600; margin-bottom: 14px; text-align: center; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Oracle — V2 app icon concepts</h1>
+  <div class="sub">All tiles 1024×1024 working size, rendered at squircle radius. Palette from <code>docs/design/v2-forest-green/README.md</code>.</div>
+
+  <div class="grid">
+    <!-- ============ A — LEAF-O ============ -->
+    <div class="cell">
+      <div class="tile-wrap">
+        <svg class="tile" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="aBg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3F6E54"/>
+              <stop offset="1" stop-color="#284938"/>
+            </linearGradient>
+            <linearGradient id="aLeaf" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#F4EFE3"/>
+              <stop offset="1" stop-color="#E8DFC4"/>
+            </linearGradient>
+          </defs>
+          <rect width="1024" height="1024" fill="url(#aBg)"/>
+          <!-- stylized leaf shape forming an O -->
+          <g transform="translate(512 512)">
+            <path d="M 0,-300
+                     C 200,-300 300,-150 300,0
+                     C 300,180 150,300 0,300
+                     C -200,300 -300,150 -300,0
+                     C -300,-150 -180,-300 0,-300 Z"
+                  fill="url(#aLeaf)"/>
+            <!-- central vein -->
+            <path d="M -160,180 C -60,40 60,-100 200,-240" stroke="#3F6E54" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.55"/>
+            <!-- side veins -->
+            <path d="M -100,120 C -60,80 -20,40 30,0" stroke="#3F6E54" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.4"/>
+            <path d="M -40,60 C 0,20 40,-20 90,-60" stroke="#3F6E54" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.4"/>
+            <path d="M 20,0 C 60,-40 100,-80 150,-120" stroke="#3F6E54" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.4"/>
+          </g>
+        </svg>
+      </div>
+      <div class="label-row">Concept A</div>
+      <div class="name">Leaf-O</div>
+      <div class="desc">A single leaf reads as an "O". Paper on forest gradient. Strong at every size.</div>
+    </div>
+
+    <!-- ============ B — BOOK + LEAF BOOKMARK ============ -->
+    <div class="cell">
+      <div class="tile-wrap">
+        <svg class="tile" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="bBg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3F6E54"/>
+              <stop offset="1" stop-color="#1E382A"/>
+            </linearGradient>
+          </defs>
+          <rect width="1024" height="1024" fill="url(#bBg)"/>
+          <!-- open book: two pages -->
+          <g transform="translate(512 540)">
+            <!-- shadow under book -->
+            <ellipse cx="0" cy="240" rx="320" ry="22" fill="#000" opacity="0.2"/>
+            <!-- left page -->
+            <path d="M -340,-200 L -10,-160 L -10,220 L -340,180 Z" fill="#F4EFE3"/>
+            <!-- right page -->
+            <path d="M  340,-200 L  10,-160 L  10,220 L  340,180 Z" fill="#FBF8EF"/>
+            <!-- spine shadow -->
+            <path d="M -10,-160 L 10,-160 L 10,220 L -10,220 Z" fill="#D9D1BE"/>
+            <!-- text lines left -->
+            <g stroke="#94A097" stroke-width="10" stroke-linecap="round">
+              <line x1="-300" y1="-110" x2="-50" y2="-80"/>
+              <line x1="-300" y1="-60"  x2="-80" y2="-32"/>
+              <line x1="-300" y1="-10"  x2="-60" y2="18"/>
+              <line x1="-300" y1="40"   x2="-90" y2="66"/>
+              <line x1="-300" y1="90"   x2="-70" y2="116"/>
+            </g>
+            <!-- text lines right -->
+            <g stroke="#94A097" stroke-width="10" stroke-linecap="round">
+              <line x1="50"  y1="-105" x2="300" y2="-130"/>
+              <line x1="50"  y1="-55"  x2="280" y2="-78"/>
+              <line x1="50"  y1="-5"   x2="300" y2="-28"/>
+              <line x1="50"  y1="45"   x2="270" y2="22"/>
+              <line x1="50"  y1="95"   x2="300" y2="72"/>
+            </g>
+          </g>
+          <!-- leaf bookmark from top -->
+          <g transform="translate(640 80)">
+            <path d="M 0,0
+                     C 80,40 100,160 60,260
+                     C 40,310 0,340 -30,330
+                     C -70,310 -90,220 -60,140
+                     C -40,80 -20,30 0,0 Z" fill="#3F6E54"/>
+            <path d="M -20,30 C -20,140 -30,240 -40,320" stroke="#A4C3A0" stroke-width="6" fill="none" stroke-linecap="round"/>
+          </g>
+        </svg>
+      </div>
+      <div class="label-row">Concept B</div>
+      <div class="name">Book + Leaf bookmark</div>
+      <div class="desc">Personal tome with a leaf marker. Tells the capture + retrieve story.</div>
+    </div>
+
+    <!-- ============ C — MONOGRAM O ============ -->
+    <div class="cell">
+      <div class="tile-wrap">
+        <svg class="tile" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="cBg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3F6E54"/>
+              <stop offset="1" stop-color="#284938"/>
+            </linearGradient>
+          </defs>
+          <rect width="1024" height="1024" fill="url(#cBg)"/>
+          <!-- Serif O — drawn as two ellipses with serif terminals -->
+          <g transform="translate(512 530)">
+            <!-- outer O -->
+            <path d="
+              M 0,-310
+              C 200,-310 320,-170 320,0
+              C 320,170 200,310 0,310
+              C -200,310 -320,170 -320,0
+              C -320,-170 -200,-310 0,-310 Z
+              M 0,-220
+              C -140,-220 -220,-110 -220,0
+              C -220,110 -140,220 0,220
+              C 140,220 220,110 220,0
+              C 220,-110 140,-220 0,-220 Z
+              " fill="#F4EFE3" fill-rule="evenodd"/>
+            <!-- subtle inner shadow on left side of O (serif weight feel) -->
+            <path d="
+              M -290,-40
+              C -310,-160 -240,-280 -120,-300
+              L -120,-260
+              C -210,-240 -270,-150 -260,-40 Z" fill="#EFE8D6" opacity="0.7"/>
+            <!-- tiny leaf inside the counter -->
+            <g transform="translate(0 30) rotate(-20)">
+              <path d="M 0,-70 C 50,-50 65,15 35,55 C 15,80 -15,80 -35,55 C -65,15 -50,-50 0,-70 Z" fill="#3F6E54"/>
+              <path d="M 0,-60 L 0,60" stroke="#A4C3A0" stroke-width="5" stroke-linecap="round"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div class="label-row">Concept C</div>
+      <div class="name">Monogram O</div>
+      <div class="desc">Serif "O" with a leaf nestled inside — illuminated-manuscript drop-cap feel.</div>
+    </div>
+
+    <!-- ============ D — SPEECH BUBBLE LEAF ============ -->
+    <div class="cell">
+      <div class="tile-wrap">
+        <svg class="tile" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="dBg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#3F6E54"/>
+              <stop offset="1" stop-color="#284938"/>
+            </linearGradient>
+          </defs>
+          <rect width="1024" height="1024" fill="url(#dBg)"/>
+          <!-- bubble with leaf-tail down-left -->
+          <g transform="translate(512 480)">
+            <path d="
+              M -300,-220
+              Q -360,-220 -360,-160
+              L -360,120
+              Q -360,180 -300,180
+              L -120,180
+              L -240,330
+              Q -260,355 -210,335
+              L -50,180
+              L 300,180
+              Q 360,180 360,120
+              L 360,-160
+              Q 360,-220 300,-220 Z" fill="#F4EFE3"/>
+            <!-- vein on the leaf-tail -->
+            <path d="M -220,330 L -120,180" stroke="#6F9275" stroke-width="10" stroke-linecap="round" opacity="0.6"/>
+            <!-- moss status dot -->
+            <circle cx="-260" cy="-110" r="22" fill="#6F9275"/>
+            <!-- small "answer" lines -->
+            <g stroke="#94A097" stroke-width="14" stroke-linecap="round">
+              <line x1="-200" y1="-110" x2="260" y2="-110"/>
+              <line x1="-280" y1="-30"  x2="240" y2="-30"/>
+              <line x1="-280" y1="50"   x2="180" y2="50"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div class="label-row">Concept D</div>
+      <div class="name">Speech-bubble leaf</div>
+      <div class="desc">Bubble whose tail is shaped as a leaf tip. Signals Ask / answer.</div>
+    </div>
+
+    <!-- ============ E — LAYERED LEAVES (inverted palette) ============ -->
+    <div class="cell">
+      <div class="tile-wrap">
+        <svg class="tile" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="eBg" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#F4EFE3"/>
+              <stop offset="1" stop-color="#E8DFC4"/>
+            </linearGradient>
+          </defs>
+          <rect width="1024" height="1024" fill="url(#eBg)"/>
+          <!-- three layered leaves fanning -->
+          <g transform="translate(512 540)">
+            <!-- back leaf (moss400), rotated left -->
+            <g transform="rotate(-35)">
+              <path d="M 0,-340 C 150,-300 200,-100 130,90 C 80,210 -20,260 -80,230 C -180,180 -180,-40 -110,-200 C -70,-280 -30,-320 0,-340 Z" fill="#6F9275"/>
+              <path d="M -30,-300 C -30,-180 -40,-60 -60,200" stroke="#3F6E54" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.45"/>
+            </g>
+            <!-- middle leaf (forest500), center -->
+            <g transform="rotate(-2)">
+              <path d="M 0,-340 C 150,-300 200,-100 130,90 C 80,210 -20,260 -80,230 C -180,180 -180,-40 -110,-200 C -70,-280 -30,-320 0,-340 Z" fill="#3F6E54"/>
+              <path d="M -30,-300 C -30,-180 -40,-60 -60,200" stroke="#A4C3A0" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.6"/>
+            </g>
+            <!-- front leaf (forest800), rotated right -->
+            <g transform="rotate(30)">
+              <path d="M 0,-340 C 150,-300 200,-100 130,90 C 80,210 -20,260 -80,230 C -180,180 -180,-40 -110,-200 C -70,-280 -30,-320 0,-340 Z" fill="#1E382A"/>
+              <path d="M -30,-300 C -30,-180 -40,-60 -60,200" stroke="#6F9275" stroke-width="8" fill="none" stroke-linecap="round" opacity="0.5"/>
+            </g>
+          </g>
+        </svg>
+      </div>
+      <div class="label-row">Concept E</div>
+      <div class="name">Layered leaves</div>
+      <div class="desc">Stack of leaves on paper — inverted palette. Stands out on green wallpapers.</div>
+    </div>
+  </div>
+
+  <!-- Home screen-size preview row -->
+  <div class="small-row">
+    <div class="small-group">
+      <div class="small-title" style="margin-bottom:8px;">at 60pt</div>
+    </div>
+  </div>
+  <div class="small-row" style="margin-top: 16px;">
+    <div class="small-group">
+      <div class="tile-wrap"><svg class="tile" viewBox="0 0 1024 1024"><use href="#"/><rect width="1024" height="1024" fill="url(#aBg)"/><g transform="translate(512 512)"><path d="M 0,-300 C 200,-300 300,-150 300,0 C 300,180 150,300 0,300 C -200,300 -300,150 -300,0 C -300,-150 -180,-300 0,-300 Z" fill="#F4EFE3"/><path d="M -160,180 C -60,40 60,-100 200,-240" stroke="#3F6E54" stroke-width="14" fill="none" stroke-linecap="round" opacity="0.55"/></g></svg></div>
+      <div class="cap">A</div>
+    </div>
+    <div class="small-group">
+      <div class="tile-wrap"><svg class="tile" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#3F6E54"/><g transform="translate(512 540)"><path d="M -340,-200 L -10,-160 L -10,220 L -340,180 Z" fill="#F4EFE3"/><path d="M  340,-200 L  10,-160 L  10,220 L  340,180 Z" fill="#FBF8EF"/></g><g transform="translate(640 80)"><path d="M 0,0 C 80,40 100,160 60,260 C 40,310 0,340 -30,330 C -70,310 -90,220 -60,140 C -40,80 -20,30 0,0 Z" fill="#3F6E54"/></g></svg></div>
+      <div class="cap">B</div>
+    </div>
+    <div class="small-group">
+      <div class="tile-wrap"><svg class="tile" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#3F6E54"/><g transform="translate(512 530)"><path d="M 0,-310 C 200,-310 320,-170 320,0 C 320,170 200,310 0,310 C -200,310 -320,170 -320,0 C -320,-170 -200,-310 0,-310 Z M 0,-220 C -140,-220 -220,-110 -220,0 C -220,110 -140,220 0,220 C 140,220 220,110 220,0 C 220,-110 140,-220 0,-220 Z" fill="#F4EFE3" fill-rule="evenodd"/><g transform="translate(0 30) rotate(-20)"><path d="M 0,-70 C 50,-50 65,15 35,55 C 15,80 -15,80 -35,55 C -65,15 -50,-50 0,-70 Z" fill="#3F6E54"/></g></g></svg></div>
+      <div class="cap">C</div>
+    </div>
+    <div class="small-group">
+      <div class="tile-wrap"><svg class="tile" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#3F6E54"/><g transform="translate(512 480)"><path d="M -300,-220 Q -360,-220 -360,-160 L -360,120 Q -360,180 -300,180 L -120,180 L -240,330 Q -260,355 -210,335 L -50,180 L 300,180 Q 360,180 360,120 L 360,-160 Q 360,-220 300,-220 Z" fill="#F4EFE3"/></g></svg></div>
+      <div class="cap">D</div>
+    </div>
+    <div class="small-group">
+      <div class="tile-wrap"><svg class="tile" viewBox="0 0 1024 1024"><rect width="1024" height="1024" fill="#F4EFE3"/><g transform="translate(512 540)"><g transform="rotate(-35)"><path d="M 0,-340 C 150,-300 200,-100 130,90 C 80,210 -20,260 -80,230 C -180,180 -180,-40 -110,-200 C -70,-280 -30,-320 0,-340 Z" fill="#6F9275"/></g><g transform="rotate(-2)"><path d="M 0,-340 C 150,-300 200,-100 130,90 C 80,210 -20,260 -80,230 C -180,180 -180,-40 -110,-200 C -70,-280 -30,-320 0,-340 Z" fill="#3F6E54"/></g><g transform="rotate(30)"><path d="M 0,-340 C 150,-300 200,-100 130,90 C 80,210 -20,260 -80,230 C -180,180 -180,-40 -110,-200 C -70,-280 -30,-320 0,-340 Z" fill="#1E382A"/></g></g></svg></div>
+      <div class="cap">E</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
