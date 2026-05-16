@@ -15,7 +15,7 @@ from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from oracle.admin.spend import get_current_month_spend
-from oracle.core.db import SessionLocal, get_session
+from oracle.core.db import SessionLocal
 
 logger = structlog.get_logger(__name__)
 
@@ -60,7 +60,6 @@ def get_log_session_factory() -> async_sessionmaker[AsyncSession]:
     response_model=UsageResponse,
 )
 async def get_usage(
-    _session: Annotated[AsyncSession, Depends(get_session)],
     log_factory: Annotated[async_sessionmaker[AsyncSession], Depends(get_log_session_factory)],
 ) -> UsageResponse:
     """Return current-month OpenRouter cost aggregates by source."""
