@@ -32,6 +32,7 @@ import OracleCore
 struct CaptureView: View {
   @State private var viewModel = CaptureViewModel()
   @FocusState private var isFocused: Bool
+  @Environment(\.colorScheme) private var colorScheme
 
   // Filler-word toggle — shared key with SettingsView (#184).
   @AppStorage(SettingsViewModel.fillerWordCleanupKey) private var fillerCleanupEnabled: Bool = false
@@ -69,6 +70,11 @@ struct CaptureView: View {
       }
       .navigationTitle("Save")
       .navigationBarTitleDisplayMode(.large)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          NavWordmarkView()
+        }
+      }
     }
     .alert("Could Not Save", isPresented: $viewModel.showErrorAlert) {
       Button("OK", role: .cancel) {}
@@ -188,9 +194,12 @@ struct CaptureView: View {
       )
     )
     .clipShape(RoundedRectangle(cornerRadius: 16))
-    // Shadow in light mode per spec §3.6.
+    // Shadow only in light mode per spec §3.6 — against a dark surface the
+    // same colour renders as a green glow, which the spec explicitly avoids.
     .shadow(
-      color: Color(red: 0.16, green: 0.29, blue: 0.22).opacity(0.55),
+      color: colorScheme == .light
+        ? Color(red: 0.16, green: 0.29, blue: 0.22).opacity(0.55)
+        : .clear,
       radius: 24, x: 0, y: 8
     )
     .disabled(!viewModel.isSaveEnabled)

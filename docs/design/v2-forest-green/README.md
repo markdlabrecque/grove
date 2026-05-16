@@ -93,6 +93,20 @@ extension Color {
 }
 ```
 
+> **Important — no `Color+Theme.swift` in the source tree.**
+> The extension above is the *design reference* only. The project deliberately
+> omits a hand-written `Color+Theme.swift` because Xcode auto-generates
+> identical `SwiftUI.Color` static accessors from the Asset Catalog at build
+> time via `ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES`
+> (set in both Debug and Release build configurations in the pbxproj, lines 495
+> and 558). A manual file alongside the generated one triggers
+> "invalid redeclaration" compile errors.
+>
+> If you add a new colorset, copy a colorset to a second target, or create a
+> new Xcode scheme, verify that the setting is `YES` in the new configuration.
+> If it is absent or `NO`, every `Color.forest500` (etc.) call becomes a compile
+> error with no obvious explanation.
+
 ---
 
 ## 2. Typography

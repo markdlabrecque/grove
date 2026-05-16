@@ -65,6 +65,11 @@ struct QueryView: View {
       }
       .navigationTitle("Ask")
       .navigationBarTitleDisplayMode(.large)
+      .toolbar {
+        ToolbarItem(placement: .topBarTrailing) {
+          NavWordmarkView()
+        }
+      }
       // Resolves QueryResult values pushed onto `navigationPath` by
       // SourceCardRow's swipe action. Both navigation paths (swipe and
       // expanded-footer link) ultimately land on MemoryDetailView; the
@@ -260,11 +265,13 @@ struct QueryView: View {
       )
       .frame(width: 3)
       .clipShape(
+        // Outer (leading) corners follow the card curve; inner (trailing)
+        // corners are sharp so the bar butts flush against the card content.
         UnevenRoundedRectangle(
-          topLeadingRadius: 0,
+          topLeadingRadius: 3,
           bottomLeadingRadius: 3,
           bottomTrailingRadius: 0,
-          topTrailingRadius: 3
+          topTrailingRadius: 0
         )
       )
 
