@@ -1,4 +1,4 @@
-"""Tests for oracle.enrichment.reset -- selective re-enrichment CLI (ticket #181).
+"""Tests for grove.enrichment.reset -- selective re-enrichment CLI (ticket #181).
 
 Design choices exercised here:
 - Target predicate: enriched=true AND (enriched_version IS NULL OR enriched_version < N)
@@ -33,8 +33,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.models import Decision, Memory
+from grove.core.config import settings
+from grove.models import Decision, Memory
 
 _engine = create_async_engine(settings.database_url, poolclass=NullPool)
 _Session = async_sessionmaker(_engine, expire_on_commit=False)
@@ -120,7 +120,7 @@ async def test_reset_version_below_resets_only_qualifying_rows(
         row C: enriched=true,  enriched_version=2     -> NOT reset (2 is not < 2)
         row D: enriched=true,  enriched_version=3     -> NOT reset (3 is not < 2)
     """
-    from oracle.enrichment.reset import reset
+    from grove.enrichment.reset import reset
 
     row_a = _make_memory(enriched=True, enriched_version=None)
     row_b = _make_memory(enriched=True, enriched_version=1)
@@ -163,7 +163,7 @@ async def test_dry_run_reports_ids_but_makes_no_changes(
     db_session: AsyncSession,
 ) -> None:
     """--dry-run returns the IDs that would be reset but does not modify any rows."""
-    from oracle.enrichment.reset import reset
+    from grove.enrichment.reset import reset
 
     row_a = _make_memory(enriched=True, enriched_version=None)
     row_b = _make_memory(enriched=True, enriched_version=1)
@@ -197,7 +197,7 @@ async def test_no_match_returns_zero_count(
     db_session: AsyncSession,
 ) -> None:
     """When no rows qualify, reset returns count=0 and an empty affected_ids list."""
-    from oracle.enrichment.reset import reset
+    from grove.enrichment.reset import reset
 
     row_a = _make_memory(enriched=True, enriched_version=5)
     await _seed(db_session, [row_a])
@@ -218,7 +218,7 @@ async def test_unenriched_rows_are_not_reset(
     The predicate is: enriched=true AND (enriched_version IS NULL OR enriched_version < N).
     A row with enriched=false and enriched_version=1 must not appear in the result.
     """
-    from oracle.enrichment.reset import reset
+    from grove.enrichment.reset import reset
 
     unenriched = _make_memory(enriched=False, enriched_version=1)
     unenriched.enriched_at = None  # confirm it's truly unenriched
@@ -250,7 +250,7 @@ async def test_specialised_table_rows_not_deleted_on_reset(
     2. Resets with --version-below 2.
     3. Asserts the Decision row still exists.
     """
-    from oracle.enrichment.reset import reset
+    from grove.enrichment.reset import reset
 
     memory = _make_memory(enriched=True, enriched_version=1)
     await _seed(db_session, [memory])
@@ -321,8 +321,8 @@ async def test_atomic_reset_skips_row_re_enriched_between_select_and_update(
         count == 1  (UPDATE WHERE id IN (…) ignores the predicate; overwrites worker)
         DB state: enriched=false (worker's re-enrichment is lost)
     """
-    import oracle.enrichment.reset as reset_module
-    from oracle.enrichment.reset import reset
+    import grove.enrichment.reset as reset_module
+    from grove.enrichment.reset import reset
 
     memory = _make_memory(enriched=True, enriched_version=1)
     await _seed(db_session, [memory])

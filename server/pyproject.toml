@@ -1,7 +1,7 @@
 [project]
-name = "oracle-server"
+name = "grove-server"
 version = "0.0.1"
-description = "The Oracle — backend API and enrichment worker"
+description = "Grove — backend API and enrichment worker"
 requires-python = ">=3.12"
 dependencies = [
   "fastapi>=0.115",
@@ -33,7 +33,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-include = ["oracle*"]
+include = ["grove*"]
 
 [tool.ruff]
 line-length = 100

@@ -29,10 +29,10 @@ from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.embeddings import EMBEDDING_DIM
-from oracle.models.memory import Memory
-from oracle.models.query_log import QueryLog
+from grove.core.config import settings
+from grove.embeddings import EMBEDDING_DIM
+from grove.models.memory import Memory
+from grove.models.query_log import QueryLog
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -90,10 +90,10 @@ def _override_get_log_session_factory() -> async_sessionmaker[AsyncSession]:
 def override_db_and_api_key(monkeypatch) -> None:  # type: ignore[misc]
     from pydantic import SecretStr
 
-    from oracle.api.queries import get_log_session_factory
-    from oracle.core.config import settings
-    from oracle.core.db import get_session
-    from oracle.main import app
+    from grove.api.queries import get_log_session_factory
+    from grove.core.config import settings
+    from grove.core.db import get_session
+    from grove.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
     app.dependency_overrides[get_log_session_factory] = _override_get_log_session_factory
@@ -160,7 +160,7 @@ async def _delete_memory(session: AsyncSession, memory_id: uuid.UUID) -> None:
 @respx.mock
 async def test_synthesis_happy_path_returns_answer_and_sources(db_session: AsyncSession) -> None:
     """Synthesis returns an answer string and sources list; response includes query_id."""
-    from oracle.main import app
+    from grove.main import app
 
     memory_id = await _seed_whole_memory(
         db_session,
@@ -230,7 +230,7 @@ async def test_synthesis_happy_path_returns_answer_and_sources(db_session: Async
 @respx.mock
 async def test_synthesis_columns_stamped_in_query_log(db_session: AsyncSession) -> None:
     """synthesis_model, input_tokens, output_tokens, and cost are written to query_logs."""
-    from oracle.main import app
+    from grove.main import app
 
     memory_id = await _seed_whole_memory(
         db_session,
@@ -288,7 +288,7 @@ async def test_synthesis_provider_failure_returns_null_answer_with_sources(
     db_session: AsyncSession,
 ) -> None:
     """When OpenRouter returns 5xx, answer is null and sources are still populated."""
-    from oracle.main import app
+    from grove.main import app
 
     memory_id = await _seed_whole_memory(
         db_session,
@@ -359,7 +359,7 @@ async def test_synthesis_skipped_when_no_api_key(
     """
     import structlog.testing
 
-    from oracle.main import app
+    from grove.main import app
 
     # Override the key stub set by override_db_and_api_key to simulate absence.
     monkeypatch.setattr(settings, "openrouter_api_key", None)

@@ -23,9 +23,9 @@ from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.embeddings import EMBEDDING_DIM
-from oracle.models.query_log import QueryLog
+from grove.core.config import settings
+from grove.embeddings import EMBEDDING_DIM
+from grove.models.query_log import QueryLog
 
 _test_engine = create_async_engine(settings.database_url, poolclass=NullPool)
 _TestSession = async_sessionmaker(_test_engine, expire_on_commit=False)
@@ -100,7 +100,7 @@ async def _delete_recent_query_logs(session: AsyncSession, window_minutes: int =
 
 def test_refinement_config_on_settings() -> None:
     """RefinementConfig is accessible via settings.refinement — no magic numbers inline."""
-    from oracle.core.config import RefinementConfig
+    from grove.core.config import RefinementConfig
 
     assert hasattr(settings, "refinement"), "settings must have a 'refinement' attribute"
     cfg = settings.refinement
@@ -117,7 +117,7 @@ def test_refinement_config_on_settings() -> None:
 @pytest.mark.asyncio
 async def test_detect_refinement_similar_within_window(db_session: AsyncSession) -> None:
     """Similar query within 5-minute window is marked as a refinement."""
-    from oracle.retrieval.refinement import detect_refinement
+    from grove.retrieval.refinement import detect_refinement
 
     # Clear any query_log rows from concurrent tests before seeding our known state.
     await _delete_recent_query_logs(db_session)
@@ -144,7 +144,7 @@ async def test_detect_refinement_similar_within_window(db_session: AsyncSession)
 @pytest.mark.asyncio
 async def test_detect_refinement_different_query_within_window(db_session: AsyncSession) -> None:
     """Orthogonal query within 5-minute window is NOT a refinement."""
-    from oracle.retrieval.refinement import detect_refinement
+    from grove.retrieval.refinement import detect_refinement
 
     # Clear any query_log rows from concurrent tests before seeding our known state.
     await _delete_recent_query_logs(db_session)
@@ -169,7 +169,7 @@ async def test_detect_refinement_different_query_within_window(db_session: Async
 @pytest.mark.asyncio
 async def test_detect_refinement_similar_outside_window(db_session: AsyncSession) -> None:
     """Similar query older than 5 minutes is NOT a refinement."""
-    from oracle.retrieval.refinement import detect_refinement
+    from grove.retrieval.refinement import detect_refinement
 
     # Clear any query_log rows from concurrent tests — only our old row remains.
     await _delete_recent_query_logs(db_session)
@@ -193,7 +193,7 @@ async def test_detect_refinement_similar_outside_window(db_session: AsyncSession
 @pytest.mark.asyncio
 async def test_detect_refinement_no_prior_query() -> None:
     """When there are no prior query_logs within the window, returns None."""
-    from oracle.retrieval.refinement import detect_refinement
+    from grove.retrieval.refinement import detect_refinement
 
     # Use a session factory backed by the test DB — ensure any prior rows
     # are outside the window or absent by using a fresh synthetic vector
@@ -203,7 +203,7 @@ async def test_detect_refinement_no_prior_query() -> None:
     # We can't guarantee the DB is empty, but we can at minimum confirm the
     # function returns None when there's nothing within 0 minutes — use a
     # zero-width window via a custom config to isolate.
-    from oracle.core.config import RefinementConfig
+    from grove.core.config import RefinementConfig
 
     zero_window_cfg = RefinementConfig(window_minutes=0, similarity_threshold=0.85)
     result = await detect_refinement(_TestSession, far_future_vec, config=zero_window_cfg)

@@ -16,8 +16,8 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.models.memory import Memory
+from grove.core.config import settings
+from grove.models.memory import Memory
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -32,8 +32,8 @@ async def _override_get_session() -> AsyncIterator[AsyncSession]:
 
 @pytest.fixture(autouse=True)
 def override_db(monkeypatch) -> None:  # type: ignore[misc]
-    from oracle.core.db import get_session
-    from oracle.main import app
+    from grove.core.db import get_session
+    from grove.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
     yield
@@ -96,7 +96,7 @@ async def five_memories(db_session: AsyncSession) -> AsyncIterator[list[Memory]]
 
 @pytest.mark.asyncio
 async def test_missing_auth_returns_401() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/v1/memories")
@@ -112,7 +112,7 @@ async def test_missing_auth_returns_401() -> None:
 @pytest.mark.asyncio
 async def test_empty_result_set_via_filter(db_session: AsyncSession) -> None:
     """Filter to a time window in the future produces an empty list + null cursor."""
-    from oracle.main import app
+    from grove.main import app
 
     future = datetime(2099, 1, 1, tzinfo=UTC).isoformat()
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -133,7 +133,7 @@ async def test_empty_result_set_via_filter(db_session: AsyncSession) -> None:
 
 @pytest.mark.asyncio
 async def test_list_returns_correct_order(five_memories: list[Memory]) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     # Scope to the exact time window of our fixtures to avoid pollution from
     # other tests that insert memories at later timestamps.
@@ -166,7 +166,7 @@ async def test_list_returns_correct_order(five_memories: list[Memory]) -> None:
 
 @pytest.mark.asyncio
 async def test_summary_fields_present(five_memories: list[Memory]) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     sorted_by_time = sorted(five_memories, key=lambda m: m.created_at)
     window_start = (sorted_by_time[0].created_at - timedelta(seconds=1)).isoformat()
@@ -213,7 +213,7 @@ async def test_summary_fields_present(five_memories: list[Memory]) -> None:
 
 @pytest.mark.asyncio
 async def test_content_preview_truncated() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     long_content = "x" * 200
     memory = _make_memory(content=long_content)
@@ -249,7 +249,7 @@ async def test_content_preview_truncated() -> None:
 @pytest.mark.asyncio
 async def test_cursor_pagination(five_memories: list[Memory]) -> None:
     """limit=2 pages through all 5 memories without duplicates or gaps."""
-    from oracle.main import app
+    from grove.main import app
 
     our_ids = {str(m.id) for m in five_memories}
     collected: list[str] = []
@@ -280,7 +280,7 @@ async def test_cursor_pagination(five_memories: list[Memory]) -> None:
 @pytest.mark.asyncio
 async def test_cursor_with_time_window_filter(five_memories: list[Memory]) -> None:
     """cursor + created_before together: pagination stays inside the time window."""
-    from oracle.main import app
+    from grove.main import app
 
     sorted_by_time = sorted(five_memories, key=lambda m: m.created_at)
     our_ids = {str(m.id) for m in five_memories}
@@ -327,7 +327,7 @@ async def test_cursor_with_time_window_filter(five_memories: list[Memory]) -> No
 @pytest.mark.asyncio
 async def test_cursor_no_duplicates_across_pages(five_memories: list[Memory]) -> None:
     """Verify no ID appears on more than one page within the fixture's time window."""
-    from oracle.main import app
+    from grove.main import app
 
     sorted_by_time = sorted(five_memories, key=lambda m: m.created_at)
     window_start = (sorted_by_time[0].created_at - timedelta(seconds=1)).isoformat()
@@ -397,7 +397,7 @@ async def mixed_enrichment_memories(db_session: AsyncSession) -> AsyncIterator[l
 
 @pytest.mark.asyncio
 async def test_enriched_true_filter(mixed_enrichment_memories: list[Memory]) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     our_ids = {str(m.id) for m in mixed_enrichment_memories}
 
@@ -428,7 +428,7 @@ async def test_enriched_true_filter(mixed_enrichment_memories: list[Memory]) -> 
 
 @pytest.mark.asyncio
 async def test_enriched_false_filter(mixed_enrichment_memories: list[Memory]) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     our_ids = {str(m.id) for m in mixed_enrichment_memories}
 
@@ -464,7 +464,7 @@ async def test_enriched_false_filter(mixed_enrichment_memories: list[Memory]) ->
 
 @pytest.mark.asyncio
 async def test_created_after_filter(five_memories: list[Memory]) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     # The memories are at base + 0..4 minutes. Use the 3rd memory's created_at
     # as the lower bound — should return memories 3 and 4 (indices 3, 4).
@@ -493,7 +493,7 @@ async def test_created_after_filter(five_memories: list[Memory]) -> None:
 
 @pytest.mark.asyncio
 async def test_created_before_filter(five_memories: list[Memory]) -> None:
-    from oracle.main import app
+    from grove.main import app
 
     sorted_by_time = sorted(five_memories, key=lambda m: m.created_at)
     cutoff = sorted_by_time[3].created_at.isoformat()
@@ -521,7 +521,7 @@ async def test_created_before_filter(five_memories: list[Memory]) -> None:
 
 @pytest.mark.asyncio
 async def test_invalid_cursor_returns_422() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get(

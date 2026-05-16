@@ -1,4 +1,4 @@
-"""Unit tests for oracle.enrichment.classifier.classify_memory.
+"""Unit tests for grove.enrichment.classifier.classify_memory.
 
 All tests mock at the HTTP boundary (respx) — no live OpenRouter calls.
 
@@ -18,13 +18,13 @@ import httpx
 import pytest
 import respx
 
-from oracle.enrichment.classifier import (
+from grove.enrichment.classifier import (
     ClassificationError,
     ClassificationResult,
     SkippedReason,
     classify_memory,
 )
-from oracle.enrichment.schemas import (
+from grove.enrichment.schemas import (
     Classification,
     PromptBundle,
     load_classification_prompts,

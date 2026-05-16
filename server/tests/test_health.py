@@ -4,7 +4,7 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.mark.asyncio
 async def test_healthz_returns_ok() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.get("/healthz")

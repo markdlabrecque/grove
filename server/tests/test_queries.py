@@ -27,11 +27,11 @@ from sqlalchemy import select as sa_select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.core.db import get_session
-from oracle.embeddings import EMBEDDING_DIM
-from oracle.models.memory import Memory, MemoryChunk
-from oracle.models.query_log import QueryLog
+from grove.core.config import settings
+from grove.core.db import get_session
+from grove.embeddings import EMBEDDING_DIM
+from grove.models.memory import Memory, MemoryChunk
+from grove.models.query_log import QueryLog
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -67,8 +67,8 @@ def _override_get_log_session_factory() -> async_sessionmaker[AsyncSession]:
 
 @pytest.fixture(autouse=True)
 def override_db(monkeypatch) -> None:  # type: ignore[misc]
-    from oracle.api.queries import get_log_session_factory
-    from oracle.main import app
+    from grove.api.queries import get_log_session_factory
+    from grove.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
     app.dependency_overrides[get_log_session_factory] = _override_get_log_session_factory
@@ -182,7 +182,7 @@ async def _delete_memory(session: AsyncSession, memory_id: uuid.UUID) -> None:
 @respx.mock
 async def test_whole_memory_hit(db_session: AsyncSession) -> None:
     """A short memory whose embedding matches the query comes back with matched_via=whole."""
-    from oracle.main import app
+    from grove.main import app
 
     memory_id = await _seed_whole_memory(db_session, embedding=_QUERY_VEC)
     try:
@@ -221,7 +221,7 @@ async def test_whole_memory_hit(db_session: AsyncSession) -> None:
 @respx.mock
 async def test_chunk_hit(db_session: AsyncSession) -> None:
     """A chunked memory returns matched_via=chunk with the correct chunk index."""
-    from oracle.main import app
+    from grove.main import app
 
     # First chunk is close; second chunk is far.
     memory_id = await _seed_chunked_memory(
@@ -258,7 +258,7 @@ async def test_chunk_hit(db_session: AsyncSession) -> None:
 @respx.mock
 async def test_dedup_whole_and_chunk(db_session: AsyncSession) -> None:
     """A memory with both whole-memory embedding and chunk hits returns only one entry."""
-    from oracle.main import app
+    from grove.main import app
 
     # Seed a memory with both a whole-memory embedding AND chunks — unusual in
     # production (post-#24 whole embedding is NULL when chunks exist) but the
@@ -323,7 +323,7 @@ async def test_dedup_whole_and_chunk(db_session: AsyncSession) -> None:
 @respx.mock
 async def test_limit_and_ordering(db_session: AsyncSession) -> None:
     """limit is respected and results come back in descending score order."""
-    from oracle.main import app
+    from grove.main import app
 
     # Seed 5 memories with known scores.
     scores = [1.0, 0.9, 0.8, 0.7, 0.6]
@@ -371,7 +371,7 @@ async def test_limit_and_ordering(db_session: AsyncSession) -> None:
 @respx.mock
 async def test_min_similarity_filter(db_session: AsyncSession) -> None:
     """Results below min_similarity are dropped."""
-    from oracle.main import app
+    from grove.main import app
 
     high_vec = [1.0] + [0.0] * (EMBEDDING_DIM - 1)  # similarity = 1.0
     low_vec = [0.0] + [1.0] + [0.0] * (EMBEDDING_DIM - 2)  # similarity = 0.0
@@ -410,7 +410,7 @@ async def test_min_similarity_filter(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_empty_query_returns_422() -> None:
     """Whitespace-only query → 422."""
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -426,7 +426,7 @@ async def test_empty_query_returns_422() -> None:
 @respx.mock
 async def test_no_matches_returns_200_with_response_envelope(db_session: AsyncSession) -> None:
     """min_similarity filter drops below-threshold results; response shape is always valid."""
-    from oracle.main import app
+    from grove.main import app
 
     # Seed one memory with an orthogonal vector — it will be filtered at min_similarity=0.99.
     far_id = await _seed_whole_memory(db_session, embedding=_FAR_VEC, content="Far memory")
@@ -459,7 +459,7 @@ async def test_no_matches_returns_200_with_response_envelope(db_session: AsyncSe
 
 @pytest.mark.asyncio
 async def test_missing_auth_returns_401() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post("/v1/queries", json={"query": "hello"})
@@ -469,7 +469,7 @@ async def test_missing_auth_returns_401() -> None:
 
 @pytest.mark.asyncio
 async def test_wrong_token_returns_401() -> None:
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -492,7 +492,7 @@ async def test_query_log_inserted_with_result_count_and_memory_ids(
     db_session: AsyncSession,
 ) -> None:
     """A successful query creates a query_log row with correct result_count and returned_memory_ids."""  # noqa: E501
-    from oracle.main import app
+    from grove.main import app
 
     memory_id = await _seed_whole_memory(
         db_session, embedding=_QUERY_VEC, content="Log test memory"
@@ -547,7 +547,7 @@ async def test_query_log_inserted_with_result_count_and_memory_ids(
 @pytest.mark.asyncio
 async def test_min_similarity_below_zero_returns_422() -> None:
     """min_similarity=-0.5 is outside [0.0, 1.0] and must be rejected with 422."""
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(
@@ -562,7 +562,7 @@ async def test_min_similarity_below_zero_returns_422() -> None:
 @pytest.mark.asyncio
 async def test_min_similarity_above_one_returns_422() -> None:
     """min_similarity=1.5 is outside [0.0, 1.0] and must be rejected with 422."""
-    from oracle.main import app
+    from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.post(

@@ -1,4 +1,4 @@
-"""Unit tests for oracle.enrichment.schemas and the classify.v1.yaml loader.
+"""Unit tests for grove.enrichment.schemas and the classify.v1.yaml loader.
 
 TDD red commit — these tests fail until the implementation is in place.
 
@@ -17,7 +17,7 @@ import datetime
 
 import pytest
 
-from oracle.enrichment.schemas import (
+from grove.enrichment.schemas import (
     Appointment,
     Classification,
     Decision,
@@ -205,7 +205,7 @@ def test_decision_pydantic_fields_match_sqlalchemy():
     """Pydantic Decision has every nullable column from the decisions table
     (excluding DB-managed fields: id, memory_id, enrichment_version, created_at).
     """
-    from oracle.models.decision import Decision as SADecision
+    from grove.models.decision import Decision as SADecision
 
     sa_cols = {c.key for c in SADecision.__table__.columns}
     # Strip the DB-managed / FK columns from what we expect Pydantic to cover.
@@ -221,7 +221,7 @@ def test_decision_pydantic_fields_match_sqlalchemy():
 
 
 def test_people_interaction_pydantic_fields_match_sqlalchemy():
-    from oracle.models.people_interaction import PeopleInteraction as SAPeopleInteraction
+    from grove.models.people_interaction import PeopleInteraction as SAPeopleInteraction
 
     sa_cols = {c.key for c in SAPeopleInteraction.__table__.columns}
     db_managed = {"id", "memory_id", "enrichment_version", "created_at"}
@@ -235,7 +235,7 @@ def test_people_interaction_pydantic_fields_match_sqlalchemy():
 
 
 def test_task_pydantic_fields_match_sqlalchemy():
-    from oracle.models.task import Task as SATask
+    from grove.models.task import Task as SATask
 
     sa_cols = {c.key for c in SATask.__table__.columns}
     db_managed = {"id", "memory_id", "enrichment_version", "created_at"}
@@ -249,7 +249,7 @@ def test_task_pydantic_fields_match_sqlalchemy():
 
 
 def test_appointment_pydantic_fields_match_sqlalchemy():
-    from oracle.models.appointment import Appointment as SAAppointment
+    from grove.models.appointment import Appointment as SAAppointment
 
     sa_cols = {c.key for c in SAAppointment.__table__.columns}
     db_managed = {"id", "memory_id", "enrichment_version", "created_at"}

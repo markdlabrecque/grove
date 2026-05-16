@@ -1,4 +1,4 @@
-"""Unit tests for oracle.llm.openrouter.chat_completion.
+"""Unit tests for grove.llm.openrouter.chat_completion.
 
 All tests mock at the HTTP boundary with respx — no live OpenRouter calls.
 
@@ -18,7 +18,7 @@ import httpx
 import pytest
 import respx
 
-from oracle.llm.openrouter import ChatCompletionResult, chat_completion
+from grove.llm.openrouter import ChatCompletionResult, chat_completion
 
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 

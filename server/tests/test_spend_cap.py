@@ -38,9 +38,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import Settings, settings
-from oracle.models.enrichment_state import EnrichmentState
-from oracle.models.query_log import QueryLog
+from grove.core.config import Settings, settings
+from grove.models.enrichment_state import EnrichmentState
+from grove.models.query_log import QueryLog
 
 _engine = create_async_engine(settings.database_url, poolclass=NullPool)
 _Session = async_sessionmaker(_engine, expire_on_commit=False)
@@ -121,7 +121,7 @@ def _make_enrichment_state(
 
 async def test_spend_from_query_logs_synthesis_and_intent(db_session: AsyncSession) -> None:
     """Spend sums synthesis_cost + intent_router_cost from query_logs for current month."""
-    from oracle.admin.spend import get_current_month_spend
+    from grove.admin.spend import get_current_month_spend
 
     row = _make_query_log(synthesis_cost=0.005, intent_router_cost=0.002)
     db_session.add(row)
@@ -133,7 +133,7 @@ async def test_spend_from_query_logs_synthesis_and_intent(db_session: AsyncSessi
 
 async def test_spend_from_enrichment_state_notes(db_session: AsyncSession) -> None:
     """Spend sums total_cost_usd from enrichment_state.notes for current month."""
-    from oracle.admin.spend import get_current_month_spend
+    from grove.admin.spend import get_current_month_spend
 
     row = _make_enrichment_state(notes={"total_cost_usd": 0.003})
     db_session.add(row)
@@ -145,7 +145,7 @@ async def test_spend_from_enrichment_state_notes(db_session: AsyncSession) -> No
 
 async def test_spend_aggregates_both_sources(db_session: AsyncSession) -> None:
     """Total spend is the sum of query_logs costs + enrichment costs."""
-    from oracle.admin.spend import get_current_month_spend
+    from grove.admin.spend import get_current_month_spend
 
     ql1 = _make_query_log(synthesis_cost=0.010, intent_router_cost=0.001)
     ql2 = _make_query_log(synthesis_cost=0.005, intent_router_cost=None)
@@ -164,7 +164,7 @@ async def test_spend_aggregates_both_sources(db_session: AsyncSession) -> None:
 
 async def test_spend_excludes_prior_month_rows(db_session: AsyncSession) -> None:
     """Rows from a prior calendar month are NOT included in the current-month spend."""
-    from oracle.admin.spend import get_current_month_spend
+    from grove.admin.spend import get_current_month_spend
 
     now = datetime.now(UTC)
     # Row from previous month
@@ -183,7 +183,7 @@ async def test_spend_excludes_prior_month_rows(db_session: AsyncSession) -> None
 
 async def test_spend_null_costs_treated_as_zero(db_session: AsyncSession) -> None:
     """NULL cost columns are treated as 0 (not excluded from the sum)."""
-    from oracle.admin.spend import get_current_month_spend
+    from grove.admin.spend import get_current_month_spend
 
     row = _make_query_log(synthesis_cost=None, intent_router_cost=None)
     db_session.add(row)
@@ -201,7 +201,7 @@ async def test_spend_null_costs_treated_as_zero(db_session: AsyncSession) -> Non
 
 async def test_warn_fires_at_80_pct(db_session: AsyncSession) -> None:
     """When spend reaches 80% of cap, check_spend_cap logs a warning (does not raise)."""
-    from oracle.admin.spend import check_spend_cap
+    from grove.admin.spend import check_spend_cap
 
     cap = 10.0
     # 8.0 / 10.0 = 80% exactly — should warn, not raise
@@ -228,7 +228,7 @@ async def test_warn_fires_at_80_pct(db_session: AsyncSession) -> None:
 
 async def test_warn_fires_on_every_call_after_80_pct(db_session: AsyncSession) -> None:
     """80% warn fires on EVERY subsequent call, not just the first time."""
-    from oracle.admin.spend import check_spend_cap
+    from grove.admin.spend import check_spend_cap
 
     cap = 10.0
     ql = _make_query_log(synthesis_cost=8.5)  # 85% of cap
@@ -260,7 +260,7 @@ async def test_warn_fires_on_every_call_after_80_pct(db_session: AsyncSession) -
 
 async def test_raises_at_100_pct(db_session: AsyncSession) -> None:
     """When spend reaches 100% of cap, check_spend_cap raises SpendCapExceededError."""
-    from oracle.admin.spend import SpendCapExceededError, check_spend_cap
+    from grove.admin.spend import SpendCapExceededError, check_spend_cap
 
     cap = 5.0
     ql = _make_query_log(synthesis_cost=5.0)  # exactly 100%
@@ -282,7 +282,7 @@ async def test_raises_at_100_pct(db_session: AsyncSession) -> None:
 
 async def test_raises_above_100_pct(db_session: AsyncSession) -> None:
     """Spend exceeding cap also raises SpendCapExceededError."""
-    from oracle.admin.spend import SpendCapExceededError, check_spend_cap
+    from grove.admin.spend import SpendCapExceededError, check_spend_cap
 
     cap = 5.0
     ql = _make_query_log(synthesis_cost=6.0)  # 120%
@@ -301,7 +301,7 @@ async def test_raises_above_100_pct(db_session: AsyncSession) -> None:
 
 async def test_no_raise_below_80_pct(db_session: AsyncSession) -> None:
     """Below 80% cap: check_spend_cap neither raises nor warns."""
-    from oracle.admin.spend import check_spend_cap
+    from grove.admin.spend import check_spend_cap
 
     cap = 20.0
     ql = _make_query_log(synthesis_cost=1.0)  # 5%
@@ -341,10 +341,10 @@ def _override_get_log_session_factory() -> async_sessionmaker[AsyncSession]:
 @pytest.fixture
 async def admin_client() -> AsyncIterator[AsyncClient]:
     """ASGI test client with DB overrides so all DB calls go through _Session."""
-    from oracle.api.admin import get_log_session_factory as admin_log_factory
-    from oracle.api.queries import get_log_session_factory as query_log_factory
-    from oracle.core.db import get_session
-    from oracle.main import app
+    from grove.api.admin import get_log_session_factory as admin_log_factory
+    from grove.api.queries import get_log_session_factory as query_log_factory
+    from grove.core.db import get_session
+    from grove.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
     app.dependency_overrides[admin_log_factory] = _override_get_log_session_factory
@@ -441,18 +441,18 @@ async def test_retrieval_degrades_gracefully_when_cap_exceeded() -> None:
     """When SpendCapExceededError is raised, post_query skips synthesis and
     returns answer=None with sources still populated.
 
-    check_spend_cap is patched at the oracle.api.queries module level so that
+    check_spend_cap is patched at the grove.api.queries module level so that
     the mock takes effect regardless of how the import is resolved.
     DB calls are routed through _Session via dependency_overrides.
     Embedding is skipped by patching get_embedding_provider.
     """
     from unittest.mock import AsyncMock, MagicMock
 
-    from oracle.admin.spend import SpendCapExceededError
-    from oracle.api.queries import get_log_session_factory
-    from oracle.core.db import get_session
-    from oracle.embeddings import EMBEDDING_DIM
-    from oracle.main import app
+    from grove.admin.spend import SpendCapExceededError
+    from grove.api.queries import get_log_session_factory
+    from grove.core.db import get_session
+    from grove.embeddings import EMBEDDING_DIM
+    from grove.main import app
 
     raise_exc = SpendCapExceededError(spend_usd=25.0, cap_usd=20.0)
 
@@ -466,8 +466,8 @@ async def test_retrieval_degrades_gracefully_when_cap_exceeded() -> None:
 
     try:
         with (
-            patch("oracle.api.queries.check_spend_cap", side_effect=raise_exc),
-            patch("oracle.api.queries.get_embedding_provider", return_value=mock_provider),
+            patch("grove.api.queries.check_spend_cap", side_effect=raise_exc),
+            patch("grove.api.queries.get_embedding_provider", return_value=mock_provider),
         ):
             async with AsyncClient(
                 transport=ASGITransport(app=app), base_url="http://test"
@@ -503,7 +503,7 @@ async def test_enrichment_check_raises_spend_cap_exceeded_error(
     for the rest of the month. This test verifies the error is structured
     correctly so the caller can catch it specifically.
     """
-    from oracle.admin.spend import SpendCapExceededError, check_spend_cap
+    from grove.admin.spend import SpendCapExceededError, check_spend_cap
 
     cap = 1.0
     ql = _make_query_log(synthesis_cost=2.0)  # 200% — clearly over
@@ -535,7 +535,7 @@ async def test_classify_and_write_no_ops_when_spend_cap_exceeded(
     """classify_and_write skips the LLM call and sets enrichment_error when
     the spend cap is exceeded.
 
-    Patches oracle.enrichment.orchestrator.check_spend_cap to raise
+    Patches grove.enrichment.orchestrator.check_spend_cap to raise
     SpendCapExceededError, then verifies:
       - classify_memory was NOT called (LLM skipped entirely)
       - memory.enrichment_error is set to "spend_cap_exceeded"
@@ -545,9 +545,9 @@ async def test_classify_and_write_no_ops_when_spend_cap_exceeded(
     from datetime import UTC, datetime
     from unittest.mock import AsyncMock, patch
 
-    from oracle.admin.spend import SpendCapExceededError
-    from oracle.enrichment.orchestrator import classify_and_write
-    from oracle.models import Memory
+    from grove.admin.spend import SpendCapExceededError
+    from grove.enrichment.orchestrator import classify_and_write
+    from grove.models import Memory
 
     memory = Memory(
         id=uuid.uuid4(),
@@ -566,12 +566,12 @@ async def test_classify_and_write_no_ops_when_spend_cap_exceeded(
     try:
         with (
             patch(
-                "oracle.enrichment.orchestrator.check_spend_cap",
+                "grove.enrichment.orchestrator.check_spend_cap",
                 new_callable=AsyncMock,
                 side_effect=exc,
             ),
             patch(
-                "oracle.enrichment.orchestrator.classify_memory",
+                "grove.enrichment.orchestrator.classify_memory",
                 mock_classify,
             ),
         ):

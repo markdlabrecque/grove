@@ -29,14 +29,14 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.embeddings import EMBEDDING_DIM
-from oracle.models.appointment import Appointment
-from oracle.models.decision import Decision
-from oracle.models.memory import Memory
-from oracle.models.people_interaction import PeopleInteraction
-from oracle.models.query_log import QueryLog
-from oracle.models.task import Task
+from grove.core.config import settings
+from grove.embeddings import EMBEDDING_DIM
+from grove.models.appointment import Appointment
+from grove.models.decision import Decision
+from grove.models.memory import Memory
+from grove.models.people_interaction import PeopleInteraction
+from grove.models.query_log import QueryLog
+from grove.models.task import Task
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -61,10 +61,10 @@ _FAR_VEC = [0.0] + [1.0] + [0.0] * (EMBEDDING_DIM - 2)
 def override_db_and_api_key(monkeypatch) -> None:  # type: ignore[misc]
     from pydantic import SecretStr
 
-    from oracle.api.queries import get_log_session_factory
-    from oracle.core.config import settings
-    from oracle.core.db import get_session
-    from oracle.main import app
+    from grove.api.queries import get_log_session_factory
+    from grove.core.config import settings
+    from grove.core.db import get_session
+    from grove.main import app
 
     async def _override_get_session() -> AsyncIterator[AsyncSession]:
         async with _TestSession() as session:
@@ -179,50 +179,50 @@ class TestIntentParser:
     """Unit tests for parse_intent_response — no DB, no HTTP."""
 
     def test_happy_path_single_intent(self) -> None:
-        from oracle.retrieval.intent_router import parse_intent_response
+        from grove.retrieval.intent_router import parse_intent_response
 
         result = parse_intent_response('{"intents": ["decisions"]}')
         assert result == ["decisions"]
 
     def test_happy_path_multiple_intents(self) -> None:
-        from oracle.retrieval.intent_router import parse_intent_response
+        from grove.retrieval.intent_router import parse_intent_response
 
         result = parse_intent_response('{"intents": ["tasks", "appointments"]}')
         assert set(result) == {"tasks", "appointments"}
 
     def test_general_intent_returns_general(self) -> None:
-        from oracle.retrieval.intent_router import parse_intent_response
+        from grove.retrieval.intent_router import parse_intent_response
 
         result = parse_intent_response('{"intents": ["general"]}')
         assert result == ["general"]
 
     def test_empty_intents_falls_back_to_general(self) -> None:
-        from oracle.retrieval.intent_router import parse_intent_response
+        from grove.retrieval.intent_router import parse_intent_response
 
         result = parse_intent_response('{"intents": []}')
         assert result == ["general"]
 
     def test_malformed_json_falls_back_to_general(self) -> None:
-        from oracle.retrieval.intent_router import parse_intent_response
+        from grove.retrieval.intent_router import parse_intent_response
 
         result = parse_intent_response("not json at all {{{")
         assert result == ["general"]
 
     def test_missing_intents_key_falls_back_to_general(self) -> None:
-        from oracle.retrieval.intent_router import parse_intent_response
+        from grove.retrieval.intent_router import parse_intent_response
 
         result = parse_intent_response('{"something_else": ["decisions"]}')
         assert result == ["general"]
 
     def test_unknown_intent_values_are_filtered(self) -> None:
-        from oracle.retrieval.intent_router import parse_intent_response
+        from grove.retrieval.intent_router import parse_intent_response
 
         result = parse_intent_response('{"intents": ["decisions", "unknown_category"]}')
         # unknown_category is silently dropped; decisions survives
         assert result == ["decisions"]
 
     def test_all_unknown_values_falls_back_to_general(self) -> None:
-        from oracle.retrieval.intent_router import parse_intent_response
+        from grove.retrieval.intent_router import parse_intent_response
 
         result = parse_intent_response('{"intents": ["banana", "pineapple"]}')
         assert result == ["general"]
@@ -236,7 +236,7 @@ class TestIntentParser:
 @pytest.mark.asyncio
 async def test_query_decisions(db_session: AsyncSession) -> None:
     """query_decisions returns memory_ids for rows matching the query terms."""
-    from oracle.retrieval.intent_router import query_decisions
+    from grove.retrieval.intent_router import query_decisions
 
     memory_id = await _seed_memory(db_session, content="Decided to use OAuth2 for auth.")
     try:
@@ -260,7 +260,7 @@ async def test_query_decisions(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_query_people(db_session: AsyncSession) -> None:
     """query_people returns memory_ids for rows matching a person's name."""
-    from oracle.retrieval.intent_router import query_people
+    from grove.retrieval.intent_router import query_people
 
     memory_id = await _seed_memory(db_session, content="Had coffee with Alice.")
     try:
@@ -283,7 +283,7 @@ async def test_query_people(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_query_tasks(db_session: AsyncSession) -> None:
     """query_tasks returns memory_ids for open tasks due in the relevant window."""
-    from oracle.retrieval.intent_router import query_tasks
+    from grove.retrieval.intent_router import query_tasks
 
     memory_id = await _seed_memory(db_session, content="Need to send Alice the RFC draft.")
     try:
@@ -308,7 +308,7 @@ async def test_query_tasks(db_session: AsyncSession) -> None:
 @pytest.mark.asyncio
 async def test_query_appointments(db_session: AsyncSession) -> None:
     """query_appointments returns memory_ids for future appointments."""
-    from oracle.retrieval.intent_router import query_appointments
+    from grove.retrieval.intent_router import query_appointments
 
     memory_id = await _seed_memory(db_session, content="Quarterly review booked for next month.")
     try:
@@ -345,10 +345,10 @@ async def test_empty_table_skipped() -> None:
     """
     from unittest.mock import AsyncMock, patch
 
-    from oracle.retrieval.intent_router import run_specialised_queries
+    from grove.retrieval.intent_router import run_specialised_queries
 
     # Patch _table_has_rows to always return False (simulating an empty table).
-    with patch("oracle.retrieval.intent_router._table_has_rows", new=AsyncMock(return_value=False)):
+    with patch("grove.retrieval.intent_router._table_has_rows", new=AsyncMock(return_value=False)):
         # session argument is unused when the table is reported as empty.
         result = await run_specialised_queries(  # type: ignore[arg-type]
             None, ["decisions"], "some query"
@@ -368,7 +368,7 @@ async def test_empty_table_skipped() -> None:
 
 def test_merge_with_specialised_adds_new_candidate() -> None:
     """merge_with_specialised adds a specialised-only memory_id to the candidate set."""
-    from oracle.retrieval.intent_router import merge_with_specialised
+    from grove.retrieval.intent_router import merge_with_specialised
 
     vector_id = uuid.uuid4()
     specialised_id = uuid.uuid4()
@@ -397,7 +397,7 @@ def test_merge_with_specialised_adds_new_candidate() -> None:
 
 def test_merge_with_specialised_boosts_existing_vector_hit() -> None:
     """A memory in both vector and specialised results gets the boost applied."""
-    from oracle.retrieval.intent_router import merge_with_specialised
+    from grove.retrieval.intent_router import merge_with_specialised
 
     shared_id = uuid.uuid4()
 
@@ -439,7 +439,7 @@ async def test_specialised_hit_surfaces_non_topk_memory(db_session: AsyncSession
     DB state (the shared dev DB may have 50+ higher-scoring vector memories), so we
     assert the intent router behaviour (tables_searched) rather than the ranked output.
     """
-    from oracle.main import app
+    from grove.main import app
 
     close_id = await _seed_memory(
         db_session, embedding=_QUERY_VEC, content="Top-K vector hit memory."
@@ -511,7 +511,7 @@ async def test_specialised_hit_surfaces_non_topk_memory(db_session: AsyncSession
 @respx.mock
 async def test_tables_searched_populated(db_session: AsyncSession) -> None:
     """tables_searched on query_logs contains intent router results."""
-    from oracle.main import app
+    from grove.main import app
 
     query_text = f"tables_searched_test_{uuid.uuid4().hex}"
     memory_id = await _seed_memory(db_session, embedding=_QUERY_VEC, content="Test memory.")
@@ -565,7 +565,7 @@ async def test_tables_searched_populated(db_session: AsyncSession) -> None:
 @respx.mock
 async def test_intent_router_cost_stamped(db_session: AsyncSession) -> None:
     """intent_router_cost, _input_tokens, _output_tokens, _model are stamped per query."""
-    from oracle.main import app
+    from grove.main import app
 
     query_text = f"cost_stamp_test_{uuid.uuid4().hex}"
     memory_id = await _seed_memory(db_session, embedding=_QUERY_VEC, content="Cost test memory.")

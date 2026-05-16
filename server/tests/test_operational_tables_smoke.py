@@ -13,8 +13,8 @@ import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from oracle.core.config import settings
-from oracle.models import EnrichmentState, QueryLog
+from grove.core.config import settings
+from grove.models import EnrichmentState, QueryLog
 
 
 @pytest.fixture

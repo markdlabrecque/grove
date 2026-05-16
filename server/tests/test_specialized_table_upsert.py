@@ -35,8 +35,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from oracle.core.config import settings
-from oracle.models import Appointment, Decision, Memory, PeopleInteraction, Task
+from grove.core.config import settings
+from grove.models import Appointment, Decision, Memory, PeopleInteraction, Task
 
 _engine = create_async_engine(settings.database_url, poolclass=NullPool)
 _Session = async_sessionmaker(_engine, expire_on_commit=False)
@@ -142,7 +142,7 @@ async def test_insert_if_not_exists_idempotent(
     kwargs: dict,
 ) -> None:
     """Calling insert_if_not_exists twice with same (memory_id, enrichment_version) → one row."""
-    from oracle.enrichment.writers import insert_if_not_exists
+    from grove.enrichment.writers import insert_if_not_exists
 
     memory = await _seed_memory(db_session)
     enrichment_version = 1
@@ -242,7 +242,7 @@ async def test_different_enrichment_version_allowed(
     The unique constraint is (memory_id, enrichment_version), NOT just memory_id,
     so re-enrichment (bumping the version) must produce a second row.
     """
-    from oracle.enrichment.writers import insert_if_not_exists
+    from grove.enrichment.writers import insert_if_not_exists
 
     memory = await _seed_memory(db_session)
 
@@ -348,7 +348,7 @@ async def test_concurrent_inserts_produce_one_row(
     This is the core guard against the double-claim scenario described in #201.
     Each concurrent call uses its own session (as the real workers do).
     """
-    from oracle.enrichment.writers import insert_if_not_exists
+    from grove.enrichment.writers import insert_if_not_exists
 
     memory = await _seed_memory(db_session)
     enrichment_version = 1
@@ -405,7 +405,7 @@ async def test_worker_concurrent_runs_no_duplicate_specialised_rows(
 
     Uses Decision rows as the representative specialised table.
     """
-    from oracle.enrichment.writers import insert_if_not_exists
+    from grove.enrichment.writers import insert_if_not_exists
 
     # Seed two memories.
     m1 = await _seed_memory(db_session)
