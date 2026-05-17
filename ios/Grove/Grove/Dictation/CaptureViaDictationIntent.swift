@@ -56,7 +56,7 @@ struct CaptureViaDictationIntent: AppIntent {
 /// - Shortcuts app under "Grove"
 /// - Action Button settings picker
 /// - Siri suggestions
-struct OracleShortcutsProvider: AppShortcutsProvider {
+struct GroveShortcutsProvider: AppShortcutsProvider {
   static var appShortcuts: [AppShortcut] {
     AppShortcut(
       intent: CaptureViaDictationIntent(),

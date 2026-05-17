@@ -95,7 +95,7 @@ struct GroveApp: App {
 
     // Donate the dictation App Intent so it appears in the Shortcuts picker
     // and the Action Button settings panel (#326).
-    OracleShortcutsProvider.updateAppShortcutParameters()
+    GroveShortcutsProvider.updateAppShortcutParameters()
 
     // Eager launch drain: flush any rows that were enqueued in a previous
     // session (force-kill, offline-at-save, etc.). We do this unconditionally
