@@ -48,11 +48,9 @@ struct RootView: View {
 
   // MARK: - Appearance override (#336)
 
-  /// Reads the persisted appearance preference and maps it to a
-  /// `ColorScheme?` value for `.preferredColorScheme(_:)`.
-  ///
-  /// `"system"` (or any unrecognised value) → `nil` (follows OS).
-  /// `"light"` → `.light`, `"dark"` → `.dark`.
+  /// Reads the persisted appearance-preference key from `AppStorage`.
+  /// See `colorScheme(for:)` for the authoritative `"light"` / `"dark"` /
+  /// `"system"` mapping.
   @AppStorage(SettingsViewModel.appearancePreferenceKey)
   private var appearancePreference: String = "system"
 
