@@ -580,6 +580,25 @@ the local Docker Compose stack.
 - The compose stack (`make up`) must be up and the `app` container healthy.
   The LaunchAgent does not start the stack automatically.
 
+### Missed-interval behaviour
+
+`StartCalendarInterval` does **not** catch up missed runs. If the host is
+asleep or off during a scheduled window, that enrichment run is silently
+skipped — launchd will fire again at the next scheduled wall-clock time.
+This is Apple-documented behaviour (macOS 10.15+) and is generally fine for
+a dev host.
+
+By contrast, the Linux systemd timer (`ops/systemd/grove-enrichment.timer`)
+has `Persistent=true`, so it fires one catch-up run immediately after the
+host wakes if a window was missed while it was down.
+
+If you need to recover after a period of missed enrichment (e.g. the laptop
+slept through several overnight windows), trigger a manual run:
+
+```bash
+launchctl kickstart gui/$(id -u)/com.affinitybridge.grove-enrichment
+```
+
 ### Install
 
 Replace the two placeholders in the template (`__REPO_ROOT__` and
