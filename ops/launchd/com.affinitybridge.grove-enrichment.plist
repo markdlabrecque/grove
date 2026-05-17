@@ -7,13 +7,13 @@
   This plist is a TEMPLATE. Two placeholders must be replaced before loading:
 
     __REPO_ROOT__   absolute path to your local checkout
-                    e.g. /Users/mark/Projects/the-oracle
+                    e.g. /Users/mark/Projects/grove
     __USER_HOME__   your home directory, i.e. /Users/<your-username>
 
   Quick setup — one sed invocation handles both substitutions
   (see ops/RUNBOOK.md §Enrichment scheduler (macOS LaunchAgent) for details):
 
-    REPO_ROOT="$HOME/Projects/the-oracle"   # adjust to your checkout path
+    REPO_ROOT="$HOME/Projects/grove"   # adjust to your checkout path
     mkdir -p ~/Library/LaunchAgents ~/Library/Logs/grove
     sed \
         -e "s|__REPO_ROOT__|${REPO_ROOT}|g" \
