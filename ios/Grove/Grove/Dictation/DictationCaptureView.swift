@@ -275,7 +275,7 @@ struct DictationCaptureView: View {
     )
     .disabled(!viewModel.isSaveEnabled)
     .accessibilityLabel("Save capture")
-    .accessibilityHint("Saves the dictated text to The Oracle")
+    .accessibilityHint("Saves the dictated text to Grove")
   }
 
   // MARK: - Status area
