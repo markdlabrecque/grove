@@ -70,7 +70,7 @@ The Grove server itself (FastAPI, Postgres, the hourly enrichment LaunchAgent, o
 | **Capture friction (one-handed, walking)** | ★★★★★ Best — Action Button + dictation in one tap | ★★★ Decent — open Element, hold to record | ★★★★★ Best — Action Button + dictation in one tap |
 | **Cross-device support** | iOS only (without building Mac/Watch apps) | Excellent — Element on iOS, macOS, watchOS, web, Linux | Good — Shortcuts on iOS / macOS / watchOS; web for desktop browsers |
 | **Voice support (server-side STT)** | Native iOS dictation (free, fast) | Voice notes as audio attachments → Whisper | Native iOS dictation (free, fast) |
-| **Ask / query UX** | Native UI, can be polished | Chat-style, natural for conversational queries | Spoken response via Shortcut, or visit web UI |
+| **Ask / query UX** | Native UI, single-turn (no conversation today) | Chat-style affordance, but multi-turn would still need server-side session support | Spoken response via Shortcut, or visit web UI |
 | **Browse / search UX** | Native UI, swipeable lists, search bar | Search inside Matrix room (limited); supplement with web UI | Web UI only |
 | **Maintenance burden** | High — iOS SDK churn, TestFlight resigns every 90 days, dependency updates | Medium — Conduit updates, bridge updates, occasional federation tweaks | Low — Shortcuts rarely break; server is the main thing to maintain |
 | **Latency (server local)** | <100 ms perceived | ~200–500 ms (homeserver hop) | <100 ms perceived |
@@ -172,6 +172,8 @@ A few useful observations across the three:
 4. **Build effort is highest for the iOS app** in the long tail (every new feature is Swift work). Matrix has a meaningful one-time cost but lower marginal cost per feature (bot logic in Python). Shortcuts has the lowest both up-front and marginal.
 
 5. **All three can coexist.** Nothing prevents running the iOS app *and* exposing the same API to Shortcuts and Matrix bots. The question is whether the cost of maintaining all three exceeds the value of having multiple surfaces.
+
+6. **Multi-turn / conversational Ask is not a current feature.** The existing iOS app's Ask flow is single-turn: each query is independent, with no session state carried between asks. A "Recent Queries" chip strip lets you re-run past queries but doesn't thread them. Adding multi-turn would be net-new work on whichever surface — and arguably easier in a web UI (chat-style is a well-trod web pattern) than in SwiftUI. This row in the comparison table should not be read as "the iOS app gives you conversation today and Shortcuts loses it."
 
 ## Hybrid possibilities worth considering
 
