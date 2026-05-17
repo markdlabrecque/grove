@@ -3,18 +3,18 @@ import Foundation
 import GroveCore
 @testable import Grove
 
-/// Anchor class used solely to locate the OracleTests bundle at runtime.
+/// Anchor class used solely to locate the GroveTests bundle at runtime.
 ///
 /// Swift Testing `@Suite` structs have no `self` that is an `NSObject`, so
 /// `Bundle(for:)` must be called with a named class. This private class lives
-/// in the OracleTests target and therefore resolves to the correct bundle
+/// in the GroveTests target and therefore resolves to the correct bundle
 /// regardless of which process loads the tests.
 private final class BundleLocator: NSObject {}
 
-/// Tests for JSON coding/decoding of Oracle wire-format types.
+/// Tests for JSON coding/decoding of Grove wire-format types.
 ///
-/// Fixtures live in OracleTests/Fixtures/ and are loaded by looking up the
-/// OracleTests bundle via `BundleLocator` — a lightweight class defined in
+/// Fixtures live in GroveTests/Fixtures/ and are loaded by looking up the
+/// GroveTests bundle via `BundleLocator` — a lightweight class defined in
 /// this file whose sole purpose is to anchor `Bundle(for:)`. This approach
 /// works for both Xcode test targets and SPM test targets without any extra
 /// build-settings plumbing.
@@ -58,11 +58,11 @@ struct JSONCodingTests {
 
   private func loadFixture(named name: String) throws -> Data {
     // Use BundleLocator (a class in this target) to locate the test bundle.
-    // Fixture files must be listed in OracleTests' Copy Bundle Resources
+    // Fixture files must be listed in GroveTests' Copy Bundle Resources
     // build phase in project.pbxproj.
     let bundle = Bundle(for: BundleLocator.self)
     guard let url = bundle.url(forResource: name, withExtension: "json") else {
-      Issue.record("Fixture '\(name).json' not found. Verify it is in OracleTests Copy Bundle Resources.")
+      Issue.record("Fixture '\(name).json' not found. Verify it is in GroveTests Copy Bundle Resources.")
       throw FixtureError.notFound(name)
     }
     return try Data(contentsOf: url)

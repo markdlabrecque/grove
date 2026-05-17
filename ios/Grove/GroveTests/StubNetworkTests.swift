@@ -47,7 +47,7 @@ struct StubNetworkTests {
     // Support/StubNetworkFixtures.swift as top-level free functions.
 
     private func captureResponseFixture() -> Data {
-      // Inline fixture — same values as OracleTests/Fixtures/capture_response.json.
+      // Inline fixture — same values as GroveTests/Fixtures/capture_response.json.
       // Using a literal here avoids bundle-lookup complexity (Bundle(for:) requires
       // a class; Swift Testing suites are structs).
       let fixture = """

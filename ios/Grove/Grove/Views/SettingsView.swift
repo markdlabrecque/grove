@@ -3,7 +3,7 @@ import GroveCore
 
 // MARK: - SettingsView
 
-/// The Settings screen for The Oracle.
+/// The Settings screen for Grove.
 ///
 /// Reachable from the Settings tab (gear icon).  Sections:
 ///   1. **Server** — URL and bearer token (persisted to Keychain).
