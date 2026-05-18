@@ -101,8 +101,11 @@ struct DictationCaptureView: View {
       if let text = initialTranscript, !text.isEmpty {
         // Resume mode — pre-fill transcript without arming the mic.
         viewModel.resume(from: DictationDraft(transcript: text))
-      } else {
-        // Fresh mode — arm mic immediately.
+      } else if viewModel.recordingState == .idle {
+        // Fresh mode — arm mic immediately.  The idle check prevents a
+        // second .task invocation (e.g. scene re-appearance) from firing
+        // startDictation() again and wiping an in-progress transcript.
+        // startDictation() also has its own re-entry guard as defence-in-depth.
         await viewModel.startDictation()
       }
     }

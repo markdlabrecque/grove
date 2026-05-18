@@ -98,7 +98,12 @@ final class DictationCaptureViewModel {
   // MARK: - Dictation lifecycle
 
   /// Request permissions and begin dictation.
+  ///
+  /// No-ops if a session is already in progress (re-entry guard).  This prevents
+  /// the `.task` modifier in ``DictationCaptureView`` from firing a second
+  /// `startDictation()` call — which previously wiped `transcript = ""` mid-session.
   func startDictation() async {
+    guard recordingState == .idle else { return }
     recordingState = .requesting
     do {
       try await controller.requestAuthorization()
