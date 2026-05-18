@@ -177,6 +177,78 @@ struct DictationCaptureViewModelModalityTests {
   }
 }
 
+// MARK: - Re-entry guard (#385)
+
+/// Verifies that calling `startDictation()` while a session is already in
+/// progress does NOT wipe the in-progress transcript.
+///
+/// ## Repro
+///
+/// The `.task` modifier in `DictationCaptureView` fired a second
+/// `startDictation()` call on re-appearance (e.g. Action Button re-tap while
+/// the sheet was still on screen).  Before the guard, line 119 of
+/// `DictationCaptureViewModel.startDictation()` set `transcript = ""`
+/// unconditionally, discarding any partial text the user had already spoken.
+///
+/// ## CI note
+///
+/// This test lives in the `GroveTests` app target (`make ios-test-app`).
+/// `make ios-test-core` (SPM / CI) does NOT exercise it — call that out in
+/// the PR body so future CI work can close the gap.
+@Suite("DictationCaptureViewModel.startDictation re-entry guard")
+@MainActor
+struct DictationCaptureViewModelReentryTests {
+
+  /// Calling `startDictation()` while `recordingState == .stopped` (i.e. a
+  /// session is in-progress) must leave the transcript unchanged.
+  @Test("startDictation() while stopped does not wipe transcript")
+  func startDictationWhileStoppedDoesNotWipeTranscript() async throws {
+    let mock = MockSpeechRecognizer()
+    mock.isAvailable = false  // Fast-exit path; no audio engine started.
+    let controller = DictationController(recognizer: mock)
+    let vm = DictationCaptureViewModel(
+      controller: controller,
+      uploadQueue: try makeQueue()
+    )
+
+    // Simulate a session that has already finished — user has spoken, transcript populated.
+    vm.recordingState = .stopped
+    vm.transcript = "In-progress thought that must not be lost"
+
+    // A second call to startDictation() — e.g. triggered by the view's .task
+    // re-firing — must not wipe the transcript.
+    await vm.startDictation()
+
+    #expect(
+      vm.transcript == "In-progress thought that must not be lost",
+      "startDictation() while not idle must not clear the in-progress transcript"
+    )
+  }
+
+  /// Calling `startDictation()` while `recordingState == .recording` must
+  /// also leave the transcript unchanged.
+  @Test("startDictation() while recording does not wipe transcript")
+  func startDictationWhileRecordingDoesNotWipeTranscript() async throws {
+    let mock = MockSpeechRecognizer()
+    mock.isAvailable = false
+    let controller = DictationController(recognizer: mock)
+    let vm = DictationCaptureViewModel(
+      controller: controller,
+      uploadQueue: try makeQueue()
+    )
+
+    vm.recordingState = .recording
+    vm.transcript = "Partial spoken text"
+
+    await vm.startDictation()
+
+    #expect(
+      vm.transcript == "Partial spoken text",
+      "startDictation() while recording must not clear the partial transcript"
+    )
+  }
+}
+
 // MARK: - Language detection for dictated captures (#340)
 
 @Suite("DictationCaptureViewModel.save detectedLanguage")
