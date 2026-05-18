@@ -34,6 +34,8 @@
 		A1000007 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000007 /* Assets.xcassets */; };
 		A1000009 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A2000009 /* Preview Assets.xcassets */; };
 		A100000A /* GroveCore in Frameworks */ = {isa = PBXBuildFile; productRef = A200000D /* GroveCore */; };
+		D100000E /* WhisperKit in Frameworks */ = {isa = PBXBuildFile; productRef = D200000E /* WhisperKit */; };
+		D100002E /* WhisperKitRecognizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = D200002E /* WhisperKitRecognizer.swift */; };
 		B1000001 /* ConfigTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000001 /* ConfigTests.swift */; };
 		B1000002 /* GroveAPITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000002 /* GroveAPITests.swift */; };
 		B1000003 /* JSONCodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000003 /* JSONCodingTests.swift */; };
@@ -119,6 +121,7 @@
 		A2000024 /* DictationCaptureViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCaptureViewModel.swift; sourceTree = "<group>"; };
 		A2000025 /* DictationResumeBanner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationResumeBanner.swift; sourceTree = "<group>"; };
 		A2000026 /* CaptureViaDictationIntent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureViaDictationIntent.swift; sourceTree = "<group>"; };
+		D200002E /* WhisperKitRecognizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WhisperKitRecognizer.swift; sourceTree = "<group>"; };
 		B200001A /* DictationControllerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationControllerTests.swift; sourceTree = "<group>"; };
 		B200001B /* DictationCaptureViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationCaptureViewModelTests.swift; sourceTree = "<group>"; };
 		B200001C /* DictationResumeBannerStateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictationResumeBannerStateTests.swift; sourceTree = "<group>"; };
@@ -151,6 +154,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A100000A /* GroveCore in Frameworks */,
+				D100000E /* WhisperKit in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -246,6 +250,7 @@
 				A2000023 /* DictationCaptureView.swift */,
 				A2000024 /* DictationCaptureViewModel.swift */,
 				A2000026 /* CaptureViaDictationIntent.swift */,
+				D200002E /* WhisperKitRecognizer.swift */,
 			);
 			path = Dictation;
 			sourceTree = "<group>";
@@ -337,6 +342,7 @@
 			name = Grove;
 			packageProductDependencies = (
 				A200000D /* GroveCore */,
+				D200000E /* WhisperKit */,
 			);
 			productName = Grove;
 			productReference = A2000000 /* Grove.app */;
@@ -416,6 +422,7 @@
 			mainGroup = A3000000;
 			packageReferences = (
 				A200000E /* XCLocalSwiftPackageReference "GroveCore" */,
+				D200000F /* XCRemoteSwiftPackageReference "argmax-oss-swift" */,
 			);
 			productRefGroup = A3000002 /* Products */;
 			projectDirPath = "";
@@ -488,6 +495,7 @@
 				A1000024 /* DictationCaptureViewModel.swift in Sources */,
 				A1000025 /* DictationResumeBanner.swift in Sources */,
 				A1000026 /* CaptureViaDictationIntent.swift in Sources */,
+				D100002E /* WhisperKitRecognizer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -864,6 +872,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		D200000F /* XCRemoteSwiftPackageReference "argmax-oss-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/argmaxinc/argmax-oss-swift";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.0.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		A200000D /* GroveCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -879,6 +898,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A200000E /* XCLocalSwiftPackageReference "GroveCore" */;
 			productName = GroveTestSupport;
+		};
+		D200000E /* WhisperKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D200000F /* XCRemoteSwiftPackageReference "argmax-oss-swift" */;
+			productName = WhisperKit;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
