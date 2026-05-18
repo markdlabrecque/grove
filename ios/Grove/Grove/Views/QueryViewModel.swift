@@ -249,12 +249,20 @@ final class QueryViewModel {
 
   /// Handle a tap on a recent-query chip.
   ///
-  /// Sets `query` to the chip's text and immediately calls `ask()` so the view
-  /// fires a fresh submit rather than just showing cached results. This matches
-  /// the "tap-to-rerun fires a fresh query" contract from the ticket.
+  /// Sets `query` to the chip's text, fires a fresh submit, then restores
+  /// `query` to the chip text so the field reflects what was asked.
+  ///
+  /// `ask()` captures the trimmed value into a local before clearing `query`
+  /// to empty (#380 clear-on-submit contract). Restoring after the call
+  /// satisfies both contracts:
+  ///   - The chip text is visible in the field after tap.
+  ///   - The in-flight query still runs against the chip text (not against
+  ///     the empty string that `ask()` leaves behind).
   func tapRecentQuery(_ item: RecentQueryItem) {
     query = item.queryText
     ask()
+    // Restore the chip text after ask() clears the field (#380 compatibility).
+    query = item.queryText
   }
 
   // MARK: - Ask
