@@ -271,6 +271,11 @@ final class QueryViewModel {
     // Cancel any prior in-flight request before starting a new one.
     cancel()
 
+    // Clear the visible input so the user sees a fresh field while the
+    // result renders below (#380). The trimmed value is already captured
+    // into `trimmed` so the in-flight query is unaffected.
+    query = ""
+
     activeTask = Task {
       await performQuery(trimmed)
     }
