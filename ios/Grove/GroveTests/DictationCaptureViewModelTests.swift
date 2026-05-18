@@ -12,7 +12,7 @@ import GroveCore
 ///
 /// - `makeDraftIfNeeded()` — returns a draft when recording with a non-empty
 ///   partial transcript; returns `nil` otherwise.
-/// - `save()` — encoded payload has `source_modality == "dictated"`.
+/// - `save()` — encoded payload has `source_modality == "voice"`.
 ///
 /// These tests do not exercise the audio engine.  Where a `DictationController`
 /// is needed, the mock seam from `DictationControllerTests.swift` is used with
@@ -128,7 +128,7 @@ struct DictationCaptureViewModelDraftTests {
   }
 }
 
-// MARK: - sourceModality for dictated captures
+// MARK: - sourceModality for voice captures
 
 @Suite("DictationCaptureViewModel.save sourceModality")
 @MainActor
@@ -142,11 +142,11 @@ struct DictationCaptureViewModelModalityTests {
     }
   }
 
-  @Test("buildPayload with 'dictated' encodes source_modality as 'dictated'")
-  func dictatedPayloadEncodesCorrectModality() throws {
+  @Test("buildPayload with 'voice' encodes source_modality as 'voice'")
+  func voicePayloadEncodesCorrectModality() throws {
     let payload = CaptureViewModel.buildPayload(
       content: "Hello from the Action Button",
-      sourceModality: "dictated",
+      sourceModality: "voice",
       applyFillerCleanup: false,
       detectedLanguage: nil,
       languageHint: nil
@@ -154,16 +154,16 @@ struct DictationCaptureViewModelModalityTests {
     let encoded = try CaptureViewModel.encodePayload(payload)
     let decoded = try JSONDecoder().decode(DecodedBody.self, from: encoded)
     #expect(
-      decoded.sourceModality == "dictated",
-      "Dictation captures must set source_modality to 'dictated', not 'text' or 'typed'"
+      decoded.sourceModality == "voice",
+      "Dictation captures must set source_modality to 'voice' (server contract — see captures.py)"
     )
   }
 
-  @Test("buildPayload with 'typed' encodes source_modality as 'typed'")
-  func typedPayloadEncodesCorrectModality() throws {
+  @Test("buildPayload with 'text' encodes source_modality as 'text'")
+  func textPayloadEncodesCorrectModality() throws {
     let payload = CaptureViewModel.buildPayload(
       content: "Hello from the keyboard",
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: false,
       detectedLanguage: nil,
       languageHint: nil
@@ -171,8 +171,8 @@ struct DictationCaptureViewModelModalityTests {
     let encoded = try CaptureViewModel.encodePayload(payload)
     let decoded = try JSONDecoder().decode(DecodedBody.self, from: encoded)
     #expect(
-      decoded.sourceModality == "typed",
-      "Keyboard captures must set source_modality to 'typed'"
+      decoded.sourceModality == "text",
+      "Keyboard captures must set source_modality to 'text' (server contract — see captures.py)"
     )
   }
 }
@@ -209,7 +209,7 @@ struct DictationCaptureViewModelLanguageTests {
 
     let payload = CaptureViewModel.buildPayload(
       content: frenchTranscript,
-      sourceModality: "dictated",
+      sourceModality: "voice",
       applyFillerCleanup: false,
       detectedLanguage: detected,
       languageHint: "en"
