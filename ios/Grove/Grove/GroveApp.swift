@@ -56,10 +56,9 @@ struct GroveApp: App {
   ///
   /// `UploadQueue` is a `@ModelActor`; its executor is backed by the shared
   /// `modelContainer`'s concurrency domain. No explicit `ModelContext` is needed
-  /// at the call site — the macro provides it. Stored as `nonisolated(unsafe)` so
-  /// it is accessible from the main actor without crossing an isolation boundary
-  /// at declaration time. The actor's own serial executor protects all mutations.
-  nonisolated(unsafe) static let uploadQueue: UploadQueue = {
+  /// at the call site — the macro provides it. The actor's own serial executor
+  /// protects all mutations, and `@ModelActor` synthesises `Sendable` conformance.
+  nonisolated static let uploadQueue: UploadQueue = {
     UploadQueue(
       modelContainer: GroveApp.modelContainer,
       api: GroveAPI.shared,
