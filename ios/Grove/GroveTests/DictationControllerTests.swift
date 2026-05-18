@@ -306,4 +306,94 @@ final class DictationControllerTests: XCTestCase {
       return XCTFail("Expected .error, got \(events[0])")
     }
   }
+
+  // MARK: - Silence-timeout confirm path (#387)
+
+  /// Silence timeout after a partial result must emit `.final_` with the last
+  /// partial text — matching the explicit Stop button path — not discard it.
+  ///
+  /// ## Repro summary
+  ///
+  /// Before the fix, the silence timer called `stop()` which routed through
+  /// `recognitionRequest?.endAudio()`.  If the recognizer delivered an error
+  /// (e.g. kAFAssistantErrorDomain 203 "no speech") after `endAudio()`, the
+  /// error path in `DictationCaptureViewModel` discarded the last partial
+  /// transcript and showed an error alert instead of the editable form.
+  ///
+  /// ## Test strategy
+  ///
+  /// `_fireSilenceTimerForTesting()` is a test seam that immediately executes
+  /// the silence-timeout action without waiting for a real `Task.sleep`.  We:
+  ///   1. Inject a continuation directly (no audio engine).
+  ///   2. Push a partial result to populate `lastPartialText`.
+  ///   3. Fire the silence seam.
+  ///   4. Assert the stream emits `.final_` carrying the partial text.
+  ///
+  /// ## CI note
+  ///
+  /// This test lives in the `GroveTests` app target (`make ios-test-app`).
+  /// `make ios-test-core` (SPM / CI) does NOT exercise it.
+  func test_silenceTimeout_afterPartialResult_emitsFinalWithPartialText() async throws {
+    let mock = MockSpeechRecognizer()
+    let controller = DictationController(recognizer: mock)
+
+    var events: [DictationEvent] = []
+    let stream = AsyncStream<DictationEvent> { continuation in
+      controller._injectContinuationForTesting(continuation)
+    }
+
+    // Deliver a partial result so lastPartialText is populated.
+    let partial = StubSpeechResult(text: "Buy groceries tomorrow", isFinal: false)
+    controller.handleResult(partial, error: nil)
+
+    // Fire the silence-timeout seam — should finalize with the partial text.
+    controller._fireSilenceTimerForTesting()
+
+    for await event in stream {
+      events.append(event)
+    }
+
+    XCTAssertEqual(
+      events.count, 2,
+      "Expected one .partial then one .final_ event; got \(events)"
+    )
+    guard case .partial(let partialText) = events[0] else {
+      return XCTFail("Expected .partial as first event, got \(events[0])")
+    }
+    XCTAssertEqual(partialText, "Buy groceries tomorrow")
+
+    guard case .final_(let finalText) = events[1] else {
+      return XCTFail("Expected .final_ as second event, got \(events[1])")
+    }
+    XCTAssertEqual(
+      finalText, "Buy groceries tomorrow",
+      "Silence-timeout must preserve and finalize the last partial transcript"
+    )
+  }
+
+  /// Silence timeout with no prior speech must finish the stream cleanly
+  /// without emitting a `.final_` (no text to save).
+  func test_silenceTimeout_withNoSpeech_finishesStreamWithoutFinal() async throws {
+    let mock = MockSpeechRecognizer()
+    let controller = DictationController(recognizer: mock)
+
+    var events: [DictationEvent] = []
+    let stream = AsyncStream<DictationEvent> { continuation in
+      controller._injectContinuationForTesting(continuation)
+    }
+
+    // No partial result injected — simulates user pressing Action Button
+    // but not speaking before silence timer fires.
+    controller._fireSilenceTimerForTesting()
+
+    for await event in stream {
+      events.append(event)
+    }
+
+    // Stream should finish cleanly with no events (no speech to finalize).
+    XCTAssertTrue(
+      events.isEmpty,
+      "Silence timeout with no speech must not emit any events; got \(events)"
+    )
+  }
 }
