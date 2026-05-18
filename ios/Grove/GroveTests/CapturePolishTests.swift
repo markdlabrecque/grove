@@ -431,7 +431,7 @@ struct CaptureViewModelTokenCountTests {
     let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
     let container = try ModelContainer(for: schema, configurations: [config])
     let api = GroveAPI(
-      baseURL: URL(string: "https://oracle.test.example")!,
+      baseURL: URL(string: "https://grove.test.example")!,
       bearerToken: "test-token"
     )
     return UploadQueue(modelContainer: container, api: api)

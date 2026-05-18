@@ -11,7 +11,7 @@ import Security
 /// # Design
 ///
 /// - **Service isolation.** Each `KeychainStore` is scoped to a single service
-///   string (a reverse-DNS identifier, e.g. `com.the-oracle.app`).  Separate
+///   string (a reverse-DNS identifier, e.g. `com.markdlabrecque.grove`).  Separate
 ///   service strings mean separate Keychain items — tests use per-run UUIDs to
 ///   avoid pollution.
 /// - **Error surfacing.** Failures produce a thrown `KeychainError` with the
@@ -55,7 +55,7 @@ public struct KeychainStore: KeychainStoreProtocol {
   }
 
   /// The shared production instance, scoped to the app's bundle identifier.
-  public static let shared = KeychainStore(service: "com.the-oracle.app")
+  public static let shared = KeychainStore(service: "com.markdlabrecque.grove")
 
   // MARK: - CRUD
 

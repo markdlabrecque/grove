@@ -6,9 +6,9 @@ import Foundation
 /// token and server URL for runtime auth.
 ///
 /// These tests run in the SPM package via `make ios-test-core`.  They do NOT
-/// test the Xcode-target path; `OracleTests/SettingsViewModelTests.swift`
+/// test the Xcode-target path; `GroveTests/SettingsViewModelTests.swift`
 /// covers the SettingsViewModel (URL validation, force-resync sweep, AppStorage
-/// key round-trip) using `@testable import Oracle`.
+/// key round-trip) using `@testable import Grove`.
 ///
 /// Note: Keychain access in simulator + swift-test runs in a sandboxed process
 /// that *does* have a Keychain.  Items are isolated per service/account pair so
@@ -22,7 +22,7 @@ struct KeychainStoreTests {
   /// don't interfere.  The UUID guarantees isolation even when tests are
   /// re-ordered or repeated.
   private func freshService() -> String {
-    "com.oracle.test.\(UUID().uuidString)"
+    "com.markdlabrecque.grove.test.\(UUID().uuidString)"
   }
 
   // MARK: - write / read round-trip
@@ -133,12 +133,12 @@ struct KeychainStoreTests {
 
   @Test("isValidServerURL accepts a well-formed https URL")
   func isValidServerURLAcceptsHTTPS() {
-    #expect(KeychainStore.isValidServerURL("https://oracle.example.ts.net"))
+    #expect(KeychainStore.isValidServerURL("https://grove.example.ts.net"))
   }
 
   @Test("isValidServerURL accepts a URL with a port number")
   func isValidServerURLAcceptsPort() {
-    #expect(KeychainStore.isValidServerURL("https://oracle.example.ts.net:8443"))
+    #expect(KeychainStore.isValidServerURL("https://grove.example.ts.net:8443"))
   }
 
   @Test("isValidServerURL rejects an empty string")
@@ -153,7 +153,7 @@ struct KeychainStoreTests {
 
   @Test("isValidServerURL rejects a plain host without scheme")
   func isValidServerURLRejectsHostWithoutScheme() {
-    #expect(!KeychainStore.isValidServerURL("oracle.example.ts.net"))
+    #expect(!KeychainStore.isValidServerURL("grove.example.ts.net"))
   }
 
   @Test("isValidServerURL accepts http for non-production development URLs")

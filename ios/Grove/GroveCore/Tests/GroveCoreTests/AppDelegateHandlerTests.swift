@@ -28,7 +28,7 @@ struct AppDelegateHandlerTests {
 
   private func makeAPI() -> GroveAPI {
     GroveAPI(
-      baseURL: URL(string: "https://oracle.example.ts.net")!,
+      baseURL: URL(string: "https://grove.example.ts.net")!,
       bearerToken: "test-token"
     )
   }
@@ -60,7 +60,7 @@ struct AppDelegateHandlerTests {
         Task { @MainActor in
           await api.storeBackgroundCompletionHandler(
             { cont.resume() },
-            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+            forIdentifier: "com.markdlabrecque.grove.capture-upload-sentinel"
           )
           await api.drainBackgroundCompletionHandlers()
         }
@@ -90,7 +90,7 @@ struct AppDelegateHandlerTests {
         Task { @MainActor in
           await api.storeBackgroundCompletionHandler(
             { cont.resume() },
-            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+            forIdentifier: "com.markdlabrecque.grove.capture-upload-sentinel"
           )
           await api.drainBackgroundCompletionHandlers()
         }
@@ -127,7 +127,7 @@ struct AppDelegateHandlerTests {
         Task { @MainActor in
           await api.storeBackgroundCompletionHandler(
             { cont.resume() },
-            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+            forIdentifier: "com.markdlabrecque.grove.capture-upload-sentinel"
           )
           await api.drainBackgroundCompletionHandlers()
         }

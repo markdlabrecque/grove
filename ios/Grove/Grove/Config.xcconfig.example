@@ -1,4 +1,4 @@
-// Oracle — build configuration template
+// Grove — build configuration template
 //
 // Copy this file to Config.debug.xcconfig and Config.release.xcconfig.
 // Fill in real values per environment. Both copied files are gitignored.

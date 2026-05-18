@@ -15,7 +15,7 @@ struct GroveAPIRecentQueriesTests {
 
   // MARK: - Fixtures
 
-  private static let baseURL = URL(string: "https://oracle.example.ts.net")!
+  private static let baseURL = URL(string: "https://grove.example.ts.net")!
   private static let token = "recent-queries-test-token"
 
   private func makeAPI() -> GroveAPI {

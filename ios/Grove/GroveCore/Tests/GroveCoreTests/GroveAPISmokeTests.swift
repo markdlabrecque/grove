@@ -31,7 +31,7 @@ struct GroveAPISmokeTests {
 
   // MARK: - Fixtures
 
-  private static let baseURL = URL(string: "https://oracle.example.ts.net")!
+  private static let baseURL = URL(string: "https://grove.example.ts.net")!
   private static let token = "smoke-test-token"
 
   /// Build an `GroveAPI` whose `URLSession` uses a `.default` configuration

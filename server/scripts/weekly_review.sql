@@ -2,7 +2,7 @@
 -- Window: rolling 7 days ending now (UTC).
 --
 -- Run with (from repo root):
---   docker compose exec -T postgres psql -U oracle -d oracle \
+--   docker compose exec -T postgres psql -U grove -d grove \
 --       < server/scripts/weekly_review.sql
 --
 -- Sections
@@ -16,7 +16,7 @@
 
 \echo ''
 \echo '========================================================'
-\echo ' THE ORACLE — WEEKLY REVIEW'
+\echo ' GROVE — WEEKLY REVIEW'
 \echo ' Window: rolling 7 days (UTC)'
 \echo '========================================================'
 

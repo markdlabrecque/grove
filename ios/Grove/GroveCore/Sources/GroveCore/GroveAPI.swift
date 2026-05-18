@@ -1,6 +1,6 @@
 import Foundation
 
-/// Async HTTP client for the Oracle backend.
+/// Async HTTP client for the Grove backend.
 ///
 /// `postCapture` uploads a capture via a background URLSession so it survives
 /// app suspension (e.g. user presses Home immediately after tapping Save).
@@ -85,7 +85,7 @@ public actor GroveAPI {
   /// The stable identifier used when creating the background URLSession.
   /// `AppDelegate` matches on this string to route completion handlers.
   public static let backgroundSessionIdentifier =
-    "com.the-oracle.capture-upload"
+    "com.markdlabrecque.grove.capture-upload"
 
   // MARK: - Init (production singleton)
 

@@ -27,7 +27,7 @@ public struct Config: Sendable {
   /// Shared singleton; constructed once at app launch.
   public static let shared = Config()
 
-  /// The server's base URL, e.g. `https://oracle.example.ts.net`.
+  /// The server's base URL, e.g. `https://grove.example.ts.net`.
   ///
   /// At runtime this reflects the Keychain value (potentially updated by the
   /// user in Settings).  The xcconfig bootstrap value is used only when the
@@ -48,9 +48,9 @@ public struct Config: Sendable {
     //
     // Detection strategy:
     //   1. `XCTestConfigurationFilePath` — set by Xcode in the unit-test host
-    //      process when running the OracleTests target.
+    //      process when running the GroveTests target.
     //   2. `XCTestSessionIdentifier`     — set by Xcode in the app-under-test
-    //      process when running XCUITests (OracleUITests target).
+    //      process when running XCUITests (GroveUITests target).
     //
     // Note: SPM `swift test` (GroveCore package tests) uses Swift Testing and
     // does NOT set either env var. Those tests avoid `Config.shared` entirely
@@ -65,7 +65,7 @@ public struct Config: Sendable {
     if isUnderTest {
       // Stub values — never used for real network calls; tests that need a
       // live Config construct one explicitly via Config(baseURL:bearerToken:).
-      self.baseURL = URL(string: "https://oracle-test.example.ts.net")!
+      self.baseURL = URL(string: "https://grove-test.example.ts.net")!
       self.bearerToken = "test-bearer-token"
       return
     }
@@ -76,7 +76,7 @@ public struct Config: Sendable {
       !rawURL.isEmpty
     else {
       fatalError(
-        "Oracle: BASE_URL is missing in Info.plist. "
+        "Grove: BASE_URL is missing in Info.plist. "
           + "Copy Config.xcconfig.example → Config.debug.xcconfig and fill in your values."
       )
     }
@@ -87,7 +87,7 @@ public struct Config: Sendable {
       xconfigToken != "replace-me"
     else {
       fatalError(
-        "Oracle: BEARER_TOKEN is missing or still set to the placeholder in Info.plist. "
+        "Grove: BEARER_TOKEN is missing or still set to the placeholder in Info.plist. "
           + "Copy Config.xcconfig.example → Config.debug.xcconfig and fill in your values."
       )
     }
@@ -124,7 +124,7 @@ public struct Config: Sendable {
 
     guard let url = URL(string: resolvedRawURL) else {
       fatalError(
-        "Oracle: resolved BASE_URL '\(resolvedRawURL)' is not a valid URL."
+        "Grove: resolved BASE_URL '\(resolvedRawURL)' is not a valid URL."
       )
     }
 

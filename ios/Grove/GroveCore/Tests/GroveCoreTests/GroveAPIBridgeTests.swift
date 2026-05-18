@@ -39,7 +39,7 @@ import GroveTestSupport
 @Suite("GroveAPI delegate bridge", .serialized)
 struct GroveAPIBridgeTests {
 
-  private static let baseURL = URL(string: "https://oracle.example.ts.net")!
+  private static let baseURL = URL(string: "https://grove.example.ts.net")!
   private static let token = "bridge-test-token"
 
   private func makeAPI() -> GroveAPI {
@@ -428,11 +428,11 @@ struct GroveAPIBridgeTests {
 
     await api.storeBackgroundCompletionHandler(
       { box.calledA = true },
-      forIdentifier: "com.the-oracle.capture-upload"
+      forIdentifier: "com.markdlabrecque.grove.capture-upload"
     )
     await api.storeBackgroundCompletionHandler(
       { box.calledB = true },
-      forIdentifier: "com.the-oracle.capture-upload-alt"
+      forIdentifier: "com.markdlabrecque.grove.capture-upload-alt"
     )
 
     // Store a sentinel handler that resumes a continuation when the
@@ -446,7 +446,7 @@ struct GroveAPIBridgeTests {
         Task { @MainActor in
           await api.storeBackgroundCompletionHandler(
             { cont.resume() },
-            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+            forIdentifier: "com.markdlabrecque.grove.capture-upload-sentinel"
           )
           await api.drainBackgroundCompletionHandlers()
         }
@@ -466,7 +466,7 @@ struct GroveAPIBridgeTests {
 
     await api.storeBackgroundCompletionHandler(
       { counter.count += 1 },
-      forIdentifier: "com.the-oracle.capture-upload"
+      forIdentifier: "com.markdlabrecque.grove.capture-upload"
     )
 
     // First drain: await via sentinel so we know the handler has actually fired
@@ -478,7 +478,7 @@ struct GroveAPIBridgeTests {
         Task { @MainActor in
           await api.storeBackgroundCompletionHandler(
             { cont.resume() },
-            forIdentifier: "com.the-oracle.capture-upload-sentinel"
+            forIdentifier: "com.markdlabrecque.grove.capture-upload-sentinel"
           )
           await api.drainBackgroundCompletionHandlers()
         }

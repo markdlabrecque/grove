@@ -53,7 +53,7 @@ internal struct UploadQueueTestHooks {
 /// 200 response for an already-stored capture. This means `tryDrain` can safely
 /// retry rows any number of times without risk of duplicates.
 ///
-/// Reference: `server/oracle/api/captures.py` — idempotency pre-check plus
+/// Reference: `server/grove/api/captures.py` — idempotency pre-check plus
 /// `insert().on_conflict_do_nothing(index_elements=["client_id"])`.
 ///
 /// # Retry policy (#186)
@@ -586,6 +586,6 @@ extension Notification.Name {
   /// state (server returned 401).  Observers (e.g. `RootView` via `scenePhase`)
   /// use this to show the "re-enter your token" banner.
   static let authRequiredDidChange = Notification.Name(
-    "com.oracle.upload-queue.auth-required-did-change"
+    "com.markdlabrecque.grove.upload-queue.auth-required-did-change"
   )
 }

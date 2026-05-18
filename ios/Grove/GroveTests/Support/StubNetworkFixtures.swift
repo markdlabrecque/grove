@@ -15,7 +15,7 @@ import GroveTestSupport
 // MARK: - Common constants
 
 /// The base URL used by all stub-network test suites.
-let stubNetworkBaseURL = URL(string: "https://oracle.example.ts.net")!
+let stubNetworkBaseURL = URL(string: "https://grove.example.ts.net")!
 
 // MARK: - makeContainer
 

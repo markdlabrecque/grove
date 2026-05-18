@@ -40,7 +40,7 @@ Skim `docs/grove-prd.md` and `docs/grove-implementation-plan.md` once before rev
      - `regression` — existing behaviour used to work and is now broken. Jumps the queue; the orchestrator dispatches it as soon as it lands rather than holding for weekly review.
      - `enhancement` — drive-by improvements that would expand scope, refactor opportunities, observations about adjacent code that wasn't touched. Held in the backlog and dispositioned in weekly review.
      The judgment is "did this used to work?" — if yes, `regression`; if no, `enhancement`. Default to `enhancement` when unsure and flag the doubt in the issue body. Do not block merge on either.
-4. Post a single review comment on the PR via `gh pr review <PR> --comment --body "…"` summarising both buckets. Cite specific files and line numbers (`server/oracle/api/captures.py:42`). Be direct — no padding, no "great work" preamble.
+4. Post a single review comment on the PR via `gh pr review <PR> --comment --body "…"` summarising both buckets. Cite specific files and line numbers (`server/grove/api/captures.py:42`). Be direct — no padding, no "great work" preamble.
 5. If there are any must-fix issues, return control to the orchestrator with a brief summary so the implementer can address them. **Do not approve or merge.**
 
 ### Round 2 — final pass

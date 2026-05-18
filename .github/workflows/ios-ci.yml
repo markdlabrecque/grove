@@ -55,7 +55,7 @@ jobs:
   # Xcode 16+ (PackageDescription 6.0) installed.
   #
   # This is the gate that blocks merges. It covers all logic-level code:
-  # Config, OracleAPI request builder, Codable models, JSON fixtures.
+  # Config, GroveAPI request builder, Codable models, JSON fixtures.
   # ---------------------------------------------------------------------------
   stable:
     name: Core (stable gate)
