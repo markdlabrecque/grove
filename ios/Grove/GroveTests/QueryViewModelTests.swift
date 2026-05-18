@@ -294,6 +294,33 @@ struct QueryViewModelTests {
     #expect(vm.activeTask == nil)
   }
 
+  /// `ask()` must clear the visible query field synchronously so the user sees
+  /// the input reset the moment they submit (#380). The trimmed value is
+  /// captured into the local before the field is cleared, so `performQuery`
+  /// still runs against the typed text.
+  @Test("ask() clears the query field on submit")
+  func askClearsQueryFieldOnSubmit() {
+    let vm = QueryViewModel { _ in self.makeResponse() }
+
+    vm.query = "what did I read last week?"
+    vm.ask()
+
+    #expect(vm.query.isEmpty, "Query field should be empty immediately after ask() returns")
+  }
+
+  /// Guard: `ask()` is a no-op when the field is empty/whitespace, so it must
+  /// NOT touch `query` in that case. Pairs with `askClearsQueryFieldOnSubmit`
+  /// to lock in the intended behaviour.
+  @Test("ask() does not modify query when called on whitespace-only input")
+  func askDoesNotClearWhenInputIsBlank() {
+    let vm = QueryViewModel { _ in self.makeResponse() }
+
+    vm.query = "   "
+    vm.ask()
+
+    #expect(vm.query == "   ", "Whitespace-only input should be left intact (no submission occurred)")
+  }
+
   /// After a real (non-cancellation) error, `activeTask` must be `nil`.
   ///
   /// Regression lock for #100: the error path must also clear the handle so
