@@ -31,7 +31,16 @@ import GroveCore
 /// Section labels are 11pt uppercase semibold forest700. Toggles tinted forest500.
 struct SettingsView: View {
 
+  /// Identifies the focusable text fields so the keyboard toolbar's Done
+  /// button can dismiss whichever one is active (#376).
+  private enum Field: Hashable {
+    case serverURL
+    case bearerToken
+    case languageHint
+  }
+
   @StateObject private var viewModel = SettingsViewModel()
+  @FocusState private var focusedField: Field?
 
   // Capture defaults — UserDefaults via @AppStorage.
   // These keys are the shared contract with CaptureViewModel (#187).
@@ -61,14 +70,25 @@ struct SettingsView: View {
         }
         .scrollContentBackground(.hidden)
         .background(Color.paperWarm)
+        // Dragging through the list dismisses the keyboard mid-gesture,
+        // matching the standard iOS Settings behaviour (#376).
+        .scrollDismissesKeyboard(.interactively)
       }
       .navigationTitle("Settings")
       .navigationBarTitleDisplayMode(.large)
       // Settings tab replaces the "GROVE" wordmark with the version
-      // string per spec §3.2.
+      // string per spec §3.2. The keyboard toolbar gives users an
+      // explicit Done button for fields that aren't reachable by scroll
+      // (#376).
       .toolbar {
         ToolbarItem(placement: .topBarTrailing) {
           NavWordmarkView(text: "v\(viewModel.appVersion)")
+        }
+        ToolbarItemGroup(placement: .keyboard) {
+          Spacer()
+          Button("Done") {
+            focusedField = nil
+          }
         }
       }
     }
@@ -90,6 +110,7 @@ struct SettingsView: View {
               .keyboardType(.URL)
               .font(.system(size: 15))
               .foregroundStyle(Color.ink900)
+              .focused($focusedField, equals: .serverURL)
               .onSubmit { viewModel.commitServerURL() }
               .accessibilityLabel("Server URL")
               .accessibilityHint("Enter the full URL of your Grove server")
@@ -112,6 +133,7 @@ struct SettingsView: View {
           SecureField("Bearer token", text: $viewModel.bearerTokenText)
             .font(.system(size: 15))
             .foregroundStyle(Color.ink900)
+            .focused($focusedField, equals: .bearerToken)
             .onSubmit { viewModel.commitToken() }
             .accessibilityLabel("Bearer Token")
             .accessibilityHint("Enter the bearer token for authenticating with the server")
@@ -203,6 +225,7 @@ struct SettingsView: View {
               .autocorrectionDisabled(true)
               .font(.system(size: 15))
               .foregroundStyle(Color.ink500)
+              .focused($focusedField, equals: .languageHint)
               .frame(maxWidth: 120)
               .accessibilityLabel("Language hint for voice capture")
               .accessibilityHint("BCP-47 language code, for example en-US or fr-CA. Leave empty to use the device locale.")
