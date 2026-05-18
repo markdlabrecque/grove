@@ -2,7 +2,7 @@ import Testing
 import Foundation
 @testable import GroveCore
 
-/// Tests for JSON coding/decoding of Oracle wire-format types.
+/// Tests for JSON coding/decoding of Grove wire-format types.
 ///
 /// Fixtures live in Tests/GroveCoreTests/Fixtures/ and are accessed via
 /// `Bundle.module` — the SPM-generated bundle accessor for test-target resources

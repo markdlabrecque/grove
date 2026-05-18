@@ -185,7 +185,7 @@ final class SettingsViewModel: ObservableObject {
     onUpdateCredentials: @escaping (URL, String) async -> Void = { _, _ in }
   ) -> SettingsViewModel {
     SettingsViewModel(
-      keychainService: "com.oracle.test.\(UUID().uuidString)",
+      keychainService: "com.markdlabrecque.grove.test.\(UUID().uuidString)",
       onDrain: onDrain,
       onReenqueue: onReenqueue,
       onUpdateCredentials: onUpdateCredentials
@@ -226,7 +226,7 @@ final class SettingsViewModel: ObservableObject {
     let raw = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
 
     guard KeychainStore.isValidServerURL(raw), let url = URL(string: raw) else {
-      serverURLError = "Enter a valid URL (e.g. https://oracle.example.ts.net)"
+      serverURLError = "Enter a valid URL (e.g. https://grove.example.ts.net)"
       return
     }
 

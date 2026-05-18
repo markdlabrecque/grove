@@ -1,4 +1,4 @@
-# The Oracle — developer convenience targets.
+# Grove — developer convenience targets.
 # Run `make help` for a list. Most targets are thin wrappers around
 # `docker compose` so the same workflow applies in dev and (eventually) prod.
 

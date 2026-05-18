@@ -20,7 +20,7 @@ import Foundation
 struct GroveAPITests {
 
   // Shared test fixtures
-  private static let baseURL = URL(string: "https://oracle.example.ts.net")!
+  private static let baseURL = URL(string: "https://grove.example.ts.net")!
   private static let token = "test-bearer-token"
 
   private func makeAPI() -> GroveAPI {

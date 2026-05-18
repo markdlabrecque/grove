@@ -3,7 +3,7 @@
 -- counts and enrichment lag analysis.
 --
 -- Run with (from repo root):
---   docker compose exec -T postgres psql -U oracle -d oracle \
+--   docker compose exec -T postgres psql -U grove -d grove \
 --       < server/scripts/monthly_review.sql
 --
 -- Sections
@@ -19,7 +19,7 @@
 
 \echo ''
 \echo '========================================================'
-\echo ' THE ORACLE — MONTHLY REVIEW'
+\echo ' GROVE — MONTHLY REVIEW'
 \echo ' Window: rolling 30 days + current-month cost (UTC)'
 \echo '========================================================'
 

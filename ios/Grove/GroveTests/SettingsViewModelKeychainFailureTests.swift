@@ -41,7 +41,7 @@ struct SettingsViewModelKeychainFailureTests {
       writeFailures: [KeychainStore.serverURLKey]
     )
     let vm = SettingsViewModel.makeForTest(keychain: stub)
-    vm.serverURLText = "https://oracle.example.ts.net"
+    vm.serverURLText = "https://grove.example.ts.net"
     vm.commitServerURL()
     #expect(vm.serverURLError == nil)
   }
@@ -59,7 +59,7 @@ struct SettingsViewModelKeychainFailureTests {
         await credentialsCalled.set(true)
       }
     )
-    vm.serverURLText = "https://oracle.example.ts.net"
+    vm.serverURLText = "https://grove.example.ts.net"
     vm.commitServerURL()
     // Yield to allow any Tasks that might have been scheduled to execute.
     await Task.yield()
@@ -74,7 +74,7 @@ struct SettingsViewModelKeychainFailureTests {
       writeFailures: [KeychainStore.serverURLKey]
     )
     let vm = SettingsViewModel.makeForTest(keychain: stub)
-    vm.serverURLText = "https://oracle.example.ts.net"
+    vm.serverURLText = "https://grove.example.ts.net"
     vm.commitServerURL()
     let writeAttempted = stub.writeCalls.contains { $0.key == KeychainStore.serverURLKey }
     #expect(writeAttempted, "write should have been attempted even though it threw")
@@ -95,7 +95,7 @@ struct SettingsViewModelKeychainFailureTests {
           continuation.resume(returning: true)
         }
       )
-      vm.serverURLText = "https://oracle.example.ts.net"
+      vm.serverURLText = "https://grove.example.ts.net"
       vm.commitServerURL()
     }
     #expect(called, "updateCredentials should be called on a successful write")
@@ -109,7 +109,7 @@ struct SettingsViewModelKeychainFailureTests {
     let credentialsCalled = ActorBox(value: false)
     // Pre-seed a server URL so commitToken can resolve it for the API call.
     let stub = KeychainStoreStub(
-      reads: [KeychainStore.serverURLKey: "https://oracle.example.ts.net"],
+      reads: [KeychainStore.serverURLKey: "https://grove.example.ts.net"],
       writeFailures: [KeychainStore.bearerTokenKey]
     )
     let vm = SettingsViewModel.makeForTest(
@@ -129,7 +129,7 @@ struct SettingsViewModelKeychainFailureTests {
   @MainActor
   func commitToken_keychainWriteFails_writeWasAttempted() {
     let stub = KeychainStoreStub(
-      reads: [KeychainStore.serverURLKey: "https://oracle.example.ts.net"],
+      reads: [KeychainStore.serverURLKey: "https://grove.example.ts.net"],
       writeFailures: [KeychainStore.bearerTokenKey]
     )
     let vm = SettingsViewModel.makeForTest(keychain: stub)
@@ -146,7 +146,7 @@ struct SettingsViewModelKeychainFailureTests {
   func commitToken_keychainWriteSucceeds_updatesLiveAPI() async throws {
     let called: Bool = try await withCheckedThrowingContinuation { continuation in
       let stub = KeychainStoreStub(
-        reads: [KeychainStore.serverURLKey: "https://oracle.example.ts.net"]
+        reads: [KeychainStore.serverURLKey: "https://grove.example.ts.net"]
       )
       let vm = SettingsViewModel.makeForTest(
         keychain: stub,
@@ -171,7 +171,7 @@ struct SettingsViewModelKeychainFailureTests {
       writeFailures: [KeychainStore.serverURLKey]
     )
     let vm = SettingsViewModel.makeForTest(keychain: stub)
-    vm.serverURLText = "https://oracle.example.ts.net"
+    vm.serverURLText = "https://grove.example.ts.net"
     vm.commitServerURL()
     // No token write should have been attempted by commitServerURL.
     let tokenWriteAttempted = stub.writeCalls.contains { $0.key == KeychainStore.bearerTokenKey }

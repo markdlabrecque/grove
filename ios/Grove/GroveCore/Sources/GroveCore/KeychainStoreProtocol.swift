@@ -15,7 +15,7 @@ import Foundation
 /// are unaffected.
 ///
 /// Visibility note: this protocol is `public` rather than `package` because
-/// the sole consumer (`SettingsViewModel` in the `Oracle` app target) lives
+/// the sole consumer (`SettingsViewModel` in the `Grove` app target) lives
 /// outside the GroveCore Swift package and depends on it as an external SPM
 /// product. `package` access would not be visible across that boundary.
 /// `internal` is likewise insufficient. Treat this protocol as an

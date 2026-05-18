@@ -14,7 +14,7 @@ import GroveTestSupport
 @Suite("GroveAPI cancellation", .serialized)
 struct GroveAPICancelTests {
 
-  private static let baseURL = URL(string: "https://oracle.example.ts.net")!
+  private static let baseURL = URL(string: "https://grove.example.ts.net")!
   private static let token = "cancel-test-token"
 
   private func makeAPI() -> GroveAPI {

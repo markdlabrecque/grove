@@ -22,7 +22,7 @@ struct SettingsViewModelTests {
   @MainActor
   func urlValidationAcceptsHTTPS() throws {
     let vm = SettingsViewModel.makeForTest()
-    vm.serverURLText = "https://oracle.example.ts.net"
+    vm.serverURLText = "https://grove.example.ts.net"
     vm.commitServerURL()
     #expect(vm.serverURLError == nil)
   }
@@ -49,7 +49,7 @@ struct SettingsViewModelTests {
   @MainActor
   func urlValidationRejectsHostWithoutScheme() throws {
     let vm = SettingsViewModel.makeForTest()
-    vm.serverURLText = "oracle.example.ts.net"
+    vm.serverURLText = "grove.example.ts.net"
     vm.commitServerURL()
     #expect(vm.serverURLError != nil)
   }
@@ -61,7 +61,7 @@ struct SettingsViewModelTests {
     vm.serverURLText = "bad"
     vm.commitServerURL()
     #expect(vm.serverURLError != nil)
-    vm.serverURLText = "https://oracle.example.ts.net"
+    vm.serverURLText = "https://grove.example.ts.net"
     vm.commitServerURL()
     #expect(vm.serverURLError == nil)
   }
@@ -87,9 +87,9 @@ struct SettingsViewModelTests {
   @MainActor
   func currentServerURLReturnsKeychainValue() throws {
     let vm = SettingsViewModel.makeForTest()
-    vm.serverURLText = "https://oracle.example.ts.net"
+    vm.serverURLText = "https://grove.example.ts.net"
     vm.commitServerURL()
-    #expect(vm.currentServerURL == "https://oracle.example.ts.net")
+    #expect(vm.currentServerURL == "https://grove.example.ts.net")
   }
 
   @Test("currentServerURL returns empty string (not serverURLText) when Keychain has no entry")
@@ -139,7 +139,7 @@ private actor ActorBox<T: Sendable> {
 struct AppearancePreferenceTests {
 
   private let defaults: UserDefaults
-  private let suiteName = "com.oracle.test.appearance.\(UUID().uuidString)"
+  private let suiteName = "com.markdlabrecque.grove.test.appearance.\(UUID().uuidString)"
 
   init() {
     // Create an isolated UserDefaults domain for each test run.

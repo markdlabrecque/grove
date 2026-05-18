@@ -123,7 +123,7 @@ final class NetworkMonitor {
     uploadQueue: UploadQueue,
     monitor: NWPathMonitor = NWPathMonitor(),
     monitorQueue: DispatchQueue = DispatchQueue(
-      label: "com.oracle.NetworkMonitor", qos: .utility
+      label: "com.markdlabrecque.grove.NetworkMonitor", qos: .utility
     )
   ) {
     self.init(
@@ -145,7 +145,7 @@ final class NetworkMonitor {
   init(
     monitor: NWPathMonitor = NWPathMonitor(),
     monitorQueue: DispatchQueue = DispatchQueue(
-      label: "com.oracle.NetworkMonitor", qos: .utility
+      label: "com.markdlabrecque.grove.NetworkMonitor", qos: .utility
     ),
     drainAction: @escaping @Sendable () async -> Void
   ) {

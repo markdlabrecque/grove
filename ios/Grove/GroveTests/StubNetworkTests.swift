@@ -468,7 +468,7 @@ struct StubNetworkTests {
 
     // MARK: - Fixtures
 
-    private static let baseURL = URL(string: "https://oracle.example.ts.net")!
+    private static let baseURL = URL(string: "https://grove.example.ts.net")!
     private static let token = "vm-test-token"
 
     private func makeQueue() throws -> (UploadQueue, ModelContainer) {

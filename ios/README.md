@@ -1,6 +1,6 @@
 # Grove — iOS Client
 
-iPhone-only SwiftUI app for The Oracle personal memory system.
+iPhone-only SwiftUI app for Grove personal memory system.
 
 - **Deployment target:** iOS 26.0+
 - **Reference device:** iPhone 17
@@ -25,7 +25,7 @@ Edit each file:
 
 | Variable | What to put |
 |---|---|
-| `BASE_URL` | Your server's base URL, e.g. `https://oracle.your-host.ts.net` |
+| `BASE_URL` | Your server's base URL, e.g. `https://grove.your-host.ts.net` |
 | `BEARER_TOKEN` | The long-lived bearer token set on the server |
 
 Note: `$()` in the example value is xcconfig syntax for a literal `//`. Without
@@ -36,7 +36,7 @@ it, xcconfig treats `//` as a line comment and `BASE_URL` silently becomes empty
 On first launch the app prints to the Xcode console:
 
 ```
-[Grove] baseURL: https://oracle.your-host.ts.net
+[Grove] baseURL: https://grove.your-host.ts.net
 ```
 
 If you see a crash with "BASE_URL is missing or malformed" or "BEARER_TOKEN is
@@ -159,10 +159,10 @@ ios/Grove/
     Package.swift
     Sources/GroveCore/
       Config.swift       ← typed wrapper for build-settings values
-      OracleAPI.swift    ← URLSession client, DTOs, Codable models
+      GroveAPI.swift    ← URLSession client, DTOs, Codable models
     Tests/GroveCoreTests/
       ConfigTests.swift
-      OracleAPITests.swift
+      GroveAPITests.swift
       JSONCodingTests.swift
       Fixtures/
         capture_response.json
@@ -178,7 +178,7 @@ The `Grove` app target keeps its iOS 26 deployment target. It imports
 
 | Target | Framework | Scope |
 |---|---|---|
-| `GroveCoreTests` (SPM) | Swift Testing | Unit tests: `Config`, `OracleAPI` request builder, JSON coding |
+| `GroveCoreTests` (SPM) | Swift Testing | Unit tests: `Config`, `GroveAPI` request builder, JSON coding |
 | `GroveTests` (Xcode) | Swift Testing | Same seed tests, via `@testable import Grove` |
 | `GroveUITests` (Xcode) | XCUITest | Placeholder only — no real UI to drive yet |
 
@@ -188,7 +188,7 @@ Seed unit tests (`#64`):
   correct values. Uses an internal initialiser rather than `Config.shared`
   because the test bundle does not have a populated `Info.plist`. The
   `Config.shared` path is exercised by every app build via `GroveApp.init()`.
-- **`OracleAPITests`** — verifies `OracleAPI.captureRequest(for:)` produces a
+- **`GroveAPITests`** — verifies `GroveAPI.captureRequest(for:)` produces a
   `POST` request to `baseURL/v1/captures` with correct `Authorization` and
   `Content-Type` headers and a round-trippable JSON body. No live server.
 - **`JSONCodingTests`** — verifies `CaptureResponseBody` decodes from a canned
@@ -208,7 +208,7 @@ screens (`#61`, `#62`).
 | `stable` (Core) | `macos-latest`, Xcode 16.2 | `swift test` on `GroveCore` package | Yes — merge gate |
 
 **The `stable` job is the only CI job.** It covers all logic-level code
-(Config, OracleAPI, Codable models) and runs without a simulator or iOS 26 SDK,
+(Config, GroveAPI, Codable models) and runs without a simulator or iOS 26 SDK,
 so it passes on `macos-latest` with Xcode 16.2.
 
 The full-app job (`xcodebuild test` on the Grove scheme) was removed from CI
@@ -243,12 +243,12 @@ Config.debug.xcconfig / Config.release.xcconfig
          ↓ (bundle at runtime)
        Config.swift  (Config.shared.baseURL, Config.shared.bearerToken)
          ↓
-      OracleAPI  (Authorization: Bearer …)
+      GroveAPI  (Authorization: Bearer …)
 ```
 
 **V1 note on bearer token storage:** As of #184, the bearer token is stored in
 Keychain at runtime; xcconfig only seeds the first launch. `TODO(auth):` markers
-in `Config.swift` and `OracleAPI.swift` mark the V2 Face/Touch ID gate.
+in `Config.swift` and `GroveAPI.swift` mark the V2 Face/Touch ID gate.
 
 ---
 
@@ -261,10 +261,10 @@ ios/
       Package.swift
       Sources/GroveCore/
         Config.swift           ← typed wrapper for build-settings values
-        OracleAPI.swift        ← URLSession client, DTOs, Codable models
+        GroveAPI.swift        ← URLSession client, DTOs, Codable models
       Tests/GroveCoreTests/
         ConfigTests.swift      ← seed unit tests (Swift Testing)
-        OracleAPITests.swift
+        GroveAPITests.swift
         JSONCodingTests.swift
         Fixtures/
           capture_response.json

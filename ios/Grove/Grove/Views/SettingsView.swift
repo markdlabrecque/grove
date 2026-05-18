@@ -84,7 +84,7 @@ struct SettingsView: View {
         iconColor: .forest500,
         content: {
           VStack(alignment: .leading, spacing: 4) {
-            TextField("https://oracle.example.ts.net", text: $viewModel.serverURLText)
+            TextField("https://grove.example.ts.net", text: $viewModel.serverURLText)
               .textInputAutocapitalization(.never)
               .autocorrectionDisabled(true)
               .keyboardType(.URL)
@@ -92,7 +92,7 @@ struct SettingsView: View {
               .foregroundStyle(Color.ink900)
               .onSubmit { viewModel.commitServerURL() }
               .accessibilityLabel("Server URL")
-              .accessibilityHint("Enter the full URL of your Oracle server")
+              .accessibilityHint("Enter the full URL of your Grove server")
 
             if let error = viewModel.serverURLError {
               Text(error)

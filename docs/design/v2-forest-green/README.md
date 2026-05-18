@@ -140,7 +140,7 @@ with for a "reading" feel. Not required for V2 — implementer's call.
 
 ### 3.2 Large title bar
 - 34pt bold `forest900` left-aligned. To the right, an 11pt uppercase
-  semibold "THE ORACLE" wordmark in `forest500` with `0.12em` tracking
+  semibold "GROVE" wordmark in `forest500` with `0.12em` tracking
   (use `letterSpacing(1.3)` in SwiftUI). On Settings tab the wordmark is
   replaced with the build version string in the same style.
 

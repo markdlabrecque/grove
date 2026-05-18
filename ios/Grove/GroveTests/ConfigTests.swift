@@ -21,14 +21,14 @@ struct ConfigTests {
 
   @Test("baseURL is set from the provided URL")
   func baseURLIsSet() throws {
-    let url = try #require(URL(string: "https://oracle.example.ts.net"))
+    let url = try #require(URL(string: "https://grove.example.ts.net"))
     let config = Config(baseURL: url, bearerToken: "test-token")
     #expect(config.baseURL == url)
   }
 
   @Test("bearerToken is set from the provided string")
   func bearerTokenIsSet() throws {
-    let url = try #require(URL(string: "https://oracle.example.ts.net"))
+    let url = try #require(URL(string: "https://grove.example.ts.net"))
     let token = "super-secret-bearer-token"
     let config = Config(baseURL: url, bearerToken: token)
     #expect(config.bearerToken == token)
@@ -36,14 +36,14 @@ struct ConfigTests {
 
   @Test("baseURL is non-empty after construction")
   func baseURLIsNonEmpty() throws {
-    let url = try #require(URL(string: "https://oracle.example.ts.net"))
+    let url = try #require(URL(string: "https://grove.example.ts.net"))
     let config = Config(baseURL: url, bearerToken: "test-token")
     #expect(!config.baseURL.absoluteString.isEmpty)
   }
 
   @Test("bearerToken is non-empty after construction")
   func bearerTokenIsNonEmpty() throws {
-    let url = try #require(URL(string: "https://oracle.example.ts.net"))
+    let url = try #require(URL(string: "https://grove.example.ts.net"))
     let config = Config(baseURL: url, bearerToken: "test-token")
     #expect(!config.bearerToken.isEmpty)
   }
