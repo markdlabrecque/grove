@@ -27,8 +27,11 @@ import AVFoundation
 /// ## Trailing-silence auto-stop
 ///
 /// When the recogniser has not produced a new hypothesis for
-/// ``DictationController/silenceTimeout`` seconds, `stop()` is called
-/// automatically.  The constant is named so it can be tuned post-ship
+/// ``DictationController/silenceTimeout`` seconds, `finalizeSilenceTimeout()`
+/// is called automatically.  This emits `.final_` with the last captured
+/// partial text — identical to the explicit Stop tap path — rather than
+/// routing through `endAudio()`, which can return error 203 and discard the
+/// transcript (#387).  The constant is named so it can be tuned post-ship
 /// without touching call sites.
 ///
 /// ## Audio session
@@ -62,6 +65,12 @@ final class DictationController {
   private var recognitionTask: SFSpeechRecognitionTask?
   private var silenceTimer: Task<Void, Never>?
   private var continuation: AsyncStream<DictationEvent>.Continuation?
+
+  /// The most-recent partial transcript; set on every `.partial` event and
+  /// used by the silence-timeout path to emit `.final_` without waiting for
+  /// the recognizer's own finalization (which can fail with error 203 after
+  /// `endAudio()` and silently discard captured speech — #387).
+  private var lastPartialText: String?
 
   // MARK: - Init
 
@@ -247,9 +256,11 @@ final class DictationController {
 
     if result.isFinal {
       silenceTimer?.cancel()
+      lastPartialText = nil
       emit(.final_(text))
       teardown()
     } else {
+      lastPartialText = text
       emit(.partial(text))
       // Re-arm the silence timer on every new partial hypothesis.
       armSilenceTimer()
@@ -265,12 +276,39 @@ final class DictationController {
       do {
         try await Task.sleep(for: .seconds(DictationController.silenceTimeout))
       } catch {
-        // Cancelled — a new partial result arrived.
+        // Cancelled — a new partial result arrived before the timeout.
         return
       }
-      // Silence threshold reached — stop gracefully.
-      self.stop()
+      // Silence threshold reached — finalize directly (#387).
+      await MainActor.run { [weak self] in self?.finalizeSilenceTimeout() }
     }
+  }
+
+  /// Executes the silence-timeout finalization on the main actor.
+  ///
+  /// Emits `.final_` with the last known partial text (if any) and tears down
+  /// the session.  This mirrors the explicit Stop tap path exactly, bypassing
+  /// `recognitionRequest?.endAudio()` which can return error code 203
+  /// ("no speech detected") and discard the transcript (#387).
+  ///
+  /// Exposed as `internal` so the `_fireSilenceTimerForTesting()` test seam
+  /// can invoke it synchronously without a real `Task.sleep`.
+  func finalizeSilenceTimeout() {
+    silenceTimer?.cancel()
+    silenceTimer = nil
+    if let text = lastPartialText, !text.isEmpty {
+      emit(.final_(text))
+    }
+    teardown()
+  }
+
+  // MARK: - Test seam (#387)
+
+  /// Immediately executes the silence-timeout finalization without waiting for
+  /// `Task.sleep`.  Call from unit tests after injecting a continuation via
+  /// `_injectContinuationForTesting(_:)`.
+  func _fireSilenceTimerForTesting() {
+    finalizeSilenceTimeout()
   }
 
   // MARK: - Emit helpers
@@ -286,6 +324,7 @@ final class DictationController {
   private func teardown() {
     silenceTimer?.cancel()
     silenceTimer = nil
+    lastPartialText = nil
     NotificationCenter.default.removeObserver(self, name: AVAudioSession.interruptionNotification, object: nil)
     audioEngine?.inputNode.removeTap(onBus: 0)
     audioEngine?.stop()
