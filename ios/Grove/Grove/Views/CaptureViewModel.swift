@@ -164,7 +164,7 @@ final class CaptureViewModel {
 
     let payload = CaptureViewModel.buildPayload(
       content: trimmed,
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: applyFillerCleanup,
       detectedLanguage: detectedLanguage,
       languageHint: languageHint
@@ -238,9 +238,10 @@ final class CaptureViewModel {
   ///
   /// - Parameters:
   ///   - content: The raw text from the capture text field (already trimmed).
-  ///   - sourceModality: `"typed"` for keyboard captures; `"dictated"` for
+  ///   - sourceModality: `"text"` for keyboard captures; `"voice"` for
   ///     Action Button / dictation captures. Maps to `source_modality` on
-  ///     the server (PRD §6.2 / §8.3: valid values are `'typed' | 'dictated'`).
+  ///     the server. Valid values are constrained by the server contract
+  ///     (`server/grove/api/captures.py`): `^(text|voice)$`.
   ///   - applyFillerCleanup: When `true`, run `FillerWordCleaner.clean(_:)`.
   ///   - detectedLanguage: BCP-47 code from `LanguageDetector`, or `nil`.
   ///   - languageHint: User-set language preference from Settings, or `nil`.

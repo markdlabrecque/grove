@@ -156,7 +156,7 @@ final class DictationCaptureViewModel {
 
     let payload = CaptureViewModel.buildPayload(
       content: trimmed,
-      sourceModality: "dictated",
+      sourceModality: "voice",
       applyFillerCleanup: applyFillerCleanup,
       detectedLanguage: LanguageDetector.detect(trimmed),
       languageHint: languageHint ?? "en"

@@ -673,7 +673,7 @@ public enum APIError: Error, LocalizedError {
 public struct CapturePayload: Sendable {
   public let clientID: UUID
   public let content: String
-  public let sourceModality: String   // "typed" | "dictated"
+  public let sourceModality: String   // "text" | "voice" — server contract
   public let sourceDevice: String     // "iphone"
   public let language: String         // BCP-47 language code, e.g. "en"
   public let capturedAt: Date
