@@ -149,6 +149,20 @@ struct QueryView: View {
         .accessibilityLabel("Query field")
         .accessibilityHint("Type a question to search your memories")
 
+      // Inline clear button — visible only while the field has content (#380).
+      if !viewModel.query.isEmpty {
+        Button {
+          viewModel.query = ""
+          isFocused = true
+        } label: {
+          Image(systemName: "xmark.circle.fill")
+            .foregroundStyle(Color.ink500)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Clear query")
+        .accessibilityHint("Erase the current question")
+      }
+
       Button(action: {
         isFocused = false
         viewModel.ask()
