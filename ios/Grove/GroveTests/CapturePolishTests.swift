@@ -250,7 +250,7 @@ struct CaptureViewModelPolishTests {
     let rawContent = "Um, I think we should ship this feature."
     let payload = CaptureViewModel.buildPayload(
       content: rawContent,
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: false,
       detectedLanguage: "en",
       languageHint: nil
@@ -265,7 +265,7 @@ struct CaptureViewModelPolishTests {
     let rawContent = "Um, I think we should ship this feature."
     let payload = CaptureViewModel.buildPayload(
       content: rawContent,
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: true,
       detectedLanguage: "en",
       languageHint: nil
@@ -280,7 +280,7 @@ struct CaptureViewModelPolishTests {
   func payloadLanguageFromDetected() throws {
     let payload = CaptureViewModel.buildPayload(
       content: "Hello world",
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: false,
       detectedLanguage: "fr",
       languageHint: nil
@@ -296,7 +296,7 @@ struct CaptureViewModelPolishTests {
     // (See ticket §Integration hooks: "If they differ, send detected.")
     let payload = CaptureViewModel.buildPayload(
       content: "Bonjour le monde",
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: false,
       detectedLanguage: "fr",
       languageHint: "en"
@@ -312,7 +312,7 @@ struct CaptureViewModelPolishTests {
     // the result is "en" regardless of which wins.
     let payload = CaptureViewModel.buildPayload(
       content: "Hello there",
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: false,
       detectedLanguage: "en",
       languageHint: "en"
@@ -322,32 +322,32 @@ struct CaptureViewModelPolishTests {
     #expect(decoded.language == "en")
   }
 
-  @Test("typed capture has sourceModality 'typed'")
-  func typedCaptureHasTypedModality() throws {
+  @Test("text capture has sourceModality 'text'")
+  func textCaptureHasTextModality() throws {
     let payload = CaptureViewModel.buildPayload(
       content: "Hello world",
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: false,
       detectedLanguage: nil,
       languageHint: nil
     )
     let encoded = try CaptureViewModel.encodePayload(payload)
     let decoded = try JSONDecoder().decode(DecodedBody.self, from: encoded)
-    #expect(decoded.sourceModality == "typed", "Keyboard capture should have sourceModality 'typed'")
+    #expect(decoded.sourceModality == "text", "Keyboard capture should have sourceModality 'text'")
   }
 
-  @Test("dictated capture has sourceModality 'dictated'")
-  func dictatedCaptureHasDictatedModality() throws {
+  @Test("voice capture has sourceModality 'voice'")
+  func voiceCaptureHasVoiceModality() throws {
     let payload = CaptureViewModel.buildPayload(
       content: "Hello world",
-      sourceModality: "dictated",
+      sourceModality: "voice",
       applyFillerCleanup: false,
       detectedLanguage: nil,
       languageHint: nil
     )
     let encoded = try CaptureViewModel.encodePayload(payload)
     let decoded = try JSONDecoder().decode(DecodedBody.self, from: encoded)
-    #expect(decoded.sourceModality == "dictated", "Dictation capture should have sourceModality 'dictated'")
+    #expect(decoded.sourceModality == "voice", "Dictation capture should have sourceModality 'voice'")
   }
 
   // MARK: - Settings-driven filler cleanup (#335)
@@ -365,7 +365,7 @@ struct CaptureViewModelPolishTests {
     let rawContent = "Uh, I wanted to capture this thought."
     let payload = CaptureViewModel.buildPayload(
       content: rawContent,
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: true,   // mirrors what CaptureView reads from @AppStorage
       detectedLanguage: "en",
       languageHint: nil
@@ -382,7 +382,7 @@ struct CaptureViewModelPolishTests {
     let rawContent = "Uh, I wanted to capture this thought."
     let payload = CaptureViewModel.buildPayload(
       content: rawContent,
-      sourceModality: "typed",
+      sourceModality: "text",
       applyFillerCleanup: false,  // mirrors what CaptureView reads from @AppStorage
       detectedLanguage: "en",
       languageHint: nil

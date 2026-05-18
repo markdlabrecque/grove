@@ -317,7 +317,7 @@ memories (
   id UUID PRIMARY KEY,
   content TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  source_modality TEXT,            -- 'typed' | 'dictated'
+  source_modality TEXT,            -- 'text' | 'voice' (server contract: server/grove/api/captures.py)
   source_device TEXT,              -- e.g. 'iPhone 17'
   language TEXT,                   -- detected language code
   token_count INTEGER,
