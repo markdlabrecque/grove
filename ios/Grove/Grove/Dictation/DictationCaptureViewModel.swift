@@ -155,7 +155,6 @@ final class DictationCaptureViewModel {
   /// Saves the current transcript through the existing capture pipeline.
   func save(applyFillerCleanup: Bool = false, languageHint: String? = nil) async {
     let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
 
     saveStatus = .loading
 
