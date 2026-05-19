@@ -22,8 +22,10 @@ public struct TaskDTO: Codable, Sendable, Identifiable, Equatable {
   public let description: String
   /// Date-only string in `"YYYY-MM-DD"` format, or nil if no due date was set.
   public let dueDate: String?
-  public let status: String          // "open" in V1
-  public let relatedPeople: [String]
+  /// `"open"` in V1, or `nil` when the enricher has not yet populated this field.
+  public let status: String?
+  /// Names of people related to this task, or `nil` when not yet enriched.
+  public let relatedPeople: [String]?
   /// The `calendarItemIdentifier` of the linked `EKReminder`, or nil if not yet linked.
   public let eventkitIdentifier: String?
   /// ISO 8601 string of when the EventKit link was created, or nil.
@@ -34,8 +36,8 @@ public struct TaskDTO: Codable, Sendable, Identifiable, Equatable {
     memoryID: UUID,
     description: String,
     dueDate: String?,
-    status: String,
-    relatedPeople: [String],
+    status: String?,
+    relatedPeople: [String]?,
     eventkitIdentifier: String?,
     eventkitLinkedAt: String?
   ) {
