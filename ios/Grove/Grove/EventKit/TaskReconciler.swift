@@ -1,5 +1,6 @@
 import Foundation
 import GroveCore
+import os
 
 // MARK: - TaskReconciler
 
@@ -29,6 +30,11 @@ import GroveCore
 final class TaskReconciler {
 
   // MARK: - Dependencies
+
+  private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.markdlabrecque.grove",
+    category: "reconciler"
+  )
 
   private let pendingStore: any PendingReminderStoring
 
@@ -80,28 +86,28 @@ final class TaskReconciler {
         _ = try await patchProvider(task.id, entry.calendarItemIdentifier)
         // 200 OK — remove the entry.
         pendingStore.remove(memoryID: task.memoryID)
-        print("[reconciler] linked task \(task.id) to reminder \(entry.calendarItemIdentifier)")
+        logger.info("linked task \(task.id, privacy: .public) to reminder \(entry.calendarItemIdentifier, privacy: .public)")
       } catch let e as TaskLinkingError {
         switch e {
         case .alreadyLinked:
           // 409 — server is right, remove the entry.
           pendingStore.remove(memoryID: task.memoryID)
-          print("[reconciler] 409 for task \(task.id) — removing entry, server is authoritative")
+          logger.info("409 for task \(task.id, privacy: .public) — removing entry, server is authoritative")
         default:
           // Other TaskLinkingError — retain.
-          print("[reconciler] TaskLinkingError for task \(task.id): \(e) — retaining entry")
+          logger.error("TaskLinkingError for task \(task.id, privacy: .public): \(e, privacy: .public) — retaining entry")
         }
       } catch let e as APIError {
         if case .httpError(let code, _) = e, code == 404 {
           // 404 — retain; the task row may appear later.
-          print("[reconciler] 404 for task \(task.id) — retaining entry for retry")
+          logger.info("404 for task \(task.id, privacy: .public) — retaining entry for retry")
         } else {
           // Other API errors (5xx, network) — retain.
-          print("[reconciler] APIError for task \(task.id): \(e) — retaining entry")
+          logger.error("APIError for task \(task.id, privacy: .public): \(e, privacy: .public) — retaining entry")
         }
       } catch {
         // Unknown error — retain.
-        print("[reconciler] unknown error for task \(task.id): \(error) — retaining entry")
+        logger.error("unknown error for task \(task.id, privacy: .public): \(error, privacy: .public) — retaining entry")
       }
     }
   }
