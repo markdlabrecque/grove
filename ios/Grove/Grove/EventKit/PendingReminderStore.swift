@@ -79,7 +79,7 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
   init() {
     self.defaults = .standard
     // Populate cache from UserDefaults on first access.
-    if let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
+    if let data = defaults.data(forKey: Self.defaultsKey),
        let entries = try? JSONDecoder().decode([PendingReminderEntry].self, from: data) {
       cache = entries
     } else {
