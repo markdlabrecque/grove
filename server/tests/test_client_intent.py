@@ -372,6 +372,67 @@ async def test_client_intent_task_forced_confidence_is_1_0(
 
 
 @pytest.mark.asyncio
+async def test_client_intent_task_empty_description_falls_back_to_memory_content(
+    db_session: AsyncSession,
+) -> None:
+    """When LLM returns TaskSchema(description="", ...), the task row uses memory.content.
+
+    An empty string is falsy in Python, so `best.description or memory.content`
+    silently falls back. This test pins that behaviour so a refactor of the `or`
+    pattern cannot silently break it.
+    """
+    from grove.enrichment.classifier import ClassificationResult
+    from grove.enrichment.orchestrator import classify_and_write
+    from grove.enrichment.schemas import Classification
+    from grove.enrichment.schemas import Task as TaskSchema
+
+    memory = await _seed_memory(db_session, client_intent="task")
+
+    # LLM returns a task with a non-None but empty description string.
+    llm_task = TaskSchema(
+        description="",
+        due_date=None,
+        status="open",
+        related_people=None,
+        confidence=0.9,
+    )
+    classification = Classification(tasks=[llm_task])
+    mock_result = ClassificationResult(
+        classification=classification,
+        prompt_tokens=10,
+        completion_tokens=5,
+        total_tokens=15,
+        cost_usd=0.0001,
+    )
+
+    with patch(
+        "grove.enrichment.orchestrator.classify_memory",
+        new_callable=AsyncMock,
+        return_value=mock_result,
+    ):
+        async with _TestSession() as session:
+            mem = await session.get(Memory, memory.id)
+            assert mem is not None
+            await classify_and_write(mem, session)
+
+    await db_session.refresh(memory)
+    assert memory.enriched is True
+
+    result = await db_session.execute(select(TaskModel).where(TaskModel.memory_id == memory.id))
+    tasks = result.scalars().all()
+    assert len(tasks) == 1, f"Expected exactly 1 task row, got {len(tasks)}"
+    # Empty LLM description falls back to the raw memory content.
+    assert tasks[0].description == memory.content, (
+        f"Expected description to fall back to memory.content={memory.content!r}, "
+        f"got {tasks[0].description!r}"
+    )
+    assert tasks[0].confidence == 1.0
+
+    await db_session.delete(await db_session.get(Memory, memory.id))
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_client_intent_none_uses_classifier_only(
     db_session: AsyncSession,
 ) -> None:
