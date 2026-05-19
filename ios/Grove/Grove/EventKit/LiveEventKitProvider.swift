@@ -1,5 +1,6 @@
 import EventKit
 import Foundation
+import os
 
 /// Production implementation of `EventKitProviding` backed by a real `EKEventStore`.
 ///
@@ -17,6 +18,10 @@ import Foundation
 final class LiveEventKitProvider: EventKitProviding {
 
   private let store = EKEventStore()
+  private let logger = Logger(
+    subsystem: Bundle.main.bundleIdentifier ?? "com.markdlabrecque.grove",
+    category: "eventkit"
+  )
 
   // MARK: - Permission
 
@@ -24,7 +29,7 @@ final class LiveEventKitProvider: EventKitProviding {
     do {
       return try await store.requestFullAccessToReminders()
     } catch {
-      print("[eventkit] requestFullAccessToReminders failed: \(error)")
+      logger.error("requestFullAccessToReminders failed: \(error)")
       return false
     }
   }
@@ -49,7 +54,7 @@ final class LiveEventKitProvider: EventKitProviding {
     do {
       try store.save(reminder, commit: true)
     } catch {
-      print("[eventkit] save reminder failed: \(error)")
+      logger.error("save reminder failed: \(error)")
       throw EventKitError.saveFailed
     }
 
