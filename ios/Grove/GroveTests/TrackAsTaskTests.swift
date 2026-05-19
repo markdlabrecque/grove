@@ -314,6 +314,96 @@ struct TrackAsTaskReconciliationTests {
   }
 }
 
+// MARK: - Suite 5: PendingReminderStore notification-driven remap
+
+@Suite("TrackAsTask — PendingReminderStore remap via notification")
+@MainActor
+struct PendingReminderStoreRemapTests {
+
+  private static let calendarID = "EK-remap-test-abc"
+
+  /// Verify that posting `captureUploadedNotification` causes the store to
+  /// remap the entry from `clientID` to `serverMemoryID`.
+  ///
+  /// Uses a hermetic `UserDefaults` suite so the test never touches the app's
+  /// real defaults and teardown is a single `removeSuite` call.
+  @Test("captureUploadedNotification remaps clientID → serverMemoryID")
+  func notificationRemapsClientIDToServerMemoryID() async throws {
+    let suiteName = UUID().uuidString
+    let suite = UserDefaults(suiteName: suiteName)!
+    defer { suite.removeSuite(named: suiteName) }
+
+    let store = UserDefaultsPendingReminderStore(defaults: suite)
+
+    let clientID = UUID()
+    let serverMemoryID = UUID()
+
+    store.store(memoryID: clientID, calendarItemIdentifier: Self.calendarID)
+    #expect(store.entry(for: clientID) != nil, "Precondition: entry exists under clientID before remap")
+
+    // The observer lives in a `Task { @MainActor ... }` started during init.
+    // That Task has not iterated yet because the current test function holds
+    // the main-actor executor.  Yield once to let it reach its first `next()`
+    // suspension point and register with the notification stream.
+    await Task.yield()
+
+    NotificationCenter.default.post(
+      name: .captureUploadedNotification,
+      object: nil,
+      userInfo: [
+        "clientID": clientID.uuidString,
+        "serverMemoryID": serverMemoryID.uuidString,
+      ]
+    )
+
+    // Now yield again so the observer task wakes up and calls remap().
+    await Task.yield()
+
+    #expect(store.entry(for: serverMemoryID) != nil, "Entry must exist under serverMemoryID after remap")
+    #expect(store.entry(for: clientID) == nil, "Old clientID key must be gone after remap")
+
+    let remapped = store.entry(for: serverMemoryID)
+    #expect(remapped?.calendarItemIdentifier == Self.calendarID,
+            "Remapped entry must retain the original calendarItemIdentifier")
+  }
+
+  /// Posting `captureUploadedNotification` for an unknown `clientID` is a
+  /// no-op — the store must remain unchanged.
+  @Test("captureUploadedNotification with unknown clientID is a no-op")
+  func notificationUnknownClientIDNoOp() async throws {
+    let suiteName = UUID().uuidString
+    let suite = UserDefaults(suiteName: suiteName)!
+    defer { suite.removeSuite(named: suiteName) }
+
+    let store = UserDefaultsPendingReminderStore(defaults: suite)
+
+    let knownClientID = UUID()
+    let unknownClientID = UUID()
+    let serverMemoryID = UUID()
+
+    store.store(memoryID: knownClientID, calendarItemIdentifier: Self.calendarID)
+
+    // Yield before posting so the observer task has started iterating.
+    await Task.yield()
+
+    NotificationCenter.default.post(
+      name: .captureUploadedNotification,
+      object: nil,
+      userInfo: [
+        "clientID": unknownClientID.uuidString,
+        "serverMemoryID": serverMemoryID.uuidString,
+      ]
+    )
+
+    // Yield after posting so the observer gets a chance to process (and
+    // confirm it correctly ignores the unknown clientID).
+    await Task.yield()
+
+    #expect(store.all().count == 1, "Unrelated notification must not remove existing entries")
+    #expect(store.entry(for: knownClientID) != nil, "Original entry must still be present")
+  }
+}
+
 // MARK: - Test doubles
 
 /// A counting stub for `EventKitProviding` that records call counts.

@@ -70,11 +70,16 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
 
   private var cache: [PendingReminderEntry]
 
+  // MARK: - UserDefaults backing store
+
+  private let defaults: UserDefaults
+
   // MARK: - Init
 
   init() {
+    self.defaults = .standard
     // Populate cache from UserDefaults on first access.
-    if let data = UserDefaults.standard.data(forKey: Self.defaultsKey),
+    if let data = defaults.data(forKey: Self.defaultsKey),
        let entries = try? JSONDecoder().decode([PendingReminderEntry].self, from: data) {
       cache = entries
     } else {
@@ -84,6 +89,38 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
     // Observe successful capture uploads so we can remap pending-reminder
     // entries from clientID keys to server-assigned memoryID keys.
     // The notification fires from UploadQueue.drainRow after a 200 response.
+    Task { @MainActor [weak self] in
+      for await notification in NotificationCenter.default.notifications(
+        named: .captureUploadedNotification
+      ) {
+        guard let self,
+              let clientIDStr = notification.userInfo?["clientID"] as? String,
+              let serverIDStr = notification.userInfo?["serverMemoryID"] as? String,
+              let clientID = UUID(uuidString: clientIDStr),
+              let serverMemoryID = UUID(uuidString: serverIDStr)
+        else { continue }
+
+        self.remap(clientID: clientID, to: serverMemoryID)
+      }
+    }
+  }
+
+  /// Initialises the store with an explicit `UserDefaults` suite.
+  ///
+  /// Use this in tests to back the store with a temporary, hermetic suite:
+  /// ```swift
+  /// let suite = UserDefaults(suiteName: UUID().uuidString)!
+  /// let store = UserDefaultsPendingReminderStore(defaults: suite)
+  /// ```
+  init(defaults: UserDefaults) {
+    self.defaults = defaults
+    if let data = defaults.data(forKey: Self.defaultsKey),
+       let entries = try? JSONDecoder().decode([PendingReminderEntry].self, from: data) {
+      cache = entries
+    } else {
+      cache = []
+    }
+
     Task { @MainActor [weak self] in
       for await notification in NotificationCenter.default.notifications(
         named: .captureUploadedNotification
@@ -149,6 +186,6 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
       print("[PendingReminderStore] failed to encode entries — store not updated")
       return
     }
-    UserDefaults.standard.set(data, forKey: Self.defaultsKey)
+    defaults.set(data, forKey: Self.defaultsKey)
   }
 }
