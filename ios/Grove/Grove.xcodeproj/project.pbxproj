@@ -68,7 +68,10 @@
 		A1000029 /* TaskLinkingViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000029 /* TaskLinkingViewModel.swift */; };
 		A100002A /* TaskRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200002A /* TaskRowView.swift */; };
 		A100002B /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A200002B /* EventKit.framework */; };
+		A100002C /* PendingReminderStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200002C /* PendingReminderStore.swift */; };
+		A100002D /* TaskReconciler.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200002D /* TaskReconciler.swift */; };
 		B100001E /* TaskLinkingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001E /* TaskLinkingViewModelTests.swift */; };
+		B100001F /* TrackAsTaskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001F /* TrackAsTaskTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -136,6 +139,9 @@
 		A2000029 /* TaskLinkingViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskLinkingViewModel.swift; sourceTree = "<group>"; };
 		A200002A /* TaskRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowView.swift; sourceTree = "<group>"; };
 		A200002B /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
+		A200002C /* PendingReminderStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PendingReminderStore.swift; sourceTree = "<group>"; };
+		A200002D /* TaskReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskReconciler.swift; sourceTree = "<group>"; };
+		B200001F /* TrackAsTaskTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackAsTaskTests.swift; sourceTree = "<group>"; };
 		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
 		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
 		B2000019 /* StubNetworkFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubNetworkFixtures.swift; sourceTree = "<group>"; };
@@ -236,6 +242,8 @@
 				A2000027 /* EventKitProviding.swift */,
 				A2000028 /* LiveEventKitProvider.swift */,
 				A2000029 /* TaskLinkingViewModel.swift */,
+				A200002C /* PendingReminderStore.swift */,
+				A200002D /* TaskReconciler.swift */,
 			);
 			path = EventKit;
 			sourceTree = "<group>";
@@ -322,6 +330,7 @@
 				B200001C /* DictationResumeBannerStateTests.swift */,
 				B200001D /* RootViewTests.swift */,
 				B200001E /* TaskLinkingViewModelTests.swift */,
+				B200001F /* TrackAsTaskTests.swift */,
 				B2000017 /* KeychainStoreStub.swift */,
 				B2000018 /* SettingsViewModelKeychainFailureTests.swift */,
 				B3000002 /* Fixtures */,
@@ -527,6 +536,8 @@
 				A1000028 /* LiveEventKitProvider.swift in Sources */,
 				A1000029 /* TaskLinkingViewModel.swift in Sources */,
 				A100002A /* TaskRowView.swift in Sources */,
+				A100002C /* PendingReminderStore.swift in Sources */,
+				A100002D /* TaskReconciler.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -556,6 +567,7 @@
 				B100001C /* DictationResumeBannerStateTests.swift in Sources */,
 				B100001D /* RootViewTests.swift in Sources */,
 				B100001E /* TaskLinkingViewModelTests.swift in Sources */,
+				B100001F /* TrackAsTaskTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import GroveCore
+import EventKit
 
 /// View state and save logic for the capture screen.
 ///
@@ -45,6 +46,8 @@ final class CaptureViewModel {
   // MARK: - Dependencies
 
   private let uploadQueue: UploadQueue
+  private let eventKitProvider: (any EventKitProviding)?
+  private let pendingReminderStore: (any PendingReminderStoring)?
 
   // MARK: - Init
 
@@ -53,8 +56,18 @@ final class CaptureViewModel {
   /// - Parameter uploadQueue: The shared `UploadQueue` instance. Defaults to
   ///   `GroveApp.uploadQueue` for production use. Tests inject a stub queue
   ///   backed by an in-memory `ModelContainer`.
-  init(uploadQueue: UploadQueue = GroveApp.uploadQueue) {
+  /// - Parameter eventKitProvider: Mockable EventKit boundary for tests.
+  ///   Defaults to `LiveEventKitProvider` in production.
+  /// - Parameter pendingReminderStore: Persistent store for reconciliation
+  ///   entries. Defaults to `UserDefaultsPendingReminderStore.shared`.
+  init(
+    uploadQueue: UploadQueue = GroveApp.uploadQueue,
+    eventKitProvider: (any EventKitProviding)? = nil,
+    pendingReminderStore: (any PendingReminderStoring)? = nil
+  ) {
     self.uploadQueue = uploadQueue
+    self.eventKitProvider = eventKitProvider ?? LiveEventKitProvider()
+    self.pendingReminderStore = pendingReminderStore ?? UserDefaultsPendingReminderStore.shared
   }
 
   // MARK: - Inputs
@@ -64,6 +77,14 @@ final class CaptureViewModel {
       scheduleLanguageDetection()
     }
   }
+
+  /// When `true` the capture will be tagged with `client_intent: "task"` and
+  /// an Apple Reminder will be created at save time.
+  var trackAsTask: Bool = false
+
+  /// The user-selected due date for the task reminder.
+  /// Shown only when `trackAsTask` is `true`.
+  var taskDueDate: Date? = nil
 
   // MARK: - Derived state
 
@@ -110,6 +131,11 @@ final class CaptureViewModel {
   var showErrorAlert: Bool = false
   var errorMessage: String = ""
 
+  /// `true` when the user had `trackAsTask` on at save time but EventKit
+  /// permission was denied. The UI shows a non-fatal banner explaining
+  /// that the reminder was not created and offering a link to Settings.
+  var showReminderPermissionDeniedBanner: Bool = false
+
   // MARK: - Test seam
 
   /// The last drain task spawned by `save()`.
@@ -131,6 +157,13 @@ final class CaptureViewModel {
   /// The property is set to `nil` before each `save()` call so stale values
   /// from a prior call never accidentally satisfy a later test's `await`.
   var _lastDrainTask: Task<Void, Never>? = nil
+
+  /// Test-only observer called with the `clientID` immediately after `enqueue`.
+  ///
+  /// **Test-only.** Production code must never set this property.
+  /// Allows tests to capture the `clientID` of an enqueued capture without
+  /// access to the queue's internal state.
+  var _enqueueObserver: ((String) -> Void)? = nil
 
   // MARK: - Language detection (debounced)
 
@@ -161,13 +194,18 @@ final class CaptureViewModel {
     guard !trimmed.isEmpty else { return }
 
     saveStatus = .loading
+    showReminderPermissionDeniedBanner = false
+
+    // Determine the client intent based on the toggle.
+    let intent: String? = trackAsTask ? "task" : nil
 
     let payload = CaptureViewModel.buildPayload(
       content: trimmed,
       sourceModality: "text",
       applyFillerCleanup: applyFillerCleanup,
       detectedLanguage: detectedLanguage,
-      languageHint: languageHint
+      languageHint: languageHint,
+      clientIntent: intent
     )
 
     // Encode the payload to the same bytes the queue will POST, so there is a
@@ -196,9 +234,48 @@ final class CaptureViewModel {
       return
     }
 
+    // Notify test observers of the enqueued clientID (test seam).
+    _enqueueObserver?(payload.clientID.uuidString)
+
+    // Step 1b — if "Track as task" is on, create an Apple Reminder immediately
+    // after the capture is safely persisted. Permission is requested here (on
+    // Save tap), not earlier on toggle flip, per the ticket spec.
+    //
+    // If permission is denied: capture is already safe — we show a non-fatal
+    // banner and continue. The upload will still include client_intent: "task"
+    // so the server-side enrichment guarantee still holds.
+    if trackAsTask, let ekProvider = eventKitProvider {
+      let granted = await ekProvider.requestAccess()
+      if granted {
+        do {
+          let dueDateComponents = taskDueDate.map { date -> DateComponents in
+            Calendar.current.dateComponents([.year, .month, .day], from: date)
+          }
+          let identifier = try await ekProvider.createReminder(
+            title: trimmed,
+            dueDateComponents: dueDateComponents
+          )
+          // Store the mapping so the reconciler can PATCH the task row
+          // once enrichment lands.
+          pendingReminderStore?.store(
+            memoryID: payload.clientID,  // keyed by clientID until server ID arrives
+            calendarItemIdentifier: identifier
+          )
+        } catch {
+          // Reminder save failed — not fatal. Capture is already safe.
+          print("[track-as-task] createReminder failed: \(error)")
+        }
+      } else {
+        // Permission denied — show the non-fatal banner.
+        showReminderPermissionDeniedBanner = true
+      }
+    }
+
     // Step 2 — report success to the UI. The capture is now safe on disk.
     saveStatus = .success
     content = ""
+    trackAsTask = false
+    taskDueDate = nil
 
     // Step 3 — fire-and-forget drain. Attempt an immediate upload; if the
     // network is unavailable the row stays in the queue and NetworkMonitor
@@ -245,13 +322,16 @@ final class CaptureViewModel {
   ///   - applyFillerCleanup: When `true`, run `FillerWordCleaner.clean(_:)`.
   ///   - detectedLanguage: BCP-47 code from `LanguageDetector`, or `nil`.
   ///   - languageHint: User-set language preference from Settings, or `nil`.
+  ///   - clientIntent: Optional intent signal. V1 valid values: `"task"` or nil.
+  ///     When nil the key is omitted from the encoded JSON entirely.
   /// - Returns: A `CapturePayload` ready to encode.
   nonisolated static func buildPayload(
     content: String,
     sourceModality: String,
     applyFillerCleanup: Bool,
     detectedLanguage: String?,
-    languageHint: String?
+    languageHint: String?,
+    clientIntent: String? = nil
   ) -> CapturePayload {
     let finalContent = applyFillerCleanup
       ? FillerWordCleaner.clean(content)
@@ -273,7 +353,8 @@ final class CaptureViewModel {
       sourceModality: sourceModality,
       sourceDevice: "iphone",
       language: language,
-      capturedAt: Date()
+      capturedAt: Date(),
+      clientIntent: clientIntent
     )
   }
 
@@ -293,7 +374,8 @@ final class CaptureViewModel {
       sourceModality: payload.sourceModality,
       sourceDevice: payload.sourceDevice,
       language: payload.language,
-      capturedAt: payload.capturedAt
+      capturedAt: payload.capturedAt,
+      clientIntent: payload.clientIntent
     )
     return try encoder.encode(body)
   }

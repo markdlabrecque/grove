@@ -48,6 +48,10 @@ class Memory(Base):
     enriched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     enriched_version: Mapped[int | None] = mapped_column(Integer)
     enrichment_error: Mapped[str | None] = mapped_column(Text)
+    # Client-supplied intent set at capture time. V1 value: "task". Nullable
+    # (no intent signal) for all other captures. Kept loose — no CHECK
+    # constraint — so future intent values require no schema change.
+    client_intent: Mapped[str | None] = mapped_column(Text)
 
     chunks: Mapped[list[MemoryChunk]] = relationship(
         "MemoryChunk",

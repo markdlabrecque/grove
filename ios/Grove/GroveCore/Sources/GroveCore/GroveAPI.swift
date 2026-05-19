@@ -625,7 +625,8 @@ public actor GroveAPI {
       sourceModality: payload.sourceModality,
       sourceDevice: payload.sourceDevice,
       language: payload.language,
-      capturedAt: payload.capturedAt
+      capturedAt: payload.capturedAt,
+      clientIntent: payload.clientIntent
     )
     let data = try encoder.encode(body)
 
@@ -742,6 +743,9 @@ public struct CapturePayload: Sendable {
   public let sourceDevice: String     // "iphone"
   public let language: String         // BCP-47 language code, e.g. "en"
   public let capturedAt: Date
+  /// Optional intent signal. V1 valid values: `"task"` or nil.
+  /// When nil the key is omitted from the encoded JSON body entirely.
+  public let clientIntent: String?
 
   public init(
     clientID: UUID,
@@ -749,7 +753,8 @@ public struct CapturePayload: Sendable {
     sourceModality: String,
     sourceDevice: String,
     language: String,
-    capturedAt: Date
+    capturedAt: Date,
+    clientIntent: String? = nil
   ) {
     self.clientID = clientID
     self.content = content
@@ -757,6 +762,7 @@ public struct CapturePayload: Sendable {
     self.sourceDevice = sourceDevice
     self.language = language
     self.capturedAt = capturedAt
+    self.clientIntent = clientIntent
   }
 }
 
@@ -766,6 +772,10 @@ public struct CapturePayload: Sendable {
 /// snake_case JSON keys. Using explicit keys instead of `.convertToSnakeCase`
 /// avoids the gotcha where `clientID` would encode as `client_i_d` rather
 /// than `client_id`.
+///
+/// `clientIntent` is omitted from the encoded JSON when nil — the server
+/// treats an absent key identically to an explicit null, and omitting keeps
+/// the wire payload compact for the common case.
 public struct CaptureRequestBody: Codable, Sendable {
   public let clientID: UUID
   public let content: String
@@ -773,6 +783,8 @@ public struct CaptureRequestBody: Codable, Sendable {
   public let sourceDevice: String
   public let language: String
   public let capturedAt: Date
+  /// V1 valid value: `"task"`. Nil → field is omitted from JSON entirely.
+  public let clientIntent: String?
 
   public init(
     clientID: UUID,
@@ -780,7 +792,8 @@ public struct CaptureRequestBody: Codable, Sendable {
     sourceModality: String,
     sourceDevice: String,
     language: String,
-    capturedAt: Date
+    capturedAt: Date,
+    clientIntent: String? = nil
   ) {
     self.clientID = clientID
     self.content = content
@@ -788,6 +801,7 @@ public struct CaptureRequestBody: Codable, Sendable {
     self.sourceDevice = sourceDevice
     self.language = language
     self.capturedAt = capturedAt
+    self.clientIntent = clientIntent
   }
 
   public enum CodingKeys: String, CodingKey {
@@ -797,6 +811,24 @@ public struct CaptureRequestBody: Codable, Sendable {
     case sourceDevice = "source_device"
     case language
     case capturedAt = "captured_at"
+    case clientIntent = "client_intent"
+  }
+
+  /// Custom encoder that omits `client_intent` when nil rather than writing
+  /// an explicit JSON null. The server accepts both absent and `null`, but
+  /// omitting is cleaner for backward-compatibility.
+  public func encode(to encoder: any Encoder) throws {
+    var container = encoder.container(keyedBy: CodingKeys.self)
+    try container.encode(clientID, forKey: .clientID)
+    try container.encode(content, forKey: .content)
+    try container.encode(sourceModality, forKey: .sourceModality)
+    try container.encode(sourceDevice, forKey: .sourceDevice)
+    try container.encode(language, forKey: .language)
+    try container.encode(capturedAt, forKey: .capturedAt)
+    if let intent = clientIntent {
+      try container.encode(intent, forKey: .clientIntent)
+    }
+    // When clientIntent is nil the key is simply not written.
   }
 }
 

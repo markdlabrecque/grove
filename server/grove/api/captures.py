@@ -30,6 +30,11 @@ class CaptureRequest(BaseModel):
     language: str = "en"
     captured_at: datetime
 
+    # V1 allowed value: "task". Null means no explicit intent.
+    # Validation is intentionally strict here (only "task" for V1) while
+    # the DB column stays unconstrained for forward compatibility.
+    client_intent: str | None = None
+
     @field_validator("content")
     @classmethod
     def content_must_not_be_blank(cls, v: str) -> str:
@@ -42,6 +47,15 @@ class CaptureRequest(BaseModel):
     def captured_at_must_be_tz_aware(cls, v: datetime) -> datetime:
         if v.tzinfo is None:
             raise ValueError("captured_at must include timezone information (ISO 8601 with TZ)")
+        return v
+
+    @field_validator("client_intent")
+    @classmethod
+    def client_intent_must_be_valid(cls, v: str | None) -> str | None:
+        if v is not None and v != "task":
+            raise ValueError(
+                f"client_intent '{v}' is not a recognised V1 value; allowed values: 'task'"
+            )
         return v
 
 
@@ -132,6 +146,7 @@ async def create_capture(
                 source_device=body.source_device,
                 language=body.language,
                 captured_at=body.captured_at,
+                client_intent=body.client_intent,
                 enriched=False,
                 embedding_model=provider.name,
                 token_count=token_count,

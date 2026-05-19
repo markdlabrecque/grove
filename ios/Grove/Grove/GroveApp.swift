@@ -2,6 +2,7 @@ import SwiftUI
 import SwiftData
 import AppIntents
 import GroveCore
+import EventKit
 
 @main
 struct GroveApp: App {
@@ -65,6 +66,18 @@ struct GroveApp: App {
       initialToken: Config.shared.bearerToken
     )
   }()
+
+  // MARK: - Task reconciler
+
+  /// Shared `TaskReconciler` instance. Reconciles locally-created Apple
+  /// Reminders with server `tasks` rows after enrichment lands.
+  ///
+  /// Exposed as a static property so `TaskRowView` and other consumers can
+  /// access it without needing to pass it through the view hierarchy.
+  @MainActor
+  static let taskReconciler: TaskReconciler = TaskReconciler(
+    pendingStore: UserDefaultsPendingReminderStore.shared
+  )
 
   // MARK: - Network monitor
 
