@@ -29,7 +29,7 @@ final class LiveEventKitProvider: EventKitProviding {
     do {
       return try await store.requestFullAccessToReminders()
     } catch {
-      logger.error("requestFullAccessToReminders failed: \(error)")
+      logger.error("requestFullAccessToReminders failed: \(error, privacy: .public)")
       return false
     }
   }
@@ -54,7 +54,7 @@ final class LiveEventKitProvider: EventKitProviding {
     do {
       try store.save(reminder, commit: true)
     } catch {
-      logger.error("save reminder failed: \(error)")
+      logger.error("save reminder failed: \(error, privacy: .public)")
       throw EventKitError.saveFailed
     }
 
