@@ -151,7 +151,12 @@ struct TaskLinkingViewModelTests {
     await vm.createReminder()
 
     #expect(vm.isLinked == false)
-    #expect(vm.linkError != nil)
+    // Value-equality: APIError.httpError with a non-nil detail forwards the
+    // detail string directly (see APIError.errorDescription). Pin the exact
+    // message so future regressions surface if the error stops being
+    // human-readable or starts leaking the raw status code.
+    #expect(vm.linkError == "Task not found")
+    #expect(vm.linkError != "404", "linkError must not expose the bare status code")
   }
 
   // MARK: - Denied EventKit permission
