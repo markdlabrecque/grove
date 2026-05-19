@@ -142,8 +142,18 @@ async def test_patch_task_links_eventkit_identifier(unlinked_task: Task) -> None
     assert response.status_code == 200
     body = response.json()
     assert body["id"] == str(unlinked_task.id)
+    assert body["memory_id"] == str(unlinked_task.memory_id)
+    assert body["description"] == unlinked_task.description
     assert body["eventkit_identifier"] == ek_id
     assert body["eventkit_linked_at"] is not None
+    # Pin the full wire shape so future response_model changes break this test.
+    # The fixture seeds the task without status/related_people, so both are None.
+    assert body["status"] is None
+    assert body["related_people"] is None
+    assert "confidence" in body
+    assert "enrichment_version" in body
+    assert "created_at" in body
+    assert "due_date" in body
 
 
 # ---------------------------------------------------------------------------
