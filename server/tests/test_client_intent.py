@@ -21,7 +21,6 @@ Coverage:
 
 from __future__ import annotations
 
-import json
 import os
 import uuid
 from collections.abc import AsyncIterator
@@ -32,7 +31,7 @@ import httpx
 import pytest
 import respx
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import inspect, select, text
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -114,9 +113,7 @@ def _make_memory(client_intent: str | None = None) -> Memory:
     )
 
 
-async def _seed_memory(
-    session: AsyncSession, client_intent: str | None = None
-) -> Memory:
+async def _seed_memory(session: AsyncSession, client_intent: str | None = None) -> Memory:
     m = _make_memory(client_intent=client_intent)
     session.add(m)
     await session.commit()
@@ -130,9 +127,7 @@ async def _seed_memory(
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_capture_accepts_client_intent_task(
-    payload: dict, db_session: AsyncSession
-) -> None:
+async def test_capture_accepts_client_intent_task(payload: dict, db_session: AsyncSession) -> None:
     """POST /v1/captures with client_intent='task' returns 201 and persists the value."""
     from grove.main import app
 
@@ -283,7 +278,8 @@ async def test_client_intent_task_uses_llm_extraction_when_available(
     """When client_intent='task' and LLM extracts a task, use the LLM's description."""
     from grove.enrichment.classifier import ClassificationResult
     from grove.enrichment.orchestrator import classify_and_write
-    from grove.enrichment.schemas import Classification, Task as TaskSchema
+    from grove.enrichment.schemas import Classification
+    from grove.enrichment.schemas import Task as TaskSchema
 
     memory = await _seed_memory(db_session, client_intent="task")
 
@@ -334,7 +330,8 @@ async def test_client_intent_task_forced_confidence_is_1_0(
     """Task row emitted for a client_intent='task' memory always has confidence 1.0."""
     from grove.enrichment.classifier import ClassificationResult
     from grove.enrichment.orchestrator import classify_and_write
-    from grove.enrichment.schemas import Classification, Task as TaskSchema
+    from grove.enrichment.schemas import Classification
+    from grove.enrichment.schemas import Task as TaskSchema
 
     memory = await _seed_memory(db_session, client_intent="task")
 

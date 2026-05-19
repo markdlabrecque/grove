@@ -235,26 +235,63 @@ async def classify_and_write(
                     report.record_dropped()
                 dropped += 1
 
-        for task in classification.tasks:
-            if task.confidence >= CONFIDENCE_THRESHOLD:
-                await insert_if_not_exists(
-                    session,
-                    Task,
-                    memory_id=memory.id,
-                    enrichment_version=PIPELINE_VERSION,
-                    description=task.description,
-                    due_date=task.due_date,
-                    status=task.status,
-                    related_people=task.related_people,
-                    confidence=task.confidence,
-                )
-                if report is not None:
-                    report.record_accepted("tasks", confidence=task.confidence)
-                accepted += 1
+        # --- Task emission ---
+        # When the user explicitly marked this capture as a task
+        # (client_intent == "task"), guarantee exactly one tasks row with
+        # confidence 1.0.  Collapse any LLM extractions to a single row:
+        # pick the highest-confidence LLM extraction if one exists, otherwise
+        # fall back to the raw memory content.  The confidence threshold is
+        # intentionally bypassed — the user signal overrides classifier doubt.
+        if memory.client_intent == "task":
+            # Sort descending; highest-confidence LLM task is first (if any).
+            llm_tasks_sorted = sorted(
+                classification.tasks, key=lambda t: t.confidence, reverse=True
+            )
+            if llm_tasks_sorted:
+                best = llm_tasks_sorted[0]
+                forced_description = best.description or memory.content
+                forced_due_date = best.due_date
+                forced_related_people = best.related_people
             else:
-                if report is not None:
-                    report.record_dropped()
-                dropped += 1
+                forced_description = memory.content
+                forced_due_date = None
+                forced_related_people = None
+
+            await insert_if_not_exists(
+                session,
+                Task,
+                memory_id=memory.id,
+                enrichment_version=PIPELINE_VERSION,
+                description=forced_description,
+                due_date=forced_due_date,
+                status="open",
+                related_people=forced_related_people,
+                confidence=1.0,
+            )
+            if report is not None:
+                report.record_accepted("tasks", confidence=1.0)
+            accepted += 1
+        else:
+            for task in classification.tasks:
+                if task.confidence >= CONFIDENCE_THRESHOLD:
+                    await insert_if_not_exists(
+                        session,
+                        Task,
+                        memory_id=memory.id,
+                        enrichment_version=PIPELINE_VERSION,
+                        description=task.description,
+                        due_date=task.due_date,
+                        status=task.status,
+                        related_people=task.related_people,
+                        confidence=task.confidence,
+                    )
+                    if report is not None:
+                        report.record_accepted("tasks", confidence=task.confidence)
+                    accepted += 1
+                else:
+                    if report is not None:
+                        report.record_dropped()
+                    dropped += 1
 
         for appointment in classification.appointments:
             if appointment.confidence >= CONFIDENCE_THRESHOLD:
