@@ -89,7 +89,7 @@ final class CaptureViewModel {
   // MARK: - Derived state
 
   var isSaveEnabled: Bool {
-    !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isLoading
+    CaptureGuard.validate(content) && !isLoading
   }
 
   /// Live character count of the current `content`.
@@ -190,8 +190,7 @@ final class CaptureViewModel {
   // MARK: - Save
 
   func save(applyFillerCleanup: Bool = false, languageHint: String? = nil) async {
-    let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return }
+    guard let trimmed = CaptureGuard.trimmedContent(content) else { return }
 
     saveStatus = .loading
     showReminderPermissionDeniedBanner = false

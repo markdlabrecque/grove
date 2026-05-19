@@ -17,8 +17,10 @@ import GroveCore
 //      dictation path tests fully cover this surface. A structural test below
 //      documents the call chain so regressions are caught at code-review time.
 //
-// CI gap: all tests here live in the GroveTests app target (make ios-test-app).
-// `make ios-test-core` (SPM / CI) does NOT run them. Documented in PR body.
+// CI coverage: CaptureGuard pure-logic tests (validate / trimmedContent) live in
+// GroveCoreTests and run under `make ios-test-core` (SPM / CI). The tests here
+// remain the VM integration regression net — they exercise isSaveEnabled and the
+// full save() path including SwiftData enqueue, which requires @testable import Grove.
 
 // MARK: - Shared fixture
 
