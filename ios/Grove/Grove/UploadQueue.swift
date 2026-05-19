@@ -450,17 +450,28 @@ public actor UploadQueue {
       sourceModality: body.sourceModality,
       sourceDevice: body.sourceDevice,
       language: body.language,
-      capturedAt: body.capturedAt
+      capturedAt: body.capturedAt,
+      clientIntent: body.clientIntent
     )
 
     do {
-      _ = try await api.postCapture(payload)
+      let response = try await api.postCapture(payload)
       // Success — delete eagerly in this actor turn before yielding.
       modelContext.delete(row)
       try modelContext.save()
       testHooks?.onModelContextSave?()
       print("[UploadQueue] drained clientID=\(row.clientID)")
       testHooks?.onDrainRowComplete?(.success(()))
+      // Notify interested parties (e.g. PendingReminderStore reconciliation)
+      // that this capture has been confirmed by the server with its UUID.
+      NotificationCenter.default.post(
+        name: .captureUploadedNotification,
+        object: nil,
+        userInfo: [
+          "clientID": row.clientID,
+          "serverMemoryID": response.id.uuidString,
+        ]
+      )
     } catch {
       // 401 is a special case: credentials have expired/changed.
       // Mark the row as auth_required rather than deleting it or treating it
@@ -579,7 +590,7 @@ public actor UploadQueue {
   }
 }
 
-// MARK: - Notification name
+// MARK: - Notification names
 
 extension Notification.Name {
   /// Posted by `UploadQueue.drainRow` when a row transitions to `auth_required`
@@ -587,5 +598,18 @@ extension Notification.Name {
   /// use this to show the "re-enter your token" banner.
   static let authRequiredDidChange = Notification.Name(
     "com.markdlabrecque.grove.upload-queue.auth-required-did-change"
+  )
+
+  /// Posted by `UploadQueue.drainRow` after a successful capture upload.
+  ///
+  /// `userInfo` contains:
+  ///   - `"clientID"` (`String`) — the `clientID` UUID string of the capture.
+  ///   - `"serverMemoryID"` (`String`) — the server-assigned memory UUID string.
+  ///
+  /// Observers (e.g. `UserDefaultsPendingReminderStore`) use this to remap
+  /// pending-reminder entries from client-side `clientID` keys to
+  /// server-assigned `memory_id` keys, enabling reconciliation with `TaskDTO`.
+  static let captureUploadedNotification = Notification.Name(
+    "com.markdlabrecque.grove.upload-queue.capture-uploaded"
   )
 }

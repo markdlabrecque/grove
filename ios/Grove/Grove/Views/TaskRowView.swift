@@ -73,6 +73,12 @@ struct TaskRowView: View {
     .padding(.vertical, 6)
     .onAppear {
       vm.refreshCompletionStatus()
+      // Trigger reconciliation whenever a task row appears — this links
+      // any locally-created reminder (from "Track as task") to this row.
+      // The reconciler is a no-op when no pending entry exists for this task.
+      Task { @MainActor in
+        await GroveApp.taskReconciler.reconcile(tasks: [vm.task])
+      }
     }
     .accessibilityElement(children: .combine)
     .accessibilityLabel(accessibilityLabel)

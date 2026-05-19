@@ -33,6 +33,9 @@ final class LiveEventKitProvider: EventKitProviding {
 
   /// Creates an `EKReminder` in the user's default Reminders list and returns
   /// its `calendarItemIdentifier`.
+  ///
+  /// The reminder's `notes` field is set to `"From Grove"` so the origin is
+  /// visible in the Reminders app.
   func createReminder(
     title: String,
     dueDateComponents: DateComponents?
@@ -40,6 +43,7 @@ final class LiveEventKitProvider: EventKitProviding {
     let reminder = EKReminder(eventStore: store)
     reminder.title = title
     reminder.dueDateComponents = dueDateComponents
+    reminder.notes = "From Grove"
     reminder.calendar = store.defaultCalendarForNewReminders()
 
     do {
