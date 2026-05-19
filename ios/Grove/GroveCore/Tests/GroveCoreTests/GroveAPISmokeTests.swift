@@ -224,4 +224,278 @@ struct GroveAPISmokeTests {
     let result = try await api.postCapture(makePayload())
     #expect(result.enriched == false)
   }
+
+  // MARK: - Task EventKit linking (PATCH /v1/tasks/{id})
+  //
+  // Nested inside GroveAPISmokeTests so these tests are serialized together
+  // with the rest of the StubURLProtocol-based tests in this suite. A top-level
+  // @Suite(.serialized) only serializes within itself — two sibling serialized
+  // suites can still run concurrently, which would corrupt the shared
+  // StubURLProtocol.responder static. Nesting avoids that race.
+
+  private static let taskID = UUID(uuidString: "AABBCCDD-0000-0000-0000-000000000001")!
+  private static let ekIdentifier = "EK-stub-identifier-789"
+
+  private func taskResponse(
+    id: UUID = GroveAPISmokeTests.taskID,
+    ekIdentifier: String? = GroveAPISmokeTests.ekIdentifier
+  ) -> Data {
+    let identifierJSON: String
+    if let ekIdentifier {
+      identifierJSON = "\"\(ekIdentifier)\""
+    } else {
+      identifierJSON = "null"
+    }
+    let json = """
+    {
+      "id": "\(id.uuidString.lowercased())",
+      "memory_id": "00000000-0000-0000-0000-000000000000",
+      "description": "Call Theo about the demo",
+      "due_date": null,
+      "status": "open",
+      "related_people": [],
+      "eventkit_identifier": \(identifierJSON),
+      "eventkit_linked_at": "2026-05-18T12:00:00Z"
+    }
+    """
+    return Data(json.utf8)
+  }
+
+  @Test("patchTaskEventKit sends PATCH to /v1/tasks/{id}")
+  func patchTaskEventKitMethod() async throws {
+    var capturedRequest: URLRequest?
+    StubURLProtocol.responder = { request in
+      capturedRequest = request
+      let response = HTTPURLResponse(
+        url: request.url!,
+        statusCode: 200,
+        httpVersion: nil,
+        headerFields: nil
+      )!
+      return (response, taskResponse())
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    let api = makeAPI()
+    _ = try await api.patchTaskEventKit(
+      taskID: Self.taskID,
+      eventkitIdentifier: Self.ekIdentifier
+    )
+
+    #expect(capturedRequest?.httpMethod == "PATCH")
+    let expectedURL = Self.baseURL
+      .appendingPathComponent("v1/tasks/\(Self.taskID.uuidString.lowercased())")
+    #expect(capturedRequest?.url == expectedURL)
+  }
+
+  @Test("patchTaskEventKit encodes eventkit_identifier in body")
+  func patchTaskEventKitBody() async throws {
+    var capturedBodyData: Data?
+    StubURLProtocol.responder = { request in
+      // URLSession delivers the body as an HTTPBodyStream when using data(for:)
+      // through URLProtocol — httpBody is nil. Read the stream here.
+      if let stream = request.httpBodyStream {
+        stream.open()
+        var data = Data()
+        let buffer = UnsafeMutablePointer<UInt8>.allocate(capacity: 4096)
+        defer { buffer.deallocate() }
+        while stream.hasBytesAvailable {
+          let read = stream.read(buffer, maxLength: 4096)
+          if read > 0 { data.append(buffer, count: read) }
+        }
+        stream.close()
+        capturedBodyData = data
+      } else {
+        capturedBodyData = request.httpBody
+      }
+      let response = HTTPURLResponse(
+        url: request.url!,
+        statusCode: 200,
+        httpVersion: nil,
+        headerFields: nil
+      )!
+      return (response, taskResponse())
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    let api = makeAPI()
+    _ = try await api.patchTaskEventKit(
+      taskID: Self.taskID,
+      eventkitIdentifier: Self.ekIdentifier
+    )
+
+    guard let bodyData = capturedBodyData,
+          let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: String]
+    else {
+      Issue.record("Request body was missing or not JSON")
+      return
+    }
+    #expect(json["eventkit_identifier"] == Self.ekIdentifier)
+  }
+
+  @Test("patchTaskEventKit 200: returns decoded TaskDTO with identifier")
+  func patchTaskEventKitHappyPath() async throws {
+    StubURLProtocol.responder = { [self] request in
+      let response = HTTPURLResponse(
+        url: request.url!,
+        statusCode: 200,
+        httpVersion: nil,
+        headerFields: nil
+      )!
+      return (response, taskResponse())
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    let api = makeAPI()
+    let task = try await api.patchTaskEventKit(
+      taskID: Self.taskID,
+      eventkitIdentifier: Self.ekIdentifier
+    )
+
+    #expect(task.id == Self.taskID)
+    #expect(task.eventkitIdentifier == Self.ekIdentifier)
+  }
+
+  @Test("patchTaskEventKit 409: throws TaskLinkingError.alreadyLinked with existing identifier")
+  func patchTaskEventKit409() async throws {
+    let existingID = "EK-pre-existing-conflict"
+    let conflictBody = Data("""
+    {
+      "detail": {
+        "detail": "Task already linked to a reminder.",
+        "existing_identifier": "\(existingID)"
+      }
+    }
+    """.utf8)
+
+    StubURLProtocol.responder = { request in
+      let response = HTTPURLResponse(
+        url: request.url!,
+        statusCode: 409,
+        httpVersion: nil,
+        headerFields: nil
+      )!
+      return (response, conflictBody)
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    let api = makeAPI()
+    do {
+      _ = try await api.patchTaskEventKit(
+        taskID: Self.taskID,
+        eventkitIdentifier: Self.ekIdentifier
+      )
+      Issue.record("Expected TaskLinkingError.alreadyLinked but no error was thrown")
+    } catch let e as TaskLinkingError {
+      if case .alreadyLinked(let id) = e {
+        #expect(id == existingID)
+      } else {
+        Issue.record("Unexpected TaskLinkingError case: \(e)")
+      }
+    }
+  }
+
+  @Test("patchTaskEventKit 404: throws APIError.httpError(404)")
+  func patchTaskEventKit404() async throws {
+    StubURLProtocol.responder = { request in
+      let response = HTTPURLResponse(
+        url: request.url!,
+        statusCode: 404,
+        httpVersion: nil,
+        headerFields: nil
+      )!
+      return (response, Data("{\"detail\": \"Task not found\"}".utf8))
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    let api = makeAPI()
+    do {
+      _ = try await api.patchTaskEventKit(
+        taskID: Self.taskID,
+        eventkitIdentifier: Self.ekIdentifier
+      )
+      Issue.record("Expected an error but none was thrown")
+    } catch let e as APIError {
+      if case .httpError(let code, _) = e {
+        #expect(code == 404)
+      } else {
+        Issue.record("Unexpected APIError: \(e)")
+      }
+    }
+  }
+
+  // MARK: - TaskDTO nullability regression (#392)
+
+  /// Regression test: server returns `null` for `status` and `related_people`
+  /// when the enricher has not yet populated those fields. Swift's JSONDecoder
+  /// throws `valueNotFound` for non-optional properties — this test guards
+  /// against that crash.
+  @Test("TaskDTO decodes null status and related_people to nil")
+  func taskDTONullStatusAndRelatedPeople() throws {
+    let json = Data("""
+    {
+      "id": "AABBCCDD-0000-0000-0000-000000000001",
+      "memory_id": "00000000-0000-0000-0000-000000000000",
+      "description": "Send the report",
+      "due_date": null,
+      "status": null,
+      "related_people": null,
+      "eventkit_identifier": null,
+      "eventkit_linked_at": null
+    }
+    """.utf8)
+
+    let decoder = JSONDecoder()
+    let task = try decoder.decode(TaskDTO.self, from: json)
+    #expect(task.status == nil)
+    #expect(task.relatedPeople == nil)
+  }
+
+  /// Confirm that a task with non-null status and related_people still decodes
+  /// correctly after the nullability change.
+  @Test("TaskDTO decodes non-null status and related_people")
+  func taskDTONonNullStatusAndRelatedPeople() throws {
+    let json = Data("""
+    {
+      "id": "AABBCCDD-0000-0000-0000-000000000002",
+      "memory_id": "00000000-0000-0000-0000-000000000000",
+      "description": "Call Theo about the demo",
+      "due_date": null,
+      "status": "open",
+      "related_people": ["Theo"],
+      "eventkit_identifier": null,
+      "eventkit_linked_at": null
+    }
+    """.utf8)
+
+    let decoder = JSONDecoder()
+    let task = try decoder.decode(TaskDTO.self, from: json)
+    #expect(task.status == "open")
+    #expect(task.relatedPeople == ["Theo"])
+  }
+
+  @Test("patchTaskEventKit includes Authorization header")
+  func patchTaskEventKitAuthorizationHeader() async throws {
+    var capturedRequest: URLRequest?
+    StubURLProtocol.responder = { request in
+      capturedRequest = request
+      let response = HTTPURLResponse(
+        url: request.url!,
+        statusCode: 200,
+        httpVersion: nil,
+        headerFields: nil
+      )!
+      return (response, taskResponse())
+    }
+    defer { StubURLProtocol.responder = nil }
+
+    let api = makeAPI()
+    _ = try await api.patchTaskEventKit(
+      taskID: Self.taskID,
+      eventkitIdentifier: Self.ekIdentifier
+    )
+
+    let authHeader = capturedRequest?.value(forHTTPHeaderField: "Authorization")
+    #expect(authHeader == "Bearer \(Self.token)")
+  }
 }

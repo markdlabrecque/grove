@@ -383,6 +383,71 @@ public actor GroveAPI {
     }
   }
 
+  // MARK: - Task EventKit linking
+
+  /// Attach an EventKit reminder identifier to a task (PATCH /v1/tasks/{id}).
+  ///
+  /// Called after the app creates an `EKReminder` and captures its
+  /// `calendarItemIdentifier`. Sends `{"eventkit_identifier": <id>}` to the
+  /// server, which stores the identifier on the `tasks` row.
+  ///
+  /// ## Status codes
+  ///
+  /// - **200** — success. Returns the full updated `TaskDTO`.
+  /// - **404** — task not found. Thrown as `APIError.httpError(404, _)`.
+  /// - **409** — already linked to a different identifier. Thrown as
+  ///   `TaskLinkingError.alreadyLinked(existingIdentifier:)` where the
+  ///   associated value is the `existing_identifier` from the response body.
+  ///   Callers should self-heal by adopting the existing identifier.
+  /// - **422** — missing or empty `eventkit_identifier`. Thrown as
+  ///   `APIError.httpError(422, _)`.
+  ///
+  /// Uses the `defaultSession` — interactive, benefits from Task cancellation.
+  public func patchTaskEventKit(
+    taskID: UUID,
+    eventkitIdentifier: String
+  ) async throws -> TaskDTO {
+    let url = baseURL.appendingPathComponent(
+      "v1/tasks/\(taskID.uuidString.lowercased())"
+    )
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "PATCH"
+
+    let body = ["eventkit_identifier": eventkitIdentifier]
+    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    print("[task-link] task_id=\(taskID.uuidString.lowercased()) status=\(status)")
+
+    // 409: task already linked — extract the existing identifier from the body
+    // so the caller can self-heal without a separate GET.
+    if status == 409 {
+      // FastAPI envelopes dict-detail under "detail":
+      // { "detail": { "detail": "...", "existing_identifier": "<id>" } }
+      if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+         let outer = json["detail"] as? [String: Any],
+         let existingID = outer["existing_identifier"] as? String {
+        throw TaskLinkingError.alreadyLinked(existingIdentifier: existingID)
+      }
+      // Fallback if body shape differs.
+      throw APIError.httpError(statusCode: 409, detail: "Task already linked to a reminder.")
+    }
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    return try decoder.decode(TaskDTO.self, from: data)
+  }
+
   // MARK: - Delete
 
   /// Delete a memory by ID (DELETE /v1/memories/{id}).

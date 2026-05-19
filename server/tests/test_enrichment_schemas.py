@@ -238,7 +238,17 @@ def test_task_pydantic_fields_match_sqlalchemy():
     from grove.models.task import Task as SATask
 
     sa_cols = {c.key for c in SATask.__table__.columns}
-    db_managed = {"id", "memory_id", "enrichment_version", "created_at"}
+    # db_managed: columns set by the DB or by non-enrichment code paths.
+    # eventkit_* columns are written by the iOS client via PATCH /v1/tasks/{id},
+    # not by the enrichment pipeline, so they are excluded from this check.
+    db_managed = {
+        "id",
+        "memory_id",
+        "enrichment_version",
+        "created_at",
+        "eventkit_identifier",
+        "eventkit_linked_at",
+    }
     expected = sa_cols - db_managed
 
     pydantic_fields = set(Task.model_fields.keys())

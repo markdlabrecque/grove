@@ -40,5 +40,11 @@ class Task(Base):
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
+    # EventKit bridge (#391): set once when iOS creates the corresponding
+    # EKReminder. Never overwritten — the 409 contract enforces idempotency.
+    eventkit_identifier: Mapped[str | None] = mapped_column(Text, nullable=True)
+    eventkit_linked_at: Mapped[datetime | None] = mapped_column(
+        TIMESTAMP(timezone=True), nullable=True
+    )
 
     memory: Mapped[Memory] = relationship("Memory", back_populates="tasks")

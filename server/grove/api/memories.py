@@ -77,6 +77,8 @@ class TaskSchema(BaseModel):
     confidence: float
     enrichment_version: int
     created_at: datetime
+    eventkit_identifier: str | None
+    eventkit_linked_at: datetime | None
 
     model_config = {"from_attributes": True}
 
