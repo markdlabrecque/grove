@@ -164,8 +164,9 @@ async def test_patch_already_linked_task_returns_409(linked_task: Task) -> None:
 
     assert response.status_code == 409
     body = response.json()
-    # The existing identifier is returned so the iOS client can self-heal.
-    assert body["existing_identifier"] == "existing-ek-id-abc123"
+    # FastAPI wraps HTTPException detail under the "detail" key.
+    # The existing identifier is nested so the iOS client can self-heal.
+    assert body["detail"]["existing_identifier"] == "existing-ek-id-abc123"
 
 
 # ---------------------------------------------------------------------------
