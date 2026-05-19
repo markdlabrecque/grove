@@ -66,7 +66,7 @@ async def link_task_eventkit(
     logger.info(
         "task_eventkit_linked",
         task_id=str(task_id),
-        eventkit_identifier=body.eventkit_identifier,
+        eventkit_identifier=task.eventkit_identifier,
     )
 
     return TaskSchema.model_validate(task)
