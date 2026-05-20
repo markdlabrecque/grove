@@ -200,8 +200,7 @@ final class DictationCaptureViewModel {
   /// or `nil` if there is no in-progress dictation worth resuming.
   func makeDraftIfNeeded() -> DictationDraft? {
     let isActive = recordingState == .recording || recordingState == .stopped
-    guard isActive,
-          !transcript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+    guard isActive, CaptureGuard.validate(transcript) else {
       return nil
     }
     return DictationDraft(transcript: transcript)
