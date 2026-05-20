@@ -133,7 +133,14 @@ For every ticket that requires implementation work:
        dependency bumps, and docs; glue / integration code whose
        value is entirely in the wiring (Caddy, systemd, cron) — smoke
        tests still apply where reasonable, but a red→green ceremony
-       is overkill.
+       is overkill; **pure refactors with no behaviour change** (file
+       moves between targets, type-visibility promotions, rename /
+       extract-helper, dependency-injection plumbing — the existing
+       test suite is the safety net, and a fabricated "type not found"
+       red commit pins no contract); **test-only improvements** (race
+       fixes, fixture cleanup, switching to a more robust async
+       pattern — no production diff means there is no contract delta
+       to pin).
      - When the judgment is ambiguous, the implementer notes the call
        in the PR body — `TDD applied` or `TDD skipped because <reason>`
        — and Theo confirms it during review.
