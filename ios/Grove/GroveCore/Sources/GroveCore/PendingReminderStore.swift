@@ -79,10 +79,15 @@ public final class UserDefaultsPendingReminderStore: PendingReminderStoring {
 
   private let defaults: UserDefaults
 
+  // MARK: - NotificationCenter
+
+  private let notificationCenter: NotificationCenter
+
   // MARK: - Init
 
-  public init() {
+  public init(notificationCenter: NotificationCenter = .default) {
     self.defaults = .standard
+    self.notificationCenter = notificationCenter
     // Populate cache from UserDefaults on first access.
     if let data = defaults.data(forKey: Self.defaultsKey),
        let entries = try? JSONDecoder().decode([PendingReminderEntry].self, from: data) {
@@ -95,11 +100,11 @@ public final class UserDefaultsPendingReminderStore: PendingReminderStoring {
     // entries from clientID keys to server-assigned memoryID keys.
     // The notification fires from UploadQueue.drainRow after a 200 response.
     Task { @MainActor [weak self] in
-      for await notification in NotificationCenter.default.notifications(
+      guard let self else { return }
+      for await notification in self.notificationCenter.notifications(
         named: .captureUploadedNotification
       ) {
-        guard let self,
-              let clientIDStr = notification.userInfo?["clientID"] as? String,
+        guard let clientIDStr = notification.userInfo?["clientID"] as? String,
               let serverIDStr = notification.userInfo?["serverMemoryID"] as? String,
               let clientID = UUID(uuidString: clientIDStr),
               let serverMemoryID = UUID(uuidString: serverIDStr)
@@ -110,15 +115,18 @@ public final class UserDefaultsPendingReminderStore: PendingReminderStoring {
     }
   }
 
-  /// Initialises the store with an explicit `UserDefaults` suite.
+  /// Initialises the store with an explicit `UserDefaults` suite and
+  /// `NotificationCenter`.
   ///
-  /// Use this in tests to back the store with a temporary, hermetic suite:
+  /// Use this in tests to back the store with hermetic, isolated instances:
   /// ```swift
   /// let suite = UserDefaults(suiteName: UUID().uuidString)!
-  /// let store = UserDefaultsPendingReminderStore(defaults: suite)
+  /// let center = NotificationCenter()
+  /// let store = UserDefaultsPendingReminderStore(defaults: suite, notificationCenter: center)
   /// ```
-  public init(defaults: UserDefaults) {
+  public init(defaults: UserDefaults, notificationCenter: NotificationCenter = .default) {
     self.defaults = defaults
+    self.notificationCenter = notificationCenter
     if let data = defaults.data(forKey: Self.defaultsKey),
        let entries = try? JSONDecoder().decode([PendingReminderEntry].self, from: data) {
       cache = entries
@@ -127,11 +135,11 @@ public final class UserDefaultsPendingReminderStore: PendingReminderStoring {
     }
 
     Task { @MainActor [weak self] in
-      for await notification in NotificationCenter.default.notifications(
+      guard let self else { return }
+      for await notification in self.notificationCenter.notifications(
         named: .captureUploadedNotification
       ) {
-        guard let self,
-              let clientIDStr = notification.userInfo?["clientID"] as? String,
+        guard let clientIDStr = notification.userInfo?["clientID"] as? String,
               let serverIDStr = notification.userInfo?["serverMemoryID"] as? String,
               let clientID = UUID(uuidString: clientIDStr),
               let serverMemoryID = UUID(uuidString: serverIDStr)

@@ -23,15 +23,17 @@ struct PendingReminderStoreRemapTests {
   /// Posting `captureUploadedNotification` causes the store to remap the
   /// entry from `clientID` to `serverMemoryID`.
   ///
-  /// A hermetic `UserDefaults` suite is used so the test never touches the
-  /// host process's real defaults; the suite is removed in `defer`.
+  /// A hermetic `UserDefaults` suite and a private `NotificationCenter` are
+  /// used so this test is fully isolated from other test stores. The suite
+  /// is removed in `defer`.
   @Test("captureUploadedNotification remaps clientID → serverMemoryID")
   func notificationRemapsClientIDToServerMemoryID() async throws {
     let suiteName = UUID().uuidString
     let suite = UserDefaults(suiteName: suiteName)!
     defer { suite.removeSuite(named: suiteName) }
 
-    let store = UserDefaultsPendingReminderStore(defaults: suite)
+    let center = NotificationCenter()
+    let store = UserDefaultsPendingReminderStore(defaults: suite, notificationCenter: center)
 
     let clientID = UUID()
     let serverMemoryID = UUID()
@@ -43,7 +45,7 @@ struct PendingReminderStoreRemapTests {
     // Yield once so it reaches its first `next()` suspension point.
     await Task.yield()
 
-    NotificationCenter.default.post(
+    center.post(
       name: .captureUploadedNotification,
       object: nil,
       userInfo: [
@@ -73,7 +75,8 @@ struct PendingReminderStoreRemapTests {
     let suite = UserDefaults(suiteName: suiteName)!
     defer { suite.removeSuite(named: suiteName) }
 
-    let store = UserDefaultsPendingReminderStore(defaults: suite)
+    let center = NotificationCenter()
+    let store = UserDefaultsPendingReminderStore(defaults: suite, notificationCenter: center)
 
     let knownClientID = UUID()
     let unknownClientID = UUID()
@@ -83,7 +86,7 @@ struct PendingReminderStoreRemapTests {
 
     await Task.yield()
 
-    NotificationCenter.default.post(
+    center.post(
       name: .captureUploadedNotification,
       object: nil,
       userInfo: [
