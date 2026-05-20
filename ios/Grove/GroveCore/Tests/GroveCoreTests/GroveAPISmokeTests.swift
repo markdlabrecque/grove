@@ -21,12 +21,14 @@ import GroveTestSupport
 /// than a `.background(...)` one. This makes the async `data(for:)` call legal
 /// and exercises the full round-trip up to (but not including) the real network.
 ///
-/// # Serialization
+/// # Per-test isolation
 ///
-/// `StubURLProtocol.responder` is a static property, so tests must not run in
-/// parallel — the `@Suite(.serialized)` annotation opts out of Swift Testing's
-/// default concurrent runner.
-@Suite("GroveAPI Smoke Tests", .serialized)
+/// All tests use `StubURLProtocol.makeSession(responder:)` (#422) which embeds a
+/// unique stub ID in each session's `httpAdditionalHeaders`. The registry lookup in
+/// `startLoading()` is keyed on that ID, so concurrent suites cannot corrupt each
+/// other's responders. Tests in this suite run in parallel to verify the isolation
+/// is race-free.
+@Suite("GroveAPI Smoke Tests")
 struct GroveAPISmokeTests {
 
   // MARK: - Fixtures
@@ -34,18 +36,19 @@ struct GroveAPISmokeTests {
   private static let baseURL = URL(string: "https://grove.example.ts.net")!
   private static let token = "smoke-test-token"
 
-  /// Build an `GroveAPI` whose `URLSession` uses a `.default` configuration
-  /// augmented with `StubURLProtocol`. This mirrors the singleton's session
-  /// construction path (`.default` config → `URLSession(configuration:)`) and
-  /// is the path that the #87 regression broke.
-  private func makeAPI() -> GroveAPI {
-    let config = URLSessionConfiguration.default
-    config.protocolClasses = [StubURLProtocol.self]
-    return GroveAPI(
+  /// Build a `GroveAPI` whose `URLSession` uses the per-test-isolated config
+  /// from `StubURLProtocol.makeSession`. Returns both the API and the teardown
+  /// closure; callers must invoke teardown (typically via `defer`) after the test.
+  private func makeAPI(
+    responder: @escaping (URLRequest) -> (HTTPURLResponse, Data)
+  ) -> (GroveAPI, () -> Void) {
+    let (config, teardown) = StubURLProtocol.makeSession(responder: responder)
+    let api = GroveAPI(
       baseURL: Self.baseURL,
       bearerToken: Self.token,
       configuration: config
     )
+    return (api, teardown)
   }
 
   private func makePayload(content: String = "Buy oat milk.") -> CapturePayload {
@@ -81,7 +84,7 @@ struct GroveAPISmokeTests {
     let captureURL = Self.baseURL.appendingPathComponent("v1/captures")
     let responseData = try loadFixture("capture_response")
 
-    StubURLProtocol.responder = { [captureURL, responseData] _ in
+    let (api, teardown) = makeAPI { [captureURL, responseData] _ in
       let resp = HTTPURLResponse(
         url: captureURL,
         statusCode: 201,
@@ -90,9 +93,8 @@ struct GroveAPISmokeTests {
       )!
       return (resp, responseData)
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     let result = try await api.postCapture(makePayload())
 
     // Spot-check the decoded fixture values.
@@ -108,7 +110,7 @@ struct GroveAPISmokeTests {
     let queryURL = Self.baseURL.appendingPathComponent("v1/queries")
     let responseData = try loadFixture("query_response")
 
-    StubURLProtocol.responder = { [queryURL, responseData] _ in
+    let (api, teardown) = makeAPI { [queryURL, responseData] _ in
       let resp = HTTPURLResponse(
         url: queryURL,
         statusCode: 200,
@@ -117,9 +119,8 @@ struct GroveAPISmokeTests {
       )!
       return (resp, responseData)
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     let result = try await api.postQuery("SwiftData local store")
 
     #expect(result.sources.count == 2)
@@ -138,7 +139,7 @@ struct GroveAPISmokeTests {
     let captureURL = Self.baseURL.appendingPathComponent("v1/captures")
     let errorBody = #"{"detail":"internal server error"}"#.data(using: .utf8)!
 
-    StubURLProtocol.responder = { [captureURL, errorBody] _ in
+    let (api, teardown) = makeAPI { [captureURL, errorBody] _ in
       let resp = HTTPURLResponse(
         url: captureURL,
         statusCode: 500,
@@ -147,9 +148,7 @@ struct GroveAPISmokeTests {
       )!
       return (resp, errorBody)
     }
-    defer { StubURLProtocol.responder = nil }
-
-    let api = makeAPI()
+    defer { teardown() }
 
     do {
       _ = try await api.postCapture(makePayload())
@@ -200,7 +199,7 @@ struct GroveAPISmokeTests {
     let captureURL = Self.baseURL.appendingPathComponent("v1/captures")
     let responseData = try loadFixture("capture_response")
 
-    StubURLProtocol.responder = { [captureURL, responseData] _ in
+    let (api, teardown) = makeAPI { [captureURL, responseData] _ in
       let resp = HTTPURLResponse(
         url: captureURL,
         statusCode: 201,
@@ -209,16 +208,7 @@ struct GroveAPISmokeTests {
       )!
       return (resp, responseData)
     }
-    defer { StubURLProtocol.responder = nil }
-
-    // Explicit .default config — same shape as GroveAPI.shared's session.
-    let config = URLSessionConfiguration.default
-    config.protocolClasses = [StubURLProtocol.self]
-    let api = GroveAPI(
-      baseURL: Self.baseURL,
-      bearerToken: Self.token,
-      configuration: config
-    )
+    defer { teardown() }
 
     // If this throws or crashes, the .default path is broken.
     let result = try await api.postCapture(makePayload())
@@ -227,11 +217,8 @@ struct GroveAPISmokeTests {
 
   // MARK: - Task EventKit linking (PATCH /v1/tasks/{id})
   //
-  // Nested inside GroveAPISmokeTests so these tests are serialized together
-  // with the rest of the StubURLProtocol-based tests in this suite. A top-level
-  // @Suite(.serialized) only serializes within itself — two sibling serialized
-  // suites can still run concurrently, which would corrupt the shared
-  // StubURLProtocol.responder static. Nesting avoids that race.
+  // Nested inside GroveAPISmokeTests. Cross-suite safety is provided by
+  // per-test stub ID isolation (#422); no `.serialized` needed.
 
   private static let taskID = UUID(uuidString: "AABBCCDD-0000-0000-0000-000000000001")!
   private static let ekIdentifier = "EK-stub-identifier-789"
@@ -263,9 +250,12 @@ struct GroveAPISmokeTests {
 
   @Test("patchTaskEventKit sends PATCH to /v1/tasks/{id}")
   func patchTaskEventKitMethod() async throws {
-    var capturedRequest: URLRequest?
-    StubURLProtocol.responder = { request in
-      capturedRequest = request
+    // Use a class box so the closure can capture and mutate it.
+    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
+    let box = Box<URLRequest>()
+
+    let (api, teardown) = makeAPI { request in
+      box.value = request
       let response = HTTPURLResponse(
         url: request.url!,
         statusCode: 200,
@@ -274,24 +264,25 @@ struct GroveAPISmokeTests {
       )!
       return (response, taskResponse())
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     _ = try await api.patchTaskEventKit(
       taskID: Self.taskID,
       eventkitIdentifier: Self.ekIdentifier
     )
 
-    #expect(capturedRequest?.httpMethod == "PATCH")
+    #expect(box.value?.httpMethod == "PATCH")
     let expectedURL = Self.baseURL
       .appendingPathComponent("v1/tasks/\(Self.taskID.uuidString.lowercased())")
-    #expect(capturedRequest?.url == expectedURL)
+    #expect(box.value?.url == expectedURL)
   }
 
   @Test("patchTaskEventKit encodes eventkit_identifier in body")
   func patchTaskEventKitBody() async throws {
-    var capturedBodyData: Data?
-    StubURLProtocol.responder = { request in
+    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
+    let box = Box<Data>()
+
+    let (api, teardown) = makeAPI { request in
       // URLSession delivers the body as an HTTPBodyStream when using data(for:)
       // through URLProtocol — httpBody is nil. Read the stream here.
       if let stream = request.httpBodyStream {
@@ -304,9 +295,9 @@ struct GroveAPISmokeTests {
           if read > 0 { data.append(buffer, count: read) }
         }
         stream.close()
-        capturedBodyData = data
+        box.value = data
       } else {
-        capturedBodyData = request.httpBody
+        box.value = request.httpBody
       }
       let response = HTTPURLResponse(
         url: request.url!,
@@ -316,15 +307,14 @@ struct GroveAPISmokeTests {
       )!
       return (response, taskResponse())
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     _ = try await api.patchTaskEventKit(
       taskID: Self.taskID,
       eventkitIdentifier: Self.ekIdentifier
     )
 
-    guard let bodyData = capturedBodyData,
+    guard let bodyData = box.value,
           let json = try? JSONSerialization.jsonObject(with: bodyData) as? [String: String]
     else {
       Issue.record("Request body was missing or not JSON")
@@ -335,7 +325,7 @@ struct GroveAPISmokeTests {
 
   @Test("patchTaskEventKit 200: returns decoded TaskDTO with identifier")
   func patchTaskEventKitHappyPath() async throws {
-    StubURLProtocol.responder = { [self] request in
+    let (api, teardown) = makeAPI { [self] request in
       let response = HTTPURLResponse(
         url: request.url!,
         statusCode: 200,
@@ -344,9 +334,8 @@ struct GroveAPISmokeTests {
       )!
       return (response, taskResponse())
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     let task = try await api.patchTaskEventKit(
       taskID: Self.taskID,
       eventkitIdentifier: Self.ekIdentifier
@@ -368,7 +357,7 @@ struct GroveAPISmokeTests {
     }
     """.utf8)
 
-    StubURLProtocol.responder = { request in
+    let (api, teardown) = makeAPI { [conflictBody] request in
       let response = HTTPURLResponse(
         url: request.url!,
         statusCode: 409,
@@ -377,9 +366,8 @@ struct GroveAPISmokeTests {
       )!
       return (response, conflictBody)
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     do {
       _ = try await api.patchTaskEventKit(
         taskID: Self.taskID,
@@ -397,18 +385,19 @@ struct GroveAPISmokeTests {
 
   @Test("patchTaskEventKit 404: throws APIError.httpError(404)")
   func patchTaskEventKit404() async throws {
-    StubURLProtocol.responder = { request in
+    let notFoundBody = Data("{\"detail\": \"Task not found\"}".utf8)
+
+    let (api, teardown) = makeAPI { [notFoundBody] request in
       let response = HTTPURLResponse(
         url: request.url!,
         statusCode: 404,
         httpVersion: nil,
         headerFields: nil
       )!
-      return (response, Data("{\"detail\": \"Task not found\"}".utf8))
+      return (response, notFoundBody)
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     do {
       _ = try await api.patchTaskEventKit(
         taskID: Self.taskID,
@@ -476,9 +465,11 @@ struct GroveAPISmokeTests {
 
   @Test("patchTaskEventKit includes Authorization header")
   func patchTaskEventKitAuthorizationHeader() async throws {
-    var capturedRequest: URLRequest?
-    StubURLProtocol.responder = { request in
-      capturedRequest = request
+    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
+    let box = Box<URLRequest>()
+
+    let (api, teardown) = makeAPI { request in
+      box.value = request
       let response = HTTPURLResponse(
         url: request.url!,
         statusCode: 200,
@@ -487,15 +478,14 @@ struct GroveAPISmokeTests {
       )!
       return (response, taskResponse())
     }
-    defer { StubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     _ = try await api.patchTaskEventKit(
       taskID: Self.taskID,
       eventkitIdentifier: Self.ekIdentifier
     )
 
-    let authHeader = capturedRequest?.value(forHTTPHeaderField: "Authorization")
+    let authHeader = box.value?.value(forHTTPHeaderField: "Authorization")
     #expect(authHeader == "Bearer \(Self.token)")
   }
 }

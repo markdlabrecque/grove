@@ -5,12 +5,11 @@ import GroveTestSupport
 
 /// Tests for `GroveAPI.recentQueries(limit:)` — GET /v1/queries/recent.
 ///
-/// Uses `RecentQueriesStubURLProtocol` — a dedicated protocol class with its
-/// own static `responder` state, isolated from other stub protocols to prevent
-/// inter-suite global-state contamination.
-///
-/// The suite is `.serialized` to prevent concurrent access within the suite.
-@Suite("GroveAPI recentQueries", .serialized)
+/// Uses `StubURLProtocol.makeSession(responder:)` (#422) for per-test isolation.
+/// Each test obtains its own `URLSessionConfiguration` with a unique stub ID
+/// embedded, so concurrent suites cannot corrupt each other's responders.
+/// Tests in this suite run in parallel to verify the isolation is race-free.
+@Suite("GroveAPI recentQueries")
 struct GroveAPIRecentQueriesTests {
 
   // MARK: - Fixtures
@@ -18,14 +17,16 @@ struct GroveAPIRecentQueriesTests {
   private static let baseURL = URL(string: "https://grove.example.ts.net")!
   private static let token = "recent-queries-test-token"
 
-  private func makeAPI() -> GroveAPI {
-    let config = URLSessionConfiguration.default
-    config.protocolClasses = [RecentQueriesStubURLProtocol.self]
-    return GroveAPI(
+  private func makeAPI(
+    responder: @escaping (URLRequest) -> (HTTPURLResponse, Data)
+  ) -> (GroveAPI, () -> Void) {
+    let (config, teardown) = StubURLProtocol.makeSession(responder: responder)
+    let api = GroveAPI(
       baseURL: Self.baseURL,
       bearerToken: Self.token,
       configuration: config
     )
+    return (api, teardown)
   }
 
   private func recentURL(limit: Int = 10) -> URL {
@@ -57,7 +58,7 @@ struct GroveAPIRecentQueriesTests {
     let url = recentURL()
     let body = makeRecentQueriesJSON(count: 3)
 
-    RecentQueriesStubURLProtocol.responder = { [url, body] _ in
+    let (api, teardown) = makeAPI { [url, body] _ in
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 200,
@@ -66,9 +67,8 @@ struct GroveAPIRecentQueriesTests {
       )!
       return (resp, body)
     }
-    defer { RecentQueriesStubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     let items = try await api.recentQueries(limit: 10)
 
     #expect(items.count == 3)
@@ -84,7 +84,7 @@ struct GroveAPIRecentQueriesTests {
     let url = recentURL()
     let body = "[]".data(using: .utf8)!
 
-    RecentQueriesStubURLProtocol.responder = { [url, body] _ in
+    let (api, teardown) = makeAPI { [url, body] _ in
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 200,
@@ -93,9 +93,8 @@ struct GroveAPIRecentQueriesTests {
       )!
       return (resp, body)
     }
-    defer { RecentQueriesStubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     let items = try await api.recentQueries(limit: 10)
 
     #expect(items.isEmpty)
@@ -108,7 +107,7 @@ struct GroveAPIRecentQueriesTests {
     let url = recentURL()
     let body = #"{"detail":"unauthorized"}"#.data(using: .utf8)!
 
-    RecentQueriesStubURLProtocol.responder = { [url, body] _ in
+    let (api, teardown) = makeAPI { [url, body] _ in
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 401,
@@ -117,9 +116,7 @@ struct GroveAPIRecentQueriesTests {
       )!
       return (resp, body)
     }
-    defer { RecentQueriesStubURLProtocol.responder = nil }
-
-    let api = makeAPI()
+    defer { teardown() }
 
     do {
       _ = try await api.recentQueries(limit: 10)
@@ -140,7 +137,7 @@ struct GroveAPIRecentQueriesTests {
     let url = recentURL(limit: 0)
     let body = #"{"detail":"limit must be >= 1"}"#.data(using: .utf8)!
 
-    RecentQueriesStubURLProtocol.responder = { [url, body] _ in
+    let (api, teardown) = makeAPI { [url, body] _ in
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 422,
@@ -149,9 +146,7 @@ struct GroveAPIRecentQueriesTests {
       )!
       return (resp, body)
     }
-    defer { RecentQueriesStubURLProtocol.responder = nil }
-
-    let api = makeAPI()
+    defer { teardown() }
 
     do {
       _ = try await api.recentQueries(limit: 0)
@@ -172,7 +167,7 @@ struct GroveAPIRecentQueriesTests {
     let url = recentURL()
     let body = #"{"detail":"internal server error"}"#.data(using: .utf8)!
 
-    RecentQueriesStubURLProtocol.responder = { [url, body] _ in
+    let (api, teardown) = makeAPI { [url, body] _ in
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 500,
@@ -181,9 +176,7 @@ struct GroveAPIRecentQueriesTests {
       )!
       return (resp, body)
     }
-    defer { RecentQueriesStubURLProtocol.responder = nil }
-
-    let api = makeAPI()
+    defer { teardown() }
 
     do {
       _ = try await api.recentQueries(limit: 10)
@@ -203,10 +196,11 @@ struct GroveAPIRecentQueriesTests {
   @Test("recentQueries sends GET to /v1/queries/recent?limit=10 with correct headers")
   func recentQueriesRequestShape() async throws {
     let url = recentURL(limit: 10)
-    var capturedRequest: URLRequest?
+    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
+    let box = Box<URLRequest>()
 
-    RecentQueriesStubURLProtocol.responder = { [url] request in
-      capturedRequest = request
+    let (api, teardown) = makeAPI { [url] request in
+      box.value = request
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 200,
@@ -215,12 +209,11 @@ struct GroveAPIRecentQueriesTests {
       )!
       return (resp, "[]".data(using: .utf8)!)
     }
-    defer { RecentQueriesStubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     _ = try await api.recentQueries(limit: 10)
 
-    let req = try #require(capturedRequest)
+    let req = try #require(box.value)
     #expect(req.httpMethod == "GET")
 
     // URL must have query parameter limit=10.
@@ -238,10 +231,11 @@ struct GroveAPIRecentQueriesTests {
   @Test("recentQueries sends GET with limit=5 in URL")
   func recentQueriesRequestShapeLimit5() async throws {
     let url = recentURL(limit: 5)
-    var capturedRequest: URLRequest?
+    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
+    let box = Box<URLRequest>()
 
-    RecentQueriesStubURLProtocol.responder = { [url] request in
-      capturedRequest = request
+    let (api, teardown) = makeAPI { [url] request in
+      box.value = request
       let resp = HTTPURLResponse(
         url: url,
         statusCode: 200,
@@ -250,50 +244,13 @@ struct GroveAPIRecentQueriesTests {
       )!
       return (resp, "[]".data(using: .utf8)!)
     }
-    defer { RecentQueriesStubURLProtocol.responder = nil }
+    defer { teardown() }
 
-    let api = makeAPI()
     _ = try await api.recentQueries(limit: 5)
 
-    let req = try #require(capturedRequest)
+    let req = try #require(box.value)
     let components = try #require(URLComponents(url: req.url!, resolvingAgainstBaseURL: false))
     let limitItem = components.queryItems?.first(where: { $0.name == "limit" })
     #expect(limitItem?.value == "5")
-  }
-}
-
-// MARK: - RecentQueriesStubURLProtocol
-
-/// A dedicated `URLProtocol` subclass for recent-queries tests that carries its
-/// own static `responder` state, isolated from other stub protocols. Prevents
-/// inter-suite global-state contamination.
-private final class RecentQueriesStubURLProtocol: URLProtocol {
-
-  /// Configure this before each test. The suite is `.serialized` so access is
-  /// externally synchronised without a Swift concurrency primitive.
-  nonisolated(unsafe) static var responder: ((URLRequest) -> (HTTPURLResponse, Data))?
-
-  override class func canInit(with request: URLRequest) -> Bool {
-    return true
-  }
-
-  override class func canonicalRequest(for request: URLRequest) -> URLRequest {
-    return request
-  }
-
-  override func startLoading() {
-    guard let responder = RecentQueriesStubURLProtocol.responder else {
-      preconditionFailure(
-        "RecentQueriesStubURLProtocol.responder must be set before making a request."
-      )
-    }
-    let (response, data) = responder(request)
-    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-    client?.urlProtocol(self, didLoad: data)
-    client?.urlProtocolDidFinishLoading(self)
-  }
-
-  override func stopLoading() {
-    // Synchronous stub — nothing to cancel.
   }
 }
