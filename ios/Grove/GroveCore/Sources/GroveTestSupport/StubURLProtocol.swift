@@ -7,8 +7,6 @@ import Foundation
 /// import this type from the shared `GroveTestSupport` module, which is the
 /// single source of truth.
 ///
-/// ## Per-test isolation (preferred)
-///
 /// Use `StubURLProtocol.makeSession(responder:)` to obtain an isolated
 /// `URLSessionConfiguration` + teardown closure. Each call embeds a unique
 /// stub identifier in the session's `httpAdditionalHeaders` so concurrent
@@ -35,14 +33,7 @@ import Foundation
 /// ```
 ///
 /// Suites using `makeSession` do **not** need `@Suite(.serialized)` for
-/// cross-suite safety, though serializing within a suite is still good practice.
-///
-/// ## Legacy static API (deprecated)
-///
-/// The static `responder` / `errorResponder` properties still compile so
-/// existing callers can be migrated incrementally. They carry the same
-/// cross-suite race as before, so suites using them must remain serialised
-/// and must not run concurrently with other suites that touch the same statics.
+/// cross-suite safety.
 public final class StubURLProtocol: URLProtocol {
 
   // MARK: - Per-test isolation registry
@@ -129,29 +120,6 @@ public final class StubURLProtocol: URLProtocol {
     entry(for: id) != nil
   }
 
-  // MARK: - Legacy static API
-
-  /// Configure this before each test. Returns `(response, body)` for any
-  /// intercepted request. If `nil` and `errorResponder` is also `nil`, the stub
-  /// crashes with a clear message so tests don't silently proceed with no response.
-  ///
-  /// Marked `nonisolated(unsafe)` because tests using this must be serialised —
-  /// they never run concurrently — so accesses are externally synchronised
-  /// without a Swift concurrency primitive.
-  ///
-  /// - Note: Prefer `makeSession(responder:)` for new tests. The static API
-  ///   is retained for migration compatibility only.
-  nonisolated(unsafe) public static var responder: ((URLRequest) -> (HTTPURLResponse, Data))?
-
-  /// Alternative to `responder`. When set, `startLoading()` fails the request
-  /// with the returned error instead of returning an HTTP response. Use this to
-  /// simulate network-layer failures such as `URLError(.notConnectedToInternet)`.
-  ///
-  /// Only one of `responder` or `errorResponder` should be set at a time.
-  ///
-  /// - Note: Prefer `makeSession(errorResponder:)` for new tests.
-  nonisolated(unsafe) public static var errorResponder: ((URLRequest) -> Error)?
-
   // MARK: - URLProtocol overrides
 
   override public class func canInit(with request: URLRequest) -> Bool {
@@ -163,41 +131,37 @@ public final class StubURLProtocol: URLProtocol {
   }
 
   override public func startLoading() {
-    // Per-test isolation path: look up a responder by the stub ID embedded in
-    // the request's headers. This path is race-free across concurrent suites.
-    if let stubIDString = request.value(forHTTPHeaderField: StubURLProtocol.stubIDHeaderKey),
-       let stubID = UUID(uuidString: stubIDString),
-       let registryEntry = StubURLProtocol.entry(for: stubID) {
-      switch registryEntry {
-      case .success(let responder):
-        let (response, data) = responder(request)
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: data)
-        client?.urlProtocolDidFinishLoading(self)
-      case .failure(let errorResponder):
-        client?.urlProtocol(self, didFailWithError: errorResponder(request))
-      }
-      return
-    }
-
-    // Legacy static path: used by suites that haven't migrated yet.
-    if let errorResponder = StubURLProtocol.errorResponder {
-      client?.urlProtocol(self, didFailWithError: errorResponder(request))
-      return
-    }
-
-    guard let responder = StubURLProtocol.responder else {
+    // Look up the responder by the stub ID embedded in the request's headers.
+    // All test sessions created via makeSession carry this header; requests
+    // that don't are programming errors.
+    guard
+      let stubIDString = request.value(forHTTPHeaderField: StubURLProtocol.stubIDHeaderKey),
+      let stubID = UUID(uuidString: stubIDString)
+    else {
       preconditionFailure(
-        "StubURLProtocol: no responder found. " +
-        "Either call makeSession(responder:) and embed the returned config, " +
-        "or set StubURLProtocol.responder before making a request."
+        "StubURLProtocol: request is missing the \(StubURLProtocol.stubIDHeaderKey) header. " +
+        "Use StubURLProtocol.makeSession(responder:) to create the URLSessionConfiguration — " +
+        "it embeds the required header automatically."
       )
     }
 
-    let (response, data) = responder(request)
-    client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-    client?.urlProtocol(self, didLoad: data)
-    client?.urlProtocolDidFinishLoading(self)
+    guard let registryEntry = StubURLProtocol.entry(for: stubID) else {
+      preconditionFailure(
+        "StubURLProtocol: no entry found for stub ID \(stubID). " +
+        "The teardown closure may have been called before the request completed, " +
+        "or the stub ID header was set to an unregistered value."
+      )
+    }
+
+    switch registryEntry {
+    case .success(let responder):
+      let (response, data) = responder(request)
+      client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+      client?.urlProtocol(self, didLoad: data)
+      client?.urlProtocolDidFinishLoading(self)
+    case .failure(let errorResponder):
+      client?.urlProtocol(self, didFailWithError: errorResponder(request))
+    }
   }
 
   override public func stopLoading() {

@@ -26,9 +26,9 @@ import GroveTestSupport
 /// All tests use `StubURLProtocol.makeSession(responder:)` (#422) which embeds a
 /// unique stub ID in each session's `httpAdditionalHeaders`. The registry lookup in
 /// `startLoading()` is keyed on that ID, so concurrent suites cannot corrupt each
-/// other's responders. `.serialized` is still applied within the suite as a belt-
-/// and-suspenders measure but is no longer load-bearing for cross-suite safety.
-@Suite("GroveAPI Smoke Tests", .serialized)
+/// other's responders. Tests in this suite run in parallel to verify the isolation
+/// is race-free.
+@Suite("GroveAPI Smoke Tests")
 struct GroveAPISmokeTests {
 
   // MARK: - Fixtures
@@ -217,10 +217,8 @@ struct GroveAPISmokeTests {
 
   // MARK: - Task EventKit linking (PATCH /v1/tasks/{id})
   //
-  // Nested inside GroveAPISmokeTests so these tests are serialized together
-  // with the rest of the StubURLProtocol-based tests in this suite. `.serialized`
-  // is still applied within the suite for belt-and-suspenders safety, but the
-  // cross-suite race is now eliminated by per-test stub ID isolation (#422).
+  // Nested inside GroveAPISmokeTests. Cross-suite safety is provided by
+  // per-test stub ID isolation (#422); no `.serialized` needed.
 
   private static let taskID = UUID(uuidString: "AABBCCDD-0000-0000-0000-000000000001")!
   private static let ekIdentifier = "EK-stub-identifier-789"

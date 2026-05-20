@@ -8,8 +8,8 @@ import GroveTestSupport
 /// Uses `StubURLProtocol.makeSession(responder:)` (#422) for per-test isolation.
 /// Each test obtains its own `URLSessionConfiguration` with a unique stub ID
 /// embedded, so concurrent suites cannot corrupt each other's responders.
-/// `.serialized` is retained within the suite for belt-and-suspenders safety.
-@Suite("GroveAPI recentQueries", .serialized)
+/// Tests in this suite run in parallel to verify the isolation is race-free.
+@Suite("GroveAPI recentQueries")
 struct GroveAPIRecentQueriesTests {
 
   // MARK: - Fixtures
