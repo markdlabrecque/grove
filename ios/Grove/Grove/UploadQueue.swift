@@ -600,16 +600,6 @@ extension Notification.Name {
     "com.markdlabrecque.grove.upload-queue.auth-required-did-change"
   )
 
-  /// Posted by `UploadQueue.drainRow` after a successful capture upload.
-  ///
-  /// `userInfo` contains:
-  ///   - `"clientID"` (`String`) — the `clientID` UUID string of the capture.
-  ///   - `"serverMemoryID"` (`String`) — the server-assigned memory UUID string.
-  ///
-  /// Observers (e.g. `UserDefaultsPendingReminderStore`) use this to remap
-  /// pending-reminder entries from client-side `clientID` keys to
-  /// server-assigned `memory_id` keys, enabling reconciliation with `TaskDTO`.
-  static let captureUploadedNotification = Notification.Name(
-    "com.markdlabrecque.grove.upload-queue.capture-uploaded"
-  )
+  // captureUploadedNotification is defined in GroveCore (PendingReminderStore.swift)
+  // and available here via the GroveCore import.
 }
