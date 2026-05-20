@@ -24,10 +24,10 @@ import GroveTestSupport
 //   * `notificationRemapsClientIDToServerMemoryID` now polls with a bounded
 //     `while` loop inside `withBridgeTimeout` so the assertion fires as soon
 //     as the remap completes rather than after an arbitrary yield count.
-//   * `notificationUnknownClientIDNoOp` only needs to assert *absence*, so it
-//     uses a single bounded `Task.sleep` to give the observer a fixed window
-//     before checking — cooperative enough to catch the mutation if it
-//     incorrectly occurred, but without a tight yield budget.
+//   * `remapUnknownClientIDNoOp` calls `store.remap(clientID:to:)` directly
+//     rather than going through the notification observer. The no-op invariant
+//     lives inside `remap()`, so calling it directly is both deterministic and
+//     the canonical way to exercise it — no timing primitives needed.
 
 @Suite("PendingReminderStore — notification-driven remap")
 @MainActor
@@ -87,16 +87,14 @@ struct PendingReminderStoreRemapTests {
     )
   }
 
-  /// Posting `captureUploadedNotification` for an unknown `clientID` is a
-  /// no-op — existing entries must remain unchanged.
+  /// Calling `remap(clientID:to:)` with an unknown `clientID` is a no-op —
+  /// existing entries must remain unchanged.
   ///
-  /// Because this test asserts *absence* of a mutation, polling is not
-  /// suitable. Instead a bounded `Task.sleep` gives the observer a fixed
-  /// 100 ms window to (incorrectly) mutate the store, then the assertions
-  /// run. The window is long enough to catch a spurious remap without
-  /// making the test suite meaningfully slower.
-  @Test("captureUploadedNotification with unknown clientID is a no-op")
-  func notificationUnknownClientIDNoOp() async throws {
+  /// The no-op invariant lives in `remap()` itself, so calling it directly
+  /// is the canonical way to test it. This avoids the notification observer
+  /// round-trip and eliminates any need for timing primitives.
+  @Test("remap with unknown clientID is a no-op")
+  func remapUnknownClientIDNoOp() {
     let suiteName = UUID().uuidString
     let suite = UserDefaults(suiteName: suiteName)!
     defer { suite.removeSuite(named: suiteName) }
@@ -110,24 +108,11 @@ struct PendingReminderStoreRemapTests {
 
     store.store(memoryID: knownClientID, calendarItemIdentifier: Self.calendarID)
 
-    center.post(
-      name: .captureUploadedNotification,
-      object: nil,
-      userInfo: [
-        "clientID": unknownClientID.uuidString,
-        "serverMemoryID": serverMemoryID.uuidString,
-      ]
-    )
+    // Call remap() directly with a clientID that is not in the cache.
+    // remap() is @MainActor and runs synchronously on the current actor.
+    store.remap(clientID: unknownClientID, to: serverMemoryID)
 
-    // Give the observer a bounded window to process the notification.
-    // If the implementation incorrectly mutates the store for an unknown
-    // clientID this sleep ensures the mutation has had time to land before
-    // the assertions below run.
-    try await withBridgeTimeout(seconds: 2) {
-      try await Task.sleep(for: .milliseconds(100))
-    }
-
-    #expect(store.all().count == 1, "Unrelated notification must not remove existing entries")
+    #expect(store.all().count == 1, "remap with unknown clientID must not remove existing entries")
     #expect(store.entry(for: knownClientID) != nil, "Original entry must still be present")
   }
 }
