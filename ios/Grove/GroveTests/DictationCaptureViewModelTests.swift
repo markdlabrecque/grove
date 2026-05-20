@@ -128,6 +128,94 @@ struct DictationCaptureViewModelDraftTests {
   }
 }
 
+// MARK: - CaptureGuard delegation (#414)
+
+/// Pins that `makeDraftIfNeeded()` delegates its empty-content check to
+/// `CaptureGuard.validate(_:)` rather than reproducing the trim inline.
+///
+/// These tests document the delegation contract.  They will catch any future
+/// divergence between `makeDraftIfNeeded` and `CaptureGuard`.
+///
+/// ## CI note
+/// Runs in the `GroveTests` app target (`make ios-test-app`).
+/// `make ios-test-core` (SPM / CI) does NOT exercise these — call that out
+/// in any future CI gap ticket.
+@Suite("DictationCaptureViewModel.makeDraftIfNeeded — CaptureGuard delegation")
+@MainActor
+struct DictationCaptureViewModelCaptureGuardTests {
+
+  // Shared helper — same contract for all cases: if CaptureGuard.validate(transcript)
+  // is false the VM must return nil; if true the VM must return a draft.
+  private func makeVM() throws -> DictationCaptureViewModel {
+    let mock = MockSpeechRecognizer()
+    mock.isAvailable = false
+    let controller = DictationController(recognizer: mock)
+    return DictationCaptureViewModel(
+      controller: controller,
+      uploadQueue: try makeQueue()
+    )
+  }
+
+  @Test("makeDraftIfNeeded returns nil iff CaptureGuard.validate is false — empty string")
+  func delegatesToCaptureGuardForEmpty() throws {
+    let vm = try makeVM()
+    vm.recordingState = .recording
+    vm.transcript = ""
+    let guardSays = CaptureGuard.validate(vm.transcript)
+    let draft = vm.makeDraftIfNeeded()
+    // If CaptureGuard says invalid the VM must agree.
+    #expect(guardSays == false)
+    #expect(draft == nil, "makeDraftIfNeeded must respect CaptureGuard.validate for empty input")
+  }
+
+  @Test("makeDraftIfNeeded returns nil iff CaptureGuard.validate is false — whitespace-only")
+  func delegatesToCaptureGuardForWhitespace() throws {
+    let vm = try makeVM()
+    vm.recordingState = .recording
+    vm.transcript = "   \n\t  "
+    let guardSays = CaptureGuard.validate(vm.transcript)
+    let draft = vm.makeDraftIfNeeded()
+    #expect(guardSays == false)
+    #expect(draft == nil, "makeDraftIfNeeded must respect CaptureGuard.validate for whitespace-only input")
+  }
+
+  @Test("makeDraftIfNeeded returns draft iff CaptureGuard.validate is true")
+  func delegatesToCaptureGuardForValidContent() throws {
+    let vm = try makeVM()
+    vm.recordingState = .recording
+    vm.transcript = "Buy oat milk"
+    let guardSays = CaptureGuard.validate(vm.transcript)
+    let draft = vm.makeDraftIfNeeded()
+    #expect(guardSays == true)
+    #expect(draft != nil, "makeDraftIfNeeded must produce a draft when CaptureGuard.validate is true")
+  }
+
+  @Test("makeDraftIfNeeded result always matches CaptureGuard.validate outcome")
+  func resultAlwaysMatchesCaptureGuardOutcome() throws {
+    let cases: [(transcript: String, state: DictationState)] = [
+      ("", .recording),
+      ("   ", .recording),
+      ("hello", .recording),
+      ("", .stopped),
+      ("partial thought", .stopped),
+    ]
+    for (transcript, state) in cases {
+      let vm = try makeVM()
+      vm.recordingState = state
+      vm.transcript = transcript
+      let isActive = state == .recording || state == .stopped
+      let guardResult = CaptureGuard.validate(transcript)
+      let draft = vm.makeDraftIfNeeded()
+      // The VM must only produce a draft when both active AND CaptureGuard approves.
+      let expected = isActive && guardResult
+      #expect(
+        (draft != nil) == expected,
+        "transcript='\(transcript)' state=\(state): expected draft=\(expected) got draft=\(draft != nil)"
+      )
+    }
+  }
+}
+
 // MARK: - sourceModality for voice captures
 
 @Suite("DictationCaptureViewModel.save sourceModality")
