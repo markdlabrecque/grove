@@ -192,7 +192,7 @@ struct DictationCaptureViewModelCaptureGuardTests {
 
   @Test("makeDraftIfNeeded result always matches CaptureGuard.validate outcome")
   func resultAlwaysMatchesCaptureGuardOutcome() throws {
-    let cases: [(transcript: String, state: DictationState)] = [
+    let cases: [(transcript: String, state: DictationCaptureViewModel.RecordingState)] = [
       ("", .recording),
       ("   ", .recording),
       ("hello", .recording),
