@@ -12,11 +12,16 @@ import Foundation
 ///
 /// Serialised to UserDefaults as JSON; survives app restarts because the
 /// upload → enrichment → reconciliation window can be minutes.
-struct PendingReminderEntry: Codable, Equatable {
+public struct PendingReminderEntry: Codable, Equatable, Sendable {
   /// The capture's `clientID` UUID (generated at save time).
-  let memoryID: UUID
+  public let memoryID: UUID
   /// The `calendarItemIdentifier` returned by `EKReminder` after save.
-  let calendarItemIdentifier: String
+  public let calendarItemIdentifier: String
+
+  public init(memoryID: UUID, calendarItemIdentifier: String) {
+    self.memoryID = memoryID
+    self.calendarItemIdentifier = calendarItemIdentifier
+  }
 }
 
 // MARK: - PendingReminderStoring
@@ -24,10 +29,10 @@ struct PendingReminderEntry: Codable, Equatable {
 /// Abstracts the persistence boundary for `PendingReminderEntry` values.
 ///
 /// Production code uses `UserDefaultsPendingReminderStore`.
-/// Tests inject `InMemoryPendingReminderStore` defined in
-/// `TrackAsTaskTests.swift`.
+/// Tests may inject `InMemoryPendingReminderStore` defined alongside the
+/// test suite.
 @MainActor
-protocol PendingReminderStoring: AnyObject {
+public protocol PendingReminderStoring: AnyObject {
   /// Persist a new mapping entry. Replaces any existing entry for the same `memoryID`.
   func store(memoryID: UUID, calendarItemIdentifier: String)
 
@@ -56,11 +61,11 @@ protocol PendingReminderStoring: AnyObject {
 /// - SwiftData would require adding `PendingReminderEntry` to the app's
 ///   model container, adding migration ceremony for a transient queue.
 @MainActor
-final class UserDefaultsPendingReminderStore: PendingReminderStoring {
+public final class UserDefaultsPendingReminderStore: PendingReminderStoring {
 
   // MARK: - Singleton
 
-  static let shared = UserDefaultsPendingReminderStore()
+  public static let shared = UserDefaultsPendingReminderStore()
 
   // MARK: - Storage key
 
@@ -74,10 +79,15 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
 
   private let defaults: UserDefaults
 
+  // MARK: - NotificationCenter
+
+  private let notificationCenter: NotificationCenter
+
   // MARK: - Init
 
-  init() {
+  public init(notificationCenter: NotificationCenter = .default) {
     self.defaults = .standard
+    self.notificationCenter = notificationCenter
     // Populate cache from UserDefaults on first access.
     if let data = defaults.data(forKey: Self.defaultsKey),
        let entries = try? JSONDecoder().decode([PendingReminderEntry].self, from: data) {
@@ -90,11 +100,11 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
     // entries from clientID keys to server-assigned memoryID keys.
     // The notification fires from UploadQueue.drainRow after a 200 response.
     Task { @MainActor [weak self] in
-      for await notification in NotificationCenter.default.notifications(
+      guard let self else { return }
+      for await notification in self.notificationCenter.notifications(
         named: .captureUploadedNotification
       ) {
-        guard let self,
-              let clientIDStr = notification.userInfo?["clientID"] as? String,
+        guard let clientIDStr = notification.userInfo?["clientID"] as? String,
               let serverIDStr = notification.userInfo?["serverMemoryID"] as? String,
               let clientID = UUID(uuidString: clientIDStr),
               let serverMemoryID = UUID(uuidString: serverIDStr)
@@ -105,15 +115,18 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
     }
   }
 
-  /// Initialises the store with an explicit `UserDefaults` suite.
+  /// Initialises the store with an explicit `UserDefaults` suite and
+  /// `NotificationCenter`.
   ///
-  /// Use this in tests to back the store with a temporary, hermetic suite:
+  /// Use this in tests to back the store with hermetic, isolated instances:
   /// ```swift
   /// let suite = UserDefaults(suiteName: UUID().uuidString)!
-  /// let store = UserDefaultsPendingReminderStore(defaults: suite)
+  /// let center = NotificationCenter()
+  /// let store = UserDefaultsPendingReminderStore(defaults: suite, notificationCenter: center)
   /// ```
-  init(defaults: UserDefaults) {
+  public init(defaults: UserDefaults, notificationCenter: NotificationCenter = .default) {
     self.defaults = defaults
+    self.notificationCenter = notificationCenter
     if let data = defaults.data(forKey: Self.defaultsKey),
        let entries = try? JSONDecoder().decode([PendingReminderEntry].self, from: data) {
       cache = entries
@@ -122,11 +135,11 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
     }
 
     Task { @MainActor [weak self] in
-      for await notification in NotificationCenter.default.notifications(
+      guard let self else { return }
+      for await notification in self.notificationCenter.notifications(
         named: .captureUploadedNotification
       ) {
-        guard let self,
-              let clientIDStr = notification.userInfo?["clientID"] as? String,
+        guard let clientIDStr = notification.userInfo?["clientID"] as? String,
               let serverIDStr = notification.userInfo?["serverMemoryID"] as? String,
               let clientID = UUID(uuidString: clientIDStr),
               let serverMemoryID = UUID(uuidString: serverIDStr)
@@ -141,7 +154,7 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
   ///
   /// Called when the upload queue confirms a capture with the server UUID.
   /// No-op when there is no entry for `clientID`.
-  func remap(clientID: UUID, to serverMemoryID: UUID) {
+  public func remap(clientID: UUID, to serverMemoryID: UUID) {
     guard let existing = cache.first(where: { $0.memoryID == clientID }) else {
       return  // No pending entry for this clientID — nothing to remap.
     }
@@ -156,7 +169,7 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
 
   // MARK: - PendingReminderStoring
 
-  func store(memoryID: UUID, calendarItemIdentifier: String) {
+  public func store(memoryID: UUID, calendarItemIdentifier: String) {
     // Remove any stale entry for this memoryID before inserting the new one.
     cache.removeAll { $0.memoryID == memoryID }
     cache.append(PendingReminderEntry(
@@ -166,16 +179,16 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
     persist()
   }
 
-  func entry(for memoryID: UUID) -> PendingReminderEntry? {
+  public func entry(for memoryID: UUID) -> PendingReminderEntry? {
     cache.first { $0.memoryID == memoryID }
   }
 
-  func remove(memoryID: UUID) {
+  public func remove(memoryID: UUID) {
     cache.removeAll { $0.memoryID == memoryID }
     persist()
   }
 
-  func all() -> [PendingReminderEntry] {
+  public func all() -> [PendingReminderEntry] {
     cache
   }
 
@@ -188,4 +201,21 @@ final class UserDefaultsPendingReminderStore: PendingReminderStoring {
     }
     defaults.set(data, forKey: Self.defaultsKey)
   }
+}
+
+// MARK: - Notification.Name
+
+public extension Notification.Name {
+  /// Posted by `UploadQueue.drainRow` after a successful capture upload.
+  ///
+  /// `userInfo` contains:
+  ///   - `"clientID"` (`String`) — the `clientID` UUID string of the capture.
+  ///   - `"serverMemoryID"` (`String`) — the server-assigned memory UUID string.
+  ///
+  /// Observers (e.g. `UserDefaultsPendingReminderStore`) use this to remap
+  /// pending-reminder entries from client-side `clientID` keys to
+  /// server-assigned `memory_id` keys, enabling reconciliation with `TaskDTO`.
+  static let captureUploadedNotification = Notification.Name(
+    "com.markdlabrecque.grove.upload-queue.capture-uploaded"
+  )
 }
