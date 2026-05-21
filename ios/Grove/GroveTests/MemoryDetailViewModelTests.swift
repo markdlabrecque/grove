@@ -208,6 +208,8 @@ struct MemoryDetailViewModelTests {
     await vm.loadContent()
     #expect(fetchCallCount == 1, "fetchProvider must be called on first loadContent()")
     #expect(vm.fetchedContent == expectedContent)
+    #expect(vm.capturedAt == Date(timeIntervalSince1970: 1_778_423_400))
+    #expect(vm.sourceModality == "text")
     #expect(vm.isFetchingContent == false)
     #expect(vm.fetchError == nil)
 

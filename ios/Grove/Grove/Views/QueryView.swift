@@ -71,7 +71,6 @@ struct QueryView: View {
         }
       }
       // Resolves QueryResult values pushed onto `navigationPath` by
-      // Resolves QueryResult values pushed onto `navigationPath` by
       // SourceCardRow's swipe action. Passes the bare memoryID plus a
       // QueryContext so MemoryDetailView can display relevance metadata.
       // The footer NavigationLink still uses the closure form and is
