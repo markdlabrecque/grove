@@ -5,7 +5,7 @@ from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,6 +21,48 @@ router = APIRouter()
 
 class TaskEventKitLinkRequest(BaseModel):
     eventkit_identifier: str = Field(..., min_length=1)
+
+
+@router.get(
+    "/tasks",
+    response_model=list[TaskSchema],
+    status_code=status.HTTP_200_OK,
+)
+async def list_tasks_by_memory_ids(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    memory_ids: Annotated[str, Query()] = "",
+) -> list[TaskSchema]:
+    """Return tasks whose memory_id is in the supplied comma-separated list.
+
+    Empty list → 200 with []. Unknown memory IDs are silently ignored.
+    Used by the iOS foreground sweep to batch-look up tasks for all entries
+    in PendingReminderStore without N round-trips through GET /v1/memories/{id}.
+    """
+    if not memory_ids.strip():
+        return []
+
+    parsed: list[uuid.UUID] = []
+    for raw in memory_ids.split(","):
+        raw = raw.strip()
+        if not raw:
+            continue
+        try:
+            parsed.append(uuid.UUID(raw))
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"invalid UUID in memory_ids: {raw!r}",
+            ) from exc
+
+    if not parsed:
+        return []
+
+    result = await session.execute(select(Task).where(Task.memory_id.in_(parsed)))
+    tasks = list(result.scalars().all())
+
+    logger.info("tasks_listed_by_memory_ids", memory_id_count=len(parsed), task_count=len(tasks))
+
+    return [TaskSchema.model_validate(t) for t in tasks]
 
 
 @router.patch(
