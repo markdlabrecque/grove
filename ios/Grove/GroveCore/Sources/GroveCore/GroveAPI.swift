@@ -506,6 +506,53 @@ public actor GroveAPI {
     return try decoder.decode([TaskDTO].self, from: data)
   }
 
+  /// Fetch tasks whose `eventkit_identifier` is in the supplied list
+  /// (GET /v1/tasks?eventkit_identifiers=id1,id2,...).
+  ///
+  /// Used by `TasksViewModel` after an EKReminder fetch to resolve which
+  /// reminders originated from Grove captures and what memory each came from.
+  ///
+  /// Empty input returns `[]` immediately without hitting the network — the
+  /// server also returns `[]` for an empty query parameter, but we short-circuit
+  /// here to avoid an unnecessary request when the reminder list is empty.
+  ///
+  /// - Parameter identifiers: The `calendarItemIdentifier` strings to look up.
+  ///   These are opaque strings (not UUIDs) from EventKit. Order is not significant.
+  ///
+  /// - Throws: `APIError.httpError(422, _)` if the server rejects the request
+  ///   (e.g. both `eventkit_identifiers` and `memory_ids` are supplied).
+  public func listTasksByEventKitIdentifiers(_ identifiers: [String]) async throws -> [TaskDTO] {
+    guard !identifiers.isEmpty else { return [] }
+
+    var comps = URLComponents(
+      url: baseURL.appendingPathComponent("v1/tasks"),
+      resolvingAgainstBaseURL: false
+    )!
+    let joined = identifiers.joined(separator: ",")
+    comps.queryItems = [URLQueryItem(name: "eventkit_identifiers", value: joined)]
+    let url = comps.url!
+
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "GET"
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    logger.info("[list-tasks] eventkit_identifier_count=\(identifiers.count, privacy: .public) status=\(status, privacy: .public)")
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    return try decoder.decode([TaskDTO].self, from: data)
+  }
+
   // MARK: - Delete
 
   /// Delete a memory by ID (DELETE /v1/memories/{id}).

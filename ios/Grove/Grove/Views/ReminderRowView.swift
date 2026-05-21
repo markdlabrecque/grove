@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Renders a single `ReminderListItem` row in the Tasks tab (#438).
+/// Renders a single `ReminderListItem` row in the Tasks tab (#438, #439).
 ///
 /// Shows the reminder's title, optional due date (relative when near,
 /// absolute when far), and the source list name separated by a middle dot.
@@ -9,67 +9,98 @@ import SwiftUI
 /// incomplete. The row body is tappable via the `onTap` closure — the caller
 /// opens the Reminders.app deep-link.
 ///
+/// ## Provenance badge (R3.3, R3.4)
+///
+/// When `memoryID` is non-nil, a leaf-icon badge appears on the trailing edge.
+/// The badge is a separate tap target (distinct from the row body) that calls
+/// `onBadgeTap` with the memory UUID. The caller navigates to `MemoryDetailView`.
+/// When `memoryID` is nil, the badge area is empty and the row renders identically
+/// to a non-Grove row.
+///
 /// ## Accessibility
 ///
-/// The combined accessibility element presents title + due date + list name
-/// as a single statement. The leading circle glyph is decorative (`accessibilityHidden`).
-///
-/// ## Provenance badge
-///
-/// The trailing badge area is reserved for the provenance affordance added
-/// in Part 3 (#439). In V1 (this ticket) the trailing space is empty.
+/// The row body is a combined accessibility element presenting title + due date +
+/// list name. The badge is a separate accessibility element with label
+/// "View source memory in Grove".
 struct ReminderRowView: View {
   let item: ReminderListItem
+  /// Non-nil when this reminder originated from a Grove capture.
+  /// Drives the provenance badge (R3.3).
+  var memoryID: UUID? = nil
   var onTap: (() -> Void)? = nil
+  /// Called with the memory UUID when the Grove badge is tapped (R3.4).
+  var onBadgeTap: ((UUID) -> Void)? = nil
 
   var body: some View {
-    Button {
-      onTap?()
-    } label: {
-      HStack(alignment: .top, spacing: 10) {
-        // Incomplete indicator — visual only (non-interactive per spec).
-        Image(systemName: "circle")
-          .foregroundStyle(Color.ink300)
-          .font(.body)
-          .frame(width: 20, alignment: .center)
-          .padding(.top, 2)
-          .accessibilityHidden(true)
+    HStack(alignment: .top, spacing: 10) {
+      // Row body button — opens Reminders.app.
+      Button {
+        onTap?()
+      } label: {
+        HStack(alignment: .top, spacing: 10) {
+          // Incomplete indicator — visual only (non-interactive per spec).
+          Image(systemName: "circle")
+            .foregroundStyle(Color.ink300)
+            .font(.body)
+            .frame(width: 20, alignment: .center)
+            .padding(.top, 2)
+            .accessibilityHidden(true)
 
-        VStack(alignment: .leading, spacing: 4) {
-          Text(item.title)
-            .font(.subheadline)
-            .foregroundStyle(Color.ink900)
-            .lineLimit(2)
-            .multilineTextAlignment(.leading)
+          VStack(alignment: .leading, spacing: 4) {
+            Text(item.title)
+              .font(.subheadline)
+              .foregroundStyle(Color.ink900)
+              .lineLimit(2)
+              .multilineTextAlignment(.leading)
 
-          HStack(spacing: 4) {
-            if let dueDate = item.dueDate {
-              Text(formattedDueDate(dueDate))
+            HStack(spacing: 4) {
+              if let dueDate = item.dueDate {
+                Text(formattedDueDate(dueDate))
+                  .font(.caption)
+                  .foregroundStyle(dueDateColor(dueDate))
+                Text("·")
+                  .font(.caption)
+                  .foregroundStyle(Color.ink300)
+              }
+
+              Text(item.listName)
                 .font(.caption)
-                .foregroundStyle(dueDateColor(dueDate))
-              Text("·")
-                .font(.caption)
-                .foregroundStyle(Color.ink300)
+                .foregroundStyle(Color.ink500)
             }
-
-            Text(item.listName)
-              .font(.caption)
-              .foregroundStyle(Color.ink500)
           }
+
+          Spacer(minLength: 4)
         }
-
-        Spacer(minLength: 4)
-
-        // Trailing area reserved for provenance badge (#439).
-        // Empty in V1.
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
       }
-      .padding(.vertical, 6)
-      .contentShape(Rectangle())
+      .buttonStyle(.plain)
+      .accessibilityElement(children: .ignore)
+      .accessibilityLabel(accessibilityLabel)
+      .accessibilityHint("Double-tap to open in Reminders")
+
+      // Trailing provenance badge — separate tap target (R3.4).
+      if let id = memoryID {
+        Button {
+          onBadgeTap?(id)
+        } label: {
+          HStack(spacing: 2) {
+            Image(systemName: "leaf.fill")
+              .font(.caption.weight(.semibold))
+              .foregroundStyle(Color.forest500)
+            Image(systemName: "chevron.right")
+              .font(.system(size: 10, weight: .semibold))
+              .foregroundStyle(Color.ink300)
+          }
+          .padding(.vertical, 6)
+          .padding(.leading, 4)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("View source memory in Grove")
+        .accessibilityHint("Double-tap to open the Grove memory that created this reminder")
+      }
     }
-    .buttonStyle(.plain)
-    .accessibilityElement(children: .ignore)
-    .accessibilityLabel(accessibilityLabel)
-    .accessibilityHint("Double-tap to open in Reminders")
   }
 
   // MARK: - Due date formatting
@@ -102,6 +133,9 @@ struct ReminderRowView: View {
       parts.append("Due \(formattedDueDate(dueDate))")
     }
     parts.append(item.listName)
+    if memoryID != nil {
+      parts.append("Grove task")
+    }
     return parts.joined(separator: ". ")
   }
 }
@@ -114,7 +148,9 @@ struct ReminderRowView: View {
         title: "Call Theo about the upcoming demo",
         dueDate: Date().addingTimeInterval(86_400),
         listName: "Work"
-      )
+      ),
+      memoryID: UUID(),
+      onBadgeTap: { _ in }
     )
     ReminderRowView(
       item: ReminderListItem(
