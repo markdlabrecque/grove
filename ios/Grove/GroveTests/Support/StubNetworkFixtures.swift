@@ -36,6 +36,10 @@ func makeContainer() throws -> ModelContainer {
 ///   - initialToken: Passed as `initialToken:` to `UploadQueue.init`. Suites that
 ///     test token-expiry flows (e.g. `AuthRequiredTests`) pass their own token here
 ///     so the queue tracks the "last known bad token". Defaults to `""`.
+///
+/// - Note: The session created here does NOT embed an `X-Stub-ID` header, so it
+///   uses the legacy static `StubURLProtocol` dispatch path. New tests should use
+///   `makeQueueWithStub(container:bearerToken:initialToken:)` instead.
 func makeQueue(
   container: ModelContainer,
   bearerToken: String,
@@ -50,6 +54,73 @@ func makeQueue(
   )
   let queue = UploadQueue(modelContainer: container, api: api, initialToken: initialToken)
   return (queue, api)
+}
+
+// MARK: - makeQueueWithStub
+
+/// The return value of `makeQueueWithStub`. Bundles the queue, API, and a
+/// per-test responder setter so tests can swap what the stub returns without
+/// touching global state.
+struct QueueWithStub {
+  let queue: UploadQueue
+  let api: GroveAPI
+
+  /// A unique identifier for the session registered with `StubURLProtocol`.
+  /// Retained so tests that need it (e.g. to call `updateResponder(for:to:)`)
+  /// have it to hand; the `setResponder` helper is more ergonomic for common cases.
+  let stubID: UUID
+
+  /// Replace the success responder for this session.
+  ///
+  /// Thread-safe: delegates to `StubURLProtocol.updateResponder(for:to:)` which
+  /// is lock-protected.
+  func setResponder(_ responder: @escaping (URLRequest) -> (HTTPURLResponse, Data)) {
+    StubURLProtocol.updateResponder(for: stubID, to: responder)
+  }
+
+  /// Tear down the stub session (remove from the `StubURLProtocol` registry).
+  ///
+  /// Call this at the end of each test (e.g. from `defer`). After teardown
+  /// any in-flight requests will precondition-fail in `StubURLProtocol`.
+  let teardown: () -> Void
+}
+
+/// Build an `UploadQueue` with a per-test-isolated `StubURLProtocol` session.
+///
+/// Unlike `makeQueue`, this variant uses `StubURLProtocol.makeSession` so each
+/// test gets its own registry slot and there is no cross-test static mutation.
+///
+/// Pattern:
+/// ```swift
+/// let stub = makeQueueWithStub(container: container, bearerToken: token)
+/// defer { stub.teardown() }
+///
+/// stub.setResponder { _ in (stubResponse(statusCode: 201), responseData) }
+/// await stub.queue.tryDrain()
+/// ```
+func makeQueueWithStub(
+  container: ModelContainer,
+  bearerToken: String,
+  initialToken: String = ""
+) -> QueueWithStub {
+  // Seed an empty responder — tests call setResponder() before any network activity.
+  // The closure is a placeholder; if a request fires before setResponder is called
+  // the test has a logic error (will hit the registry entry and return a blank 500).
+  let placeholder: (URLRequest) -> (HTTPURLResponse, Data) = { request in
+    let resp = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
+    return (resp, Data())
+  }
+  let (config, teardown) = StubURLProtocol.makeSession(responder: placeholder)
+  let stubIDString = config.httpAdditionalHeaders?[StubURLProtocol.stubIDHeaderKey] as? String
+  let stubID = UUID(uuidString: stubIDString ?? "") ?? UUID()
+
+  let api = GroveAPI(
+    baseURL: stubNetworkBaseURL,
+    bearerToken: bearerToken,
+    configuration: config
+  )
+  let queue = UploadQueue(modelContainer: container, api: api, initialToken: initialToken)
+  return QueueWithStub(queue: queue, api: api, stubID: stubID, teardown: teardown)
 }
 
 // MARK: - makePayload

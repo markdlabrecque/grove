@@ -448,6 +448,56 @@ public actor GroveAPI {
     return try decoder.decode(TaskDTO.self, from: data)
   }
 
+  // MARK: - Task list by memory IDs
+
+  /// Fetch tasks whose `memory_id` is in the supplied list
+  /// (GET /v1/tasks?memory_ids=uuid1,uuid2,...).
+  ///
+  /// Used by `TaskReconciler.reconcileAllPending()` to batch-look up all tasks
+  /// for entries in `PendingReminderStore` on app foreground, without requiring
+  /// N individual GET /v1/memories/{id} round-trips.
+  ///
+  /// Empty input returns `[]` immediately without hitting the network — the
+  /// server also returns `[]` for an empty query parameter, but we short-circuit
+  /// here to avoid an unnecessary request when the store is empty.
+  ///
+  /// - Parameter memoryIDs: The memory UUIDs to look up. Order is not significant;
+  ///   the server returns tasks in database order.
+  ///
+  /// - Throws: `APIError.httpError(422, _)` if any UUID is malformed on the
+  ///   server side (should not happen in practice since we generate valid UUIDs).
+  public func listTasksByMemoryIDs(_ memoryIDs: [UUID]) async throws -> [TaskDTO] {
+    guard !memoryIDs.isEmpty else { return [] }
+
+    var comps = URLComponents(
+      url: baseURL.appendingPathComponent("v1/tasks"),
+      resolvingAgainstBaseURL: false
+    )!
+    let joined = memoryIDs.map { $0.uuidString.lowercased() }.joined(separator: ",")
+    comps.queryItems = [URLQueryItem(name: "memory_ids", value: joined)]
+    let url = comps.url!
+
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "GET"
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    print("[list-tasks] memory_id_count=\(memoryIDs.count) status=\(status)")
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    return try decoder.decode([TaskDTO].self, from: data)
+  }
+
   // MARK: - Delete
 
   /// Delete a memory by ID (DELETE /v1/memories/{id}).
