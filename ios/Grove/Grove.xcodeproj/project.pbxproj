@@ -79,6 +79,7 @@
 		A100002F /* TasksViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200002F /* TasksViewModel.swift */; };
 		A1000030 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000030 /* TasksView.swift */; };
 		A1000031 /* ReminderRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000031 /* ReminderRowView.swift */; };
+		A1000032 /* TaskRowViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000032 /* TaskRowViewV2.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -156,6 +157,7 @@
 		A200002F /* TasksViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksViewModel.swift; sourceTree = "<group>"; };
 		A2000030 /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
 		A2000031 /* ReminderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRowView.swift; sourceTree = "<group>"; };
+		A2000032 /* TaskRowViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowViewV2.swift; sourceTree = "<group>"; };
 		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
 		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
 		B2000019 /* StubNetworkFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubNetworkFixtures.swift; sourceTree = "<group>"; };
@@ -289,6 +291,7 @@
 				A200001F /* NavWordmarkView.swift */,
 				A2000025 /* DictationResumeBanner.swift */,
 				A200002A /* TaskRowView.swift */,
+				A2000032 /* TaskRowViewV2.swift */,
 				A2000030 /* TasksView.swift */,
 				A2000031 /* ReminderRowView.swift */,
 				A200002F /* TasksViewModel.swift */,
@@ -562,6 +565,7 @@
 				A100002F /* TasksViewModel.swift in Sources */,
 				A1000030 /* TasksView.swift in Sources */,
 				A1000031 /* ReminderRowView.swift in Sources */,
+				A1000032 /* TaskRowViewV2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
