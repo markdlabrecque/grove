@@ -154,7 +154,7 @@ public final class UserDefaultsPendingReminderStore: PendingReminderStoring {
   ///
   /// Called when the upload queue confirms a capture with the server UUID.
   /// No-op when there is no entry for `clientID`.
-  public func remap(clientID: UUID, to serverMemoryID: UUID) {
+  func remap(clientID: UUID, to serverMemoryID: UUID) {
     guard let existing = cache.first(where: { $0.memoryID == clientID }) else {
       return  // No pending entry for this clientID — nothing to remap.
     }
