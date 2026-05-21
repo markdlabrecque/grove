@@ -74,6 +74,7 @@
 		B1000020 /* EmptyCaptureRefusalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000020 /* EmptyCaptureRefusalTests.swift */; };
 		B1000021 /* TaskReconcilerSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000021 /* TaskReconcilerSweepTests.swift */; };
 		B1000022 /* TasksViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000022 /* TasksViewTests.swift */; };
+		B1000023 /* ReminderRowProvenanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000023 /* ReminderRowProvenanceTests.swift */; };
 		A100002E /* ReminderListItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200002E /* ReminderListItem.swift */; };
 		A100002F /* TasksViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200002F /* TasksViewModel.swift */; };
 		A1000030 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000030 /* TasksView.swift */; };
@@ -150,6 +151,7 @@
 		B2000020 /* EmptyCaptureRefusalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyCaptureRefusalTests.swift; sourceTree = "<group>"; };
 		B2000021 /* TaskReconcilerSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskReconcilerSweepTests.swift; sourceTree = "<group>"; };
 		B2000022 /* TasksViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksViewTests.swift; sourceTree = "<group>"; };
+		B2000023 /* ReminderRowProvenanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRowProvenanceTests.swift; sourceTree = "<group>"; };
 		A200002E /* ReminderListItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderListItem.swift; sourceTree = "<group>"; };
 		A200002F /* TasksViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksViewModel.swift; sourceTree = "<group>"; };
 		A2000030 /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
@@ -349,6 +351,7 @@
 				B2000020 /* EmptyCaptureRefusalTests.swift */,
 				B2000021 /* TaskReconcilerSweepTests.swift */,
 				B2000022 /* TasksViewTests.swift */,
+				B2000023 /* ReminderRowProvenanceTests.swift */,
 				B2000017 /* KeychainStoreStub.swift */,
 				B2000018 /* SettingsViewModelKeychainFailureTests.swift */,
 				B3000002 /* Fixtures */,
@@ -592,6 +595,7 @@
 				B1000020 /* EmptyCaptureRefusalTests.swift in Sources */,
 				B1000021 /* TaskReconcilerSweepTests.swift in Sources */,
 				B1000022 /* TasksViewTests.swift in Sources */,
+				B1000023 /* ReminderRowProvenanceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
