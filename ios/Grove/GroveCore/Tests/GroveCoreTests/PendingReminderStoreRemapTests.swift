@@ -59,6 +59,13 @@ struct PendingReminderStoreRemapTests {
     store.store(memoryID: clientID, calendarItemIdentifier: Self.calendarID)
     #expect(store.entry(for: clientID) != nil, "Precondition: entry exists under clientID before remap")
 
+    // Yield once to let the observer Task in init reach its first `for await`
+    // suspension before we post. NotificationCenter's AsyncSequence only
+    // delivers notifications posted AFTER subscription starts; without this
+    // yield the post can race ahead of the subscription and be dropped,
+    // forcing the polling loop to wait for the 2 s timeout.
+    await Task.yield()
+
     center.post(
       name: .captureUploadedNotification,
       object: nil,
@@ -69,10 +76,12 @@ struct PendingReminderStoreRemapTests {
     )
 
     // Poll until the remap lands, bounded by a 2 s deadline.
-    // This is robust against scheduler interleaving — the assertion fires
-    // as soon as `remap()` is called rather than after a fixed yield count.
+    // `Task.checkCancellation()` lets `withBridgeTimeout`'s `group.cancelAll()`
+    // actually unwind this loop — otherwise it spins on main actor forever
+    // and starves every other test in the process.
     try await withBridgeTimeout(seconds: 2) {
       while await store.entry(for: serverMemoryID) == nil {
+        try Task.checkCancellation()
         await Task.yield()
       }
     }
