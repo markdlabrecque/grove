@@ -65,6 +65,7 @@ For each ticket:
      make ios-test    # once available
      ```
    - If anything fails, fix and re-run. **Do NOT push known-failing builds or tests.** CI is the safety net, not your local test runner — every red round-trip costs a review cycle.
+   - **Run test commands in the FOREGROUND.** Use Bash with `run_in_background: false` (the default) and accept the multi-minute block — `make ios-test-core` typically takes 1–3 min and the harness reports exit code reliably. **Never use Monitor on a background test process.** If the test crashes silently without emitting the success/failure marker your Monitor is grepping for, Monitor sits in an infinite stdout-watch loop and your turn hangs indefinitely. This has bitten this project repeatedly; foreground Bash is the only correct pattern for "run this test and tell me the result." Background + Monitor is reserved for genuinely long-lived watch targets (log tails, CI poll loops) with grep filters that cover both success AND every failure signature.
 7. Push and open the PR: `gh pr create --base develop --body "…\n\nCloses #<N>"`. The `Closes` line is required — it auto-closes the ticket on merge.
 8. Hand off. You do not merge. Theo reviews and merges.
 
