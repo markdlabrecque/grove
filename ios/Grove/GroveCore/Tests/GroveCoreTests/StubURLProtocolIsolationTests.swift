@@ -16,7 +16,7 @@ import GroveTestSupport
 /// This file is committed first (red). It references `StubURLProtocol.makeSession`
 /// which does not exist yet, so the package will not compile until the green
 /// commit lands.
-@Suite("StubURLProtocol isolation", .serialized)
+@Suite("StubURLProtocol isolation")
 struct StubURLProtocolIsolationTests {
 
   private static let baseURL = URL(string: "https://grove.example.ts.net")!
@@ -41,6 +41,10 @@ struct StubURLProtocolIsolationTests {
     let session = URLSession(configuration: config)
     let targetURL = Self.baseURL.appendingPathComponent("v1/captures")
     var req = URLRequest(url: targetURL)
+    // URLSession normally merges httpAdditionalHeaders automatically, but that
+    // merge only happens when the task is created via URLSessionTask helpers.
+    // Because we build URLRequest directly here, we copy the headers manually
+    // so the stub-ID header reaches StubURLProtocol's canInit check.
     req.allHTTPHeaderFields = config.httpAdditionalHeaders as? [String: String]
     let (data, response) = try await session.data(for: req)
 
@@ -82,6 +86,9 @@ struct StubURLProtocolIsolationTests {
     let targetURL = Self.baseURL.appendingPathComponent("v1/test")
 
     // Build requests that carry the stub-ID headers from each config.
+    // URLSession only merges httpAdditionalHeaders automatically during task
+    // creation; direct URLRequest construction bypasses that merge, so we copy
+    // the headers here to ensure the stub-ID header is present for routing.
     var reqA = URLRequest(url: targetURL)
     reqA.allHTTPHeaderFields = configA.httpAdditionalHeaders as? [String: String]
     var reqB = URLRequest(url: targetURL)
