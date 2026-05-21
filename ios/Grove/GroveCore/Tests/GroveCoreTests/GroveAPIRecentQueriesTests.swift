@@ -196,8 +196,7 @@ struct GroveAPIRecentQueriesTests {
   @Test("recentQueries sends GET to /v1/queries/recent?limit=10 with correct headers")
   func recentQueriesRequestShape() async throws {
     let url = recentURL(limit: 10)
-    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
-    let box = Box<URLRequest>()
+    let box = CaptureBox<URLRequest>()
 
     let (api, teardown) = makeAPI { [url] request in
       box.value = request
@@ -231,8 +230,7 @@ struct GroveAPIRecentQueriesTests {
   @Test("recentQueries sends GET with limit=5 in URL")
   func recentQueriesRequestShapeLimit5() async throws {
     let url = recentURL(limit: 5)
-    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
-    let box = Box<URLRequest>()
+    let box = CaptureBox<URLRequest>()
 
     let (api, teardown) = makeAPI { [url] request in
       box.value = request
