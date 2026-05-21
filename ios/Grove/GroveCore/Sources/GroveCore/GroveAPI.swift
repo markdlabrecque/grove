@@ -506,6 +506,53 @@ public actor GroveAPI {
     return try decoder.decode([TaskDTO].self, from: data)
   }
 
+  /// Fetch tasks whose `eventkit_identifier` is in the supplied list
+  /// (GET /v1/tasks?eventkit_identifiers=id1,id2,...).
+  ///
+  /// Used by `TasksViewModel` after an EKReminder fetch to resolve which
+  /// reminders originated from Grove captures and what memory each came from.
+  ///
+  /// Empty input returns `[]` immediately without hitting the network — the
+  /// server also returns `[]` for an empty query parameter, but we short-circuit
+  /// here to avoid an unnecessary request when the reminder list is empty.
+  ///
+  /// - Parameter identifiers: The `calendarItemIdentifier` strings to look up.
+  ///   These are opaque strings (not UUIDs) from EventKit. Order is not significant.
+  ///
+  /// - Throws: `APIError.httpError(422, _)` if the server rejects the request
+  ///   (e.g. both `eventkit_identifiers` and `memory_ids` are supplied).
+  public func listTasksByEventKitIdentifiers(_ identifiers: [String]) async throws -> [TaskDTO] {
+    guard !identifiers.isEmpty else { return [] }
+
+    var comps = URLComponents(
+      url: baseURL.appendingPathComponent("v1/tasks"),
+      resolvingAgainstBaseURL: false
+    )!
+    let joined = identifiers.joined(separator: ",")
+    comps.queryItems = [URLQueryItem(name: "eventkit_identifiers", value: joined)]
+    let url = comps.url!
+
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "GET"
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    logger.info("[list-tasks] eventkit_identifier_count=\(identifiers.count, privacy: .public) status=\(status, privacy: .public)")
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    return try decoder.decode([TaskDTO].self, from: data)
+  }
+
   // MARK: - Delete
 
   /// Delete a memory by ID (DELETE /v1/memories/{id}).
@@ -536,6 +583,42 @@ public actor GroveAPI {
       let detail = extractDetail(from: data)
       throw APIError.httpError(statusCode: status, detail: detail)
     }
+  }
+
+  // MARK: - Fetch single memory
+
+  /// Fetch a memory by ID (GET /v1/memories/{id}).
+  ///
+  /// Uses `defaultSession` — this is an interactive read triggered from the
+  /// detail view, and supports Swift structured-concurrency cancellation.
+  ///
+  /// Returns a `MemoryDetailDTO` containing the raw content and key metadata
+  /// fields needed by `MemoryDetailView`. Throws `APIError.httpError(404, _)`
+  /// when the memory is not found, or `APIError.httpError(status, _)` for other
+  /// non-2xx responses.
+  public func fetchMemory(id: UUID) async throws -> MemoryDetailDTO {
+    let url = baseURL.appendingPathComponent(
+      "v1/memories/\(id.uuidString.lowercased())"
+    )
+    let request = authorizedRequest(for: url)
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    logger.info("[fetch] memory_id=\(id.uuidString.lowercased(), privacy: .public) status=\(status, privacy: .public)")
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode(MemoryDetailDTO.self, from: data)
   }
 
   // MARK: - Delegate bridge (called from UploadSessionDelegate)
@@ -1037,6 +1120,40 @@ public struct FeedbackRequestBody: Codable, Sendable {
 
   public init(feedback: Feedback) {
     self.feedback = feedback
+  }
+}
+
+// MARK: - Memory detail DTO
+
+/// Wire format returned by GET /v1/memories/{id}.
+///
+/// Contains only the fields needed by `MemoryDetailView` — the server's
+/// `MemoryDetailSchema` returns far more (chunks, decisions, tasks, etc.) but
+/// the iOS client currently renders just the raw content and capture metadata.
+/// Additional fields can be added here as the UI grows without a server change.
+public struct MemoryDetailDTO: Codable, Sendable {
+  public let id: UUID
+  public let content: String
+  public let capturedAt: Date?
+  public let sourceModality: String?
+
+  public init(
+    id: UUID,
+    content: String,
+    capturedAt: Date?,
+    sourceModality: String?
+  ) {
+    self.id = id
+    self.content = content
+    self.capturedAt = capturedAt
+    self.sourceModality = sourceModality
+  }
+
+  public enum CodingKeys: String, CodingKey {
+    case id
+    case content
+    case capturedAt = "captured_at"
+    case sourceModality = "source_modality"
   }
 }
 

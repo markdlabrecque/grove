@@ -1,8 +1,9 @@
 import EventKit
 import SwiftUI
+import GroveCore
 import os
 
-/// The Tasks tab — lists all incomplete EKReminders from the device (#438).
+/// The Tasks tab — lists all incomplete EKReminders from the device (#438, #439).
 ///
 /// ## States
 ///
@@ -12,6 +13,13 @@ import os
 /// - `.loading`: shows a `ProgressView` while the EventKit fetch is in flight.
 /// - `.empty`: shows a "No incomplete reminders" empty state.
 /// - `.loaded([ReminderListItem])`: shows the sorted reminder list.
+///
+/// ## Provenance (R3.3, R3.4)
+///
+/// After the EKReminder fetch, `TasksViewModel` performs a batch lookup of
+/// `calendarItemIdentifier`s against the server to build a provenance map.
+/// Grove-originated rows display a leaf badge; tapping it navigates to
+/// `MemoryDetailView` via the `NavigationStack`'s path.
 ///
 /// ## Lifecycle
 ///
@@ -28,6 +36,7 @@ import os
 struct TasksView: View {
 
   @State private var vm: TasksViewModel
+  @State private var navigationPath = NavigationPath()
   @State private var notificationObserver: NSObjectProtocol? = nil
 
   private let logger = Logger(
@@ -41,10 +50,28 @@ struct TasksView: View {
   }
 
   var body: some View {
-    NavigationStack {
+    NavigationStack(path: $navigationPath) {
       content
         .navigationTitle("Tasks")
         .navigationBarTitleDisplayMode(.large)
+        // R3.4: Navigate to MemoryDetailView when a UUID is pushed onto the path.
+        .navigationDestination(for: UUID.self) { memoryID in
+          MemoryDetailView(
+            result: QueryResult(
+              memoryID: memoryID,
+              score: 1.0,
+              matchedVia: "provenance",
+              matchedChunkIndex: nil,
+              excerpt: "",
+              capturedAt: nil,
+              sourceModality: nil
+            ),
+            onDeleteSuccess: { _ in
+              // Pop back to the Tasks tab after deletion.
+              navigationPath.removeLast()
+            }
+          )
+        }
     }
     .onAppear {
       Task { await vm.load() }
@@ -194,9 +221,14 @@ struct TasksView: View {
 
   private func listView(items: [ReminderListItem]) -> some View {
     List(items) { item in
-      ReminderRowView(item: item) {
-        openReminder(identifier: item.id)
-      }
+      ReminderRowView(
+        item: item,
+        memoryID: vm.provenanceMap[item.id],
+        onTap: { openReminder(identifier: item.id) },
+        onBadgeTap: { memoryID in
+          navigationPath.append(memoryID)
+        }
+      )
       .listRowSeparatorTint(Color.hairline)
     }
     .listStyle(.plain)
@@ -253,7 +285,7 @@ struct TasksView: View {
   TasksView(provider: PreviewNotDeterminedProvider())
 }
 
-#Preview("List") {
+#Preview("List with Grove badge") {
   TasksView(provider: PreviewLoadedProvider())
 }
 
