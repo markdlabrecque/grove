@@ -585,6 +585,42 @@ public actor GroveAPI {
     }
   }
 
+  // MARK: - Fetch single memory
+
+  /// Fetch a memory by ID (GET /v1/memories/{id}).
+  ///
+  /// Uses `defaultSession` — this is an interactive read triggered from the
+  /// detail view, and supports Swift structured-concurrency cancellation.
+  ///
+  /// Returns a `MemoryDetailDTO` containing the raw content and key metadata
+  /// fields needed by `MemoryDetailView`. Throws `APIError.httpError(404, _)`
+  /// when the memory is not found, or `APIError.httpError(status, _)` for other
+  /// non-2xx responses.
+  public func fetchMemory(id: UUID) async throws -> MemoryDetailDTO {
+    let url = baseURL.appendingPathComponent(
+      "v1/memories/\(id.uuidString.lowercased())"
+    )
+    let request = authorizedRequest(for: url)
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    logger.info("[fetch] memory_id=\(id.uuidString.lowercased(), privacy: .public) status=\(status, privacy: .public)")
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode(MemoryDetailDTO.self, from: data)
+  }
+
   // MARK: - Delegate bridge (called from UploadSessionDelegate)
 
   /// Accumulate a chunk of response body data for a pending upload.
@@ -1084,6 +1120,40 @@ public struct FeedbackRequestBody: Codable, Sendable {
 
   public init(feedback: Feedback) {
     self.feedback = feedback
+  }
+}
+
+// MARK: - Memory detail DTO
+
+/// Wire format returned by GET /v1/memories/{id}.
+///
+/// Contains only the fields needed by `MemoryDetailView` — the server's
+/// `MemoryDetailSchema` returns far more (chunks, decisions, tasks, etc.) but
+/// the iOS client currently renders just the raw content and capture metadata.
+/// Additional fields can be added here as the UI grows without a server change.
+public struct MemoryDetailDTO: Codable, Sendable {
+  public let id: UUID
+  public let content: String
+  public let capturedAt: Date?
+  public let sourceModality: String?
+
+  public init(
+    id: UUID,
+    content: String,
+    capturedAt: Date?,
+    sourceModality: String?
+  ) {
+    self.id = id
+    self.content = content
+    self.capturedAt = capturedAt
+    self.sourceModality = sourceModality
+  }
+
+  public enum CodingKeys: String, CodingKey {
+    case id
+    case content
+    case capturedAt = "captured_at"
+    case sourceModality = "source_modality"
   }
 }
 

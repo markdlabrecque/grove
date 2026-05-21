@@ -59,6 +59,9 @@ struct MemoryDetailView: View {
     }
     .navigationTitle("Memory")
     .navigationBarTitleDisplayMode(.inline)
+    .task {
+      await viewModel.loadContent()
+    }
     .toolbar {
       ToolbarItem(placement: .destructiveAction) {
         if viewModel.isDeleting {
@@ -102,10 +105,27 @@ struct MemoryDetailView: View {
         .textCase(.uppercase)
         .accessibilityHidden(true)
 
-      Text(viewModel.result.excerpt)
-        .font(.body)
-        .fixedSize(horizontal: false, vertical: true)
-        .accessibilityLabel("Memory content: \(viewModel.result.excerpt)")
+      if viewModel.isFetchingContent {
+        ProgressView()
+          .frame(maxWidth: .infinity, alignment: .center)
+          .accessibilityLabel("Loading memory content")
+      } else if let fetched = viewModel.fetchedContent {
+        Text(fetched)
+          .font(.body)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityLabel("Memory content: \(fetched)")
+      } else if let fetchError = viewModel.fetchError {
+        Text("Could not load content: \(fetchError)")
+          .font(.body)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityLabel("Error loading memory content: \(fetchError)")
+      } else {
+        Text(viewModel.result.excerpt)
+          .font(.body)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityLabel("Memory content: \(viewModel.result.excerpt)")
+      }
     }
   }
 
