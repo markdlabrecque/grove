@@ -28,41 +28,77 @@ class TaskEventKitLinkRequest(BaseModel):
     response_model=list[TaskSchema],
     status_code=status.HTTP_200_OK,
 )
-async def list_tasks_by_memory_ids(
+async def list_tasks(
     session: Annotated[AsyncSession, Depends(get_session)],
     memory_ids: Annotated[str, Query()] = "",
+    eventkit_identifiers: Annotated[str, Query()] = "",
 ) -> list[TaskSchema]:
-    """Return tasks whose memory_id is in the supplied comma-separated list.
+    """Return tasks filtered by memory_id or eventkit_identifier.
 
-    Empty list → 200 with []. Unknown memory IDs are silently ignored.
-    Used by the iOS foreground sweep to batch-look up tasks for all entries
-    in PendingReminderStore without N round-trips through GET /v1/memories/{id}.
+    Exactly one of memory_ids or eventkit_identifiers may be supplied per
+    request. Passing both returns 422. Empty/absent values return 200 [].
+
+    memory_ids: comma-separated UUIDs — each token is validated.
+    eventkit_identifiers: comma-separated opaque strings
+        (EKReminder.calendarItemIdentifier) — no UUID validation performed.
     """
-    if not memory_ids.strip():
-        return []
+    has_memory_ids = bool(memory_ids.strip())
+    has_ek_ids = bool(eventkit_identifiers.strip())
 
-    parsed: list[uuid.UUID] = []
-    for raw in memory_ids.split(","):
-        raw = raw.strip()
-        if not raw:
-            continue
-        try:
-            parsed.append(uuid.UUID(raw))
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"invalid UUID in memory_ids: {raw!r}",
-            ) from exc
+    if has_memory_ids and has_ek_ids:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="cannot combine memory_ids and eventkit_identifiers",
+        )
 
-    if not parsed:
-        return []
+    if has_memory_ids:
+        parsed_uuids: list[uuid.UUID] = []
+        for raw in memory_ids.split(","):
+            raw = raw.strip()
+            if not raw:
+                continue
+            try:
+                parsed_uuids.append(uuid.UUID(raw))
+            except ValueError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail=f"invalid UUID in memory_ids: {raw!r}",
+                ) from exc
 
-    result = await session.execute(select(Task).where(Task.memory_id.in_(parsed)))
-    tasks = list(result.scalars().all())
+        if not parsed_uuids:
+            return []
 
-    logger.info("tasks_listed_by_memory_ids", memory_id_count=len(parsed), task_count=len(tasks))
+        result = await session.execute(select(Task).where(Task.memory_id.in_(parsed_uuids)))
+        tasks = list(result.scalars().all())
 
-    return [TaskSchema.model_validate(t) for t in tasks]
+        logger.info(
+            "tasks_listed_by_memory_ids",
+            memory_id_count=len(parsed_uuids),
+            task_count=len(tasks),
+        )
+
+        return [TaskSchema.model_validate(t) for t in tasks]
+
+    if has_ek_ids:
+        parsed_ek: list[str] = [
+            tok for tok in (t.strip() for t in eventkit_identifiers.split(",")) if tok
+        ]
+
+        if not parsed_ek:
+            return []
+
+        result = await session.execute(select(Task).where(Task.eventkit_identifier.in_(parsed_ek)))
+        tasks = list(result.scalars().all())
+
+        logger.info(
+            "tasks_listed_by_eventkit_identifiers",
+            identifier_count=len(parsed_ek),
+            task_count=len(tasks),
+        )
+
+        return [TaskSchema.model_validate(t) for t in tasks]
+
+    return []
 
 
 @router.patch(
