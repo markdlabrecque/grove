@@ -391,6 +391,68 @@ public actor GroveAPI {
     }
   }
 
+  // MARK: - Task list (all tasks for authenticated user)
+
+  /// Fetch all tasks for the authenticated user (GET /v1/tasks).
+  ///
+  /// Returns tasks sorted by `created_at` descending (server-side). No filter
+  /// parameters — this is the full list backing the Tasks tab.
+  ///
+  /// Uses `defaultSession` — interactive fetch, supports Task cancellation.
+  public func listTasks() async throws -> [TaskDTO] {
+    let url = baseURL.appendingPathComponent("v1/tasks")
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "GET"
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    logger.info("[list-tasks] status=\(status, privacy: .public)")
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    return try decoder.decode([TaskDTO].self, from: data)
+  }
+
+  // MARK: - Delete task
+
+  /// Delete a task by ID (DELETE /v1/tasks/{id}).
+  ///
+  /// Uses the `defaultSession` — interactive, triggered from swipe-to-delete.
+  /// A 404 response is re-thrown as `APIError.httpError(404, _)` per R2.2 so
+  /// callers can decide whether to treat it as a success or surface it.
+  ///
+  /// On success the server returns 204 No Content with an empty body.
+  public func deleteTask(id: UUID) async throws {
+    let url = baseURL.appendingPathComponent(
+      "v1/tasks/\(id.uuidString.lowercased())"
+    )
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "DELETE"
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    logger.info("[delete-task] task_id=\(id.uuidString.lowercased(), privacy: .public) status=\(status, privacy: .public)")
+
+    guard status == 204 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+  }
+
   // MARK: - Task EventKit linking
 
   /// Attach an EventKit reminder identifier to a task (PATCH /v1/tasks/{id}).

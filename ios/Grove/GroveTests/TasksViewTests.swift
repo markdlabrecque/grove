@@ -187,50 +187,51 @@ struct TasksViewTests {
     #expect(callCount == 2)
   }
 
-  // MARK: - Swipe-to-delete optimistic removal (R2.5)
+  // MARK: - Swipe-to-delete successful removal (R2.5)
 
-  @Test("delete: row removed optimistically before server confirms")
-  func deleteRemovesRowOptimistically() async throws {
+  @Test("delete: row removed after server confirms")
+  func deleteRemovesRowOnSuccess() async throws {
     let task1 = makeTask(description: "Task one")
     let task2 = makeTask(description: "Task two")
 
-    // Delete is a slow operation — use a continuation to hold it in flight.
-    let deleteCalled = ContinuationBox()
-
     let vm = TasksViewModel(
       fetch: { [task1, task2] },
-      delete: { _ in
-        await deleteCalled.wait()
-      }
+      delete: { _ in /* success */ }
     )
 
     await vm.load()
-    guard case .loaded = vm.loadState else {
+    guard case .loaded(let before) = vm.loadState else {
       Issue.record("Expected .loaded before delete")
       return
     }
+    #expect(before.count == 2)
 
-    // Start the delete task without awaiting (fire-and-forget to check optimistic state).
-    let deleteTask = Task { await vm.deleteTask(task1) }
+    await vm.deleteTask(task1)
 
-    // Yield to let the delete begin and remove the item.
-    await Task.yield()
-    await Task.yield()
-
-    // Verify optimistic removal happened.
-    if case .loaded(let items) = vm.loadState {
-      #expect(items.count == 1)
-      #expect(items[0].description == "Task two")
-    } else if case .empty = vm.loadState {
-      // Also acceptable if deleting the last item.
-      Issue.record("Unexpected .empty — still had task2")
-    } else {
-      Issue.record("Expected .loaded or .empty after optimistic delete, got \(vm.loadState)")
+    guard case .loaded(let after) = vm.loadState else {
+      Issue.record("Expected .loaded after delete, got \(vm.loadState)")
+      return
     }
+    #expect(after.count == 1)
+    #expect(after[0].description == "Task two")
+  }
 
-    // Allow delete to complete.
-    deleteCalled.resume()
-    await deleteTask.value
+  @Test("delete: deleting last row → .empty state")
+  func deleteLastRowBecomesEmpty() async throws {
+    let task = makeTask(description: "Only task")
+
+    let vm = TasksViewModel(
+      fetch: { [task] },
+      delete: { _ in /* success */ }
+    )
+
+    await vm.load()
+    await vm.deleteTask(task)
+
+    guard case .empty = vm.loadState else {
+      Issue.record("Expected .empty after deleting last task, got \(vm.loadState)")
+      return
+    }
   }
 
   // MARK: - Swipe-to-delete: restores row on error (R2.5)
@@ -299,23 +300,3 @@ struct TasksViewTests {
   }
 }
 
-// MARK: - ContinuationBox
-
-/// A helper for pausing and resuming an async operation in tests.
-private actor ContinuationBox {
-  private var continuation: CheckedContinuation<Void, Never>?
-  private var resumed = false
-
-  func wait() async {
-    if resumed { return }
-    await withCheckedContinuation { cont in
-      continuation = cont
-    }
-  }
-
-  func resume() {
-    resumed = true
-    continuation?.resume()
-    continuation = nil
-  }
-}
