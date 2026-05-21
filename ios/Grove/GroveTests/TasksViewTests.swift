@@ -31,9 +31,7 @@ private func makeTask(
     description: description,
     dueDate: dueDate,
     status: "open",
-    relatedPeople: relatedPeople,
-    eventkitIdentifier: nil,
-    eventkitLinkedAt: nil
+    relatedPeople: relatedPeople
   )
 }
 

@@ -142,9 +142,7 @@ struct TaskRowViewV2: View {
         return String(format: "%04d-%02d-%02d", comps.year!, comps.month!, comps.day!)
       }(),
       status: "open",
-      relatedPeople: ["Theo"],
-      eventkitIdentifier: nil,
-      eventkitLinkedAt: nil
+      relatedPeople: ["Theo"]
     ))
 
     TaskRowViewV2(task: TaskDTO(
@@ -153,9 +151,7 @@ struct TaskRowViewV2: View {
       description: "Buy oat milk",
       dueDate: nil,
       status: "open",
-      relatedPeople: nil,
-      eventkitIdentifier: nil,
-      eventkitLinkedAt: nil
+      relatedPeople: nil
     ))
 
     TaskRowViewV2(task: TaskDTO(
@@ -164,9 +160,7 @@ struct TaskRowViewV2: View {
       description: "Review the sprint retro notes with the whole team before Friday's planning session",
       dueDate: "2026-08-15",
       status: "open",
-      relatedPeople: ["mark", "sarah", "theo"],
-      eventkitIdentifier: nil,
-      eventkitLinkedAt: nil
+      relatedPeople: ["mark", "sarah", "theo"]
     ))
   }
   .listStyle(.plain)

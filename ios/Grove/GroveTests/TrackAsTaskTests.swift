@@ -7,20 +7,20 @@ import GroveCore
 
 // MARK: - TrackAsTaskTests
 //
-// Tests for the "Track as task" feature (#397):
+// Tests for the "Track as task" feature (#397).
+//
+// Suites kept after spec-02 cleanup (#453):
 //   1. Toggle state persists across view re-renders.
 //   2. Save with toggle on sends client_intent: "task" in the payload.
 //   3. Save with toggle off omits the field entirely.
 //   4. Permission-denied path saves capture but skips reminder creation
 //      and surfaces the reminder-skipped banner.
-//   5. Reconciliation: pending entry + memory body with matching task
-//      → PATCH called with stored identifier → entry removed.
-//   6. Reconciliation idempotency: 409 response also removes the entry.
-//   7. Reconciliation: 404 retains the entry.
+//
+// Removed in #453 (dead code after spec-02 cleanup):
+//   - Suite 4 (Reconciliation): used TaskReconciler + PendingReminderStore,
+//     both deleted as part of the EventKit-coupling removal.
 //
 // CI placement: GroveTests app target (make ios-test-app).
-// Note: Suite 5 (PendingReminderStore notification-driven remap) was
-// promoted to GroveCoreTests in #410 so it is covered by the CI gate.
 
 // MARK: - Shared fixtures
 
@@ -141,44 +141,31 @@ struct TrackAsTaskSaveFlowTests {
 
   private static let reminderID = "EK-task-reminder-001"
 
-  @Test("save with permission granted creates reminder and stores entry")
+  @Test("save with permission granted creates reminder (fire-and-forget)")
   func saveWithPermissionCreatesReminder() async throws {
     let queue = try makeTaskAsQueue()
     let stub = StubEventKitProviderCounting(authStatus: .authorized, createdIdentifier: Self.reminderID)
-    let store = InMemoryPendingReminderStore()
 
     let vm = CaptureViewModel(
       uploadQueue: queue,
-      eventKitProvider: stub,
-      pendingReminderStore: store
+      eventKitProvider: stub
     )
     vm.content = "Buy groceries"
     vm.trackAsTask = true
 
-    // Intercept enqueue so we can get the clientID without a live server.
-    var enqueuedClientID: String?
-    vm._enqueueObserver = { id in enqueuedClientID = id }
-
     await vm.save(applyFillerCleanup: false, languageHint: nil)
 
     #expect(stub.createReminderCallCount == 1, "createReminder should be called once")
-    let entries = store.all()
-    #expect(entries.count == 1, "One pending reminder entry should be stored")
-    if let entry = entries.first {
-      #expect(entry.calendarItemIdentifier == Self.reminderID)
-    }
   }
 
   @Test("save with permission denied: capture saves but no reminder is created, banner shown")
   func saveWithPermissionDenied() async throws {
     let queue = try makeTaskAsQueue()
     let stub = StubEventKitProviderCounting(authStatus: .denied, createdIdentifier: nil)
-    let store = InMemoryPendingReminderStore()
 
     let vm = CaptureViewModel(
       uploadQueue: queue,
-      eventKitProvider: stub,
-      pendingReminderStore: store
+      eventKitProvider: stub
     )
     vm.content = "Schedule vet appointment"
     vm.trackAsTask = true
@@ -186,7 +173,6 @@ struct TrackAsTaskSaveFlowTests {
     await vm.save(applyFillerCleanup: false, languageHint: nil)
 
     #expect(stub.createReminderCallCount == 0, "createReminder must NOT be called when permission denied")
-    #expect(store.all().isEmpty, "No pending reminder entry on permission denial")
     #expect(vm.showReminderPermissionDeniedBanner == true, "Banner should be shown")
   }
 
@@ -194,12 +180,10 @@ struct TrackAsTaskSaveFlowTests {
   func saveWithToggleOff() async throws {
     let queue = try makeTaskAsQueue()
     let stub = StubEventKitProviderCounting(authStatus: .authorized, createdIdentifier: Self.reminderID)
-    let store = InMemoryPendingReminderStore()
 
     let vm = CaptureViewModel(
       uploadQueue: queue,
-      eventKitProvider: stub,
-      pendingReminderStore: store
+      eventKitProvider: stub
     )
     vm.content = "Read that article"
     vm.trackAsTask = false
@@ -208,111 +192,6 @@ struct TrackAsTaskSaveFlowTests {
 
     #expect(stub.requestAccessCallCount == 0, "requestAccess must NOT be called when toggle is off")
     #expect(stub.createReminderCallCount == 0, "createReminder must NOT be called when toggle is off")
-  }
-}
-
-// MARK: - Suite 4: Reconciliation
-
-@Suite("TrackAsTask — Reconciliation")
-@MainActor
-struct TrackAsTaskReconciliationTests {
-
-  private static let memoryID = UUID(uuidString: "DDDDDDDD-0000-0000-0000-000000000001")!
-  private static let taskID   = UUID(uuidString: "EEEEEEEE-0000-0000-0000-000000000002")!
-  private static let reminderID = "EK-reconcile-999"
-
-  private func makeTask(
-    id: UUID = TrackAsTaskReconciliationTests.taskID,
-    memoryID: UUID = TrackAsTaskReconciliationTests.memoryID,
-    eventkitIdentifier: String? = nil
-  ) -> TaskDTO {
-    TaskDTO(
-      id: id,
-      memoryID: memoryID,
-      description: "Call the vet",
-      dueDate: nil,
-      status: "open",
-      relatedPeople: [],
-      eventkitIdentifier: eventkitIdentifier,
-      eventkitLinkedAt: nil
-    )
-  }
-
-  @Test("reconcile: pending entry + matching task → PATCH called, entry removed")
-  func reconcileHappyPath() async throws {
-    let store = InMemoryPendingReminderStore()
-    store.store(memoryID: Self.memoryID, calendarItemIdentifier: Self.reminderID)
-
-    var patchedTaskID: UUID?
-    var patchedIdentifier: String?
-
-    let reconciler = TaskReconciler(
-      pendingStore: store,
-      patchProvider: { taskID, identifier in
-        patchedTaskID = taskID
-        patchedIdentifier = identifier
-        return self.makeTask(eventkitIdentifier: identifier)
-      }
-    )
-
-    await reconciler.reconcile(tasks: [makeTask()])
-
-    #expect(patchedTaskID == Self.taskID)
-    #expect(patchedIdentifier == Self.reminderID)
-    #expect(store.all().isEmpty, "Entry should be removed after successful PATCH")
-  }
-
-  @Test("reconcile: 409 response also removes the entry (idempotency)")
-  func reconcile409RemovesEntry() async throws {
-    let store = InMemoryPendingReminderStore()
-    store.store(memoryID: Self.memoryID, calendarItemIdentifier: Self.reminderID)
-
-    let reconciler = TaskReconciler(
-      pendingStore: store,
-      patchProvider: { _, _ in
-        throw TaskLinkingError.alreadyLinked(existingIdentifier: Self.reminderID)
-      }
-    )
-
-    await reconciler.reconcile(tasks: [makeTask()])
-
-    #expect(store.all().isEmpty, "409 should still remove the entry — server is right")
-  }
-
-  @Test("reconcile: 404 response retains the entry")
-  func reconcile404RetainsEntry() async throws {
-    let store = InMemoryPendingReminderStore()
-    store.store(memoryID: Self.memoryID, calendarItemIdentifier: Self.reminderID)
-
-    let reconciler = TaskReconciler(
-      pendingStore: store,
-      patchProvider: { _, _ in
-        throw APIError.httpError(statusCode: 404, detail: "Not found")
-      }
-    )
-
-    await reconciler.reconcile(tasks: [makeTask()])
-
-    #expect(store.all().count == 1, "404 should retain the entry — do not lose it on transient errors")
-  }
-
-  @Test("reconcile: no pending entry for memory — PATCH not called")
-  func reconcileNoPendingEntry() async throws {
-    let store = InMemoryPendingReminderStore()
-    // Nothing stored for Self.memoryID
-
-    var patchCalled = false
-    let reconciler = TaskReconciler(
-      pendingStore: store,
-      patchProvider: { _, _ in
-        patchCalled = true
-        return self.makeTask()
-      }
-    )
-
-    await reconciler.reconcile(tasks: [makeTask()])
-
-    #expect(patchCalled == false)
   }
 }
 
@@ -344,30 +223,4 @@ final class StubEventKitProviderCounting: EventKitProviding {
     guard let id = createdIdentifier else { throw EventKitError.saveFailed }
     return id
   }
-
-  func fetchCompletion(for identifier: String) -> Bool? { false }
-
-  func fetchIncompleteReminders() async throws -> [ReminderListItem] { [] }
-}
-
-/// An in-memory `PendingReminderStoring` implementation for tests.
-@MainActor
-final class InMemoryPendingReminderStore: PendingReminderStoring {
-  private var entries: [PendingReminderEntry] = []
-
-  func store(memoryID: UUID, calendarItemIdentifier: String) {
-    entries.append(
-      PendingReminderEntry(memoryID: memoryID, calendarItemIdentifier: calendarItemIdentifier)
-    )
-  }
-
-  func entry(for memoryID: UUID) -> PendingReminderEntry? {
-    entries.first { $0.memoryID == memoryID }
-  }
-
-  func remove(memoryID: UUID) {
-    entries.removeAll { $0.memoryID == memoryID }
-  }
-
-  func all() -> [PendingReminderEntry] { entries }
 }

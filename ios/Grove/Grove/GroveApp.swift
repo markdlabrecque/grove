@@ -11,10 +11,6 @@ struct GroveApp: App {
   // handlers when a capture upload finishes while the app is suspended.
   @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
-  /// Tracks `UIApplication` lifecycle phase so we can trigger a reconciliation
-  /// sweep whenever the app comes back to the foreground.
-  @Environment(\.scenePhase) private var scenePhase
-
   // MARK: - SwiftData container
 
   /// The shared model container for the app. Contains `QueuedCapture` rows —
@@ -71,18 +67,6 @@ struct GroveApp: App {
     )
   }()
 
-  // MARK: - Task reconciler
-
-  /// Shared `TaskReconciler` instance. Reconciles locally-created Apple
-  /// Reminders with server `tasks` rows after enrichment lands.
-  ///
-  /// Exposed as a static property so `TaskRowView` and other consumers can
-  /// access it without needing to pass it through the view hierarchy.
-  @MainActor
-  static let taskReconciler: TaskReconciler = TaskReconciler(
-    pendingStore: UserDefaultsPendingReminderStore.shared
-  )
-
   // MARK: - Network monitor
 
   /// Observes `NWPathMonitor` and calls `uploadQueue.tryDrain()` on reconnect.
@@ -130,15 +114,5 @@ struct GroveApp: App {
       RootView()
     }
     .modelContainer(GroveApp.modelContainer)
-    .onChange(of: scenePhase) { _, newPhase in
-      if newPhase == .active {
-        // Foreground sweep: reconcile any pending-reminder entries whose
-        // memory the user may not have navigated to yet. Belt-and-braces
-        // alongside TaskRowView.onAppear which handles the in-view case.
-        Task {
-          await GroveApp.taskReconciler.reconcileAllPending()
-        }
-      }
-    }
   }
 }
