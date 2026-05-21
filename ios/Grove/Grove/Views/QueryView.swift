@@ -71,13 +71,19 @@ struct QueryView: View {
         }
       }
       // Resolves QueryResult values pushed onto `navigationPath` by
-      // SourceCardRow's swipe action. Both navigation paths (swipe and
-      // expanded-footer link) ultimately land on MemoryDetailView; the
-      // footer link still uses the closure form so it needs no destination
-      // registration here.
+      // Resolves QueryResult values pushed onto `navigationPath` by
+      // SourceCardRow's swipe action. Passes the bare memoryID plus a
+      // QueryContext so MemoryDetailView can display relevance metadata.
+      // The footer NavigationLink still uses the closure form and is
+      // handled separately below.
       .navigationDestination(for: QueryResult.self) { result in
         MemoryDetailView(
-          result: result,
+          memoryID: result.memoryID,
+          queryContext: QueryContext(
+            score: result.score,
+            matchedVia: result.matchedVia,
+            matchedChunkIndex: result.matchedChunkIndex
+          ),
           onDeleteSuccess: { deletedID in viewModel.removeSource(memoryID: deletedID) }
         )
       }
@@ -538,7 +544,12 @@ private struct SourceCardRow: View {
           // Footer: "View detail / Delete" link in forest500 per spec §3.9.
           NavigationLink {
             MemoryDetailView(
-              result: result,
+              memoryID: result.memoryID,
+              queryContext: QueryContext(
+                score: result.score,
+                matchedVia: result.matchedVia,
+                matchedChunkIndex: result.matchedChunkIndex
+              ),
               onDeleteSuccess: onDeleteSuccess
             )
           } label: {
