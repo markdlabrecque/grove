@@ -152,8 +152,7 @@ struct GroveAPIDeleteTests {
   @Test("deleteMemory sends DELETE to /v1/memories/{id} with correct Authorization header")
   func deleteMemoryRequestShape() async throws {
     let url = deleteURL(for: Self.memoryID)
-    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
-    let box = Box<URLRequest>()
+    let box = CaptureBox<URLRequest>()
 
     let (api, teardown) = makeAPI { [url] request in
       box.value = request
