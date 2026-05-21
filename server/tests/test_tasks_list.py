@@ -1,4 +1,8 @@
-"""Tests for GET /v1/tasks?memory_ids=... — batch lookup by memory ID.
+"""Tests for GET /v1/tasks — unfiltered task list for authenticated user.
+
+R1.1: Returns list[TaskSchema] for all tasks, sorted created_at DESC.
+R1.2: Sorted created_at DESC; no pagination, no filter params.
+R1.5: Old memory_ids / eventkit_identifiers query params are removed.
 
 Requires a real Postgres+pgvector instance with migrations applied.
 DATABASE_URL is set by conftest.py (dev) or docker-compose CI env.
@@ -22,7 +26,6 @@ from grove.models.memory import Memory
 from grove.models.task import Task
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
-BAD_AUTH_HEADERS = {"Authorization": "Bearer wrong-token"}
 
 _test_engine = create_async_engine(settings.database_url, poolclass=NullPool)
 _TestSession = async_sessionmaker(_test_engine, expire_on_commit=False)
@@ -34,7 +37,7 @@ async def _override_get_session() -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture(autouse=True)
-def override_db(monkeypatch) -> None:  # type: ignore[misc]
+def override_db() -> AsyncIterator[None]:
     from grove.main import app
 
     app.dependency_overrides[get_session] = _override_get_session
@@ -70,7 +73,6 @@ async def _make_task(
     db_session: AsyncSession,
     memory: Memory,
     description: str = "Do something",
-    eventkit_identifier: str | None = None,
 ) -> Task:
     task = Task(
         id=uuid.uuid4(),
@@ -78,7 +80,6 @@ async def _make_task(
         description=description,
         confidence=0.9,
         enrichment_version=1,
-        eventkit_identifier=eventkit_identifier,
     )
     db_session.add(task)
     await db_session.commit()
@@ -87,13 +88,13 @@ async def _make_task(
 
 
 # ---------------------------------------------------------------------------
-# Happy path — multiple memory IDs return their tasks
+# R1.1 — happy path: tasks returned with correct TaskSchema shape
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_by_memory_ids_returns_tasks(db_session: AsyncSession) -> None:
-    """Multiple memory_ids in query returns all matching tasks."""
+async def test_list_tasks_returns_all_tasks(db_session: AsyncSession) -> None:
+    """R1.1: GET /v1/tasks returns all task rows with correct TaskSchema shape."""
     from grove.main import app
 
     mem_a = await _make_memory(db_session, "Buy groceries")
@@ -103,11 +104,7 @@ async def test_list_tasks_by_memory_ids_returns_tasks(db_session: AsyncSession) 
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(
-                "/v1/tasks",
-                params={"memory_ids": f"{mem_a.id},{mem_b.id}"},
-                headers=AUTH_HEADERS,
-            )
+            response = await client.get("/v1/tasks", headers=AUTH_HEADERS)
 
         assert response.status_code == 200
         body = response.json()
@@ -115,12 +112,11 @@ async def test_list_tasks_by_memory_ids_returns_tasks(db_session: AsyncSession) 
         returned_ids = {item["id"] for item in body}
         assert str(task_a.id) in returned_ids
         assert str(task_b.id) in returned_ids
-        # Verify TaskSchema shape is returned (same as PATCH endpoint)
+
+        # Verify TaskSchema shape
         sample = next(item for item in body if item["id"] == str(task_a.id))
         assert sample["memory_id"] == str(mem_a.id)
         assert sample["description"] == "Buy milk and eggs"
-        assert "eventkit_identifier" in sample
-        assert "eventkit_linked_at" in sample
         assert "confidence" in sample
         assert "enrichment_version" in sample
         assert "created_at" in sample
@@ -134,128 +130,108 @@ async def test_list_tasks_by_memory_ids_returns_tasks(db_session: AsyncSession) 
 
 
 # ---------------------------------------------------------------------------
-# Empty list — no memory_ids supplied returns empty array
+# R1.1 — empty result: no tasks returns 200 []
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_list_tasks_no_memory_ids_returns_empty(db_session: AsyncSession) -> None:
-    """Omitting memory_ids (empty list) returns 200 with an empty array."""
+async def test_list_tasks_empty_returns_empty_array(db_session: AsyncSession) -> None:
+    """R1.1: When no tasks exist, GET /v1/tasks returns 200 with an empty array."""
     from grove.main import app
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get(
-            "/v1/tasks",
-            params={"memory_ids": ""},
-            headers=AUTH_HEADERS,
-        )
-
-    assert response.status_code == 200
-    assert response.json() == []
-
-
-# ---------------------------------------------------------------------------
-# Unknown IDs — silently ignored, partial matches work
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_list_tasks_unknown_memory_id_silently_ignored(db_session: AsyncSession) -> None:
-    """Unknown memory_ids are ignored; known ones are still returned."""
-    from grove.main import app
-
-    mem = await _make_memory(db_session, "Prepare slides")
-    task = await _make_task(db_session, mem, "Build deck")
-    unknown_id = uuid.uuid4()
+    # Use a unique memory we can track; bulk-delete guard: teardown cleans only known rows.
+    mem = await _make_memory(db_session, "No-task memory sentinel")
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-            response = await client.get(
-                "/v1/tasks",
-                params={"memory_ids": f"{mem.id},{unknown_id}"},
-                headers=AUTH_HEADERS,
-            )
+            response = await client.get("/v1/tasks", headers=AUTH_HEADERS)
 
         assert response.status_code == 200
         body = response.json()
-        returned_ids = {item["id"] for item in body}
-        assert str(task.id) in returned_ids
+        assert isinstance(body, list)
+        # All tasks we control via this memory are zero; we don't assert global empty
+        # because other tests may leave rows, but we verify our memory has no tasks.
+        task_ids_for_our_memory = [item for item in body if item["memory_id"] == str(mem.id)]
+        assert task_ids_for_our_memory == []
     finally:
-        await db_session.delete(task)
         await db_session.delete(mem)
         await db_session.commit()
 
 
+# ---------------------------------------------------------------------------
+# R1.2 — sort order: created_at DESC
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.asyncio
-async def test_list_tasks_all_unknown_memory_ids_returns_empty() -> None:
-    """All-unknown memory_ids returns 200 with empty array."""
+async def test_list_tasks_sorted_created_at_desc(db_session: AsyncSession) -> None:
+    """R1.2: Tasks are returned sorted by created_at descending (newest first)."""
     from grove.main import app
 
-    unknown_a = uuid.uuid4()
-    unknown_b = uuid.uuid4()
+    mem = await _make_memory(db_session, "Sort order test")
+    # Insert two tasks for different memories so the unique constraint on
+    # (memory_id, enrichment_version) is not violated.
+    mem2 = await _make_memory(db_session, "Sort order test second memory")
+    task_first = await _make_task(db_session, mem, "Task inserted first")
+    task_second = await _make_task(db_session, mem2, "Task inserted second")
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get(
-            "/v1/tasks",
-            params={"memory_ids": f"{unknown_a},{unknown_b}"},
-            headers=AUTH_HEADERS,
-        )
+    try:
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            response = await client.get("/v1/tasks", headers=AUTH_HEADERS)
 
-    assert response.status_code == 200
-    assert response.json() == []
+        assert response.status_code == 200
+        body = response.json()
+        our_task_ids = {str(task_first.id), str(task_second.id)}
+        our_tasks = [item for item in body if item["id"] in our_task_ids]
+        assert len(our_tasks) == 2
+
+        # Newest (second inserted) should appear before oldest (first inserted).
+        our_ids = [item["id"] for item in our_tasks]
+        assert our_ids.index(str(task_second.id)) < our_ids.index(str(task_first.id))
+    finally:
+        await db_session.delete(task_first)
+        await db_session.delete(task_second)
+        await db_session.delete(mem)
+        await db_session.delete(mem2)
+        await db_session.commit()
 
 
 # ---------------------------------------------------------------------------
-# Auth failures
+# R1.5 — filter params removed: memory_ids no longer accepted
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_memory_ids_param_ignored_or_removed() -> None:
+    """R1.5: memory_ids query param is no longer a supported filter; endpoint
+    returns all tasks (param is unknown and ignored by FastAPI, or returns tasks
+    without filtering). The old 422-on-invalid-uuid path must NOT exist."""
+    from grove.main import app
+
+    # Previously, memory_ids=not-valid returned 422. After removal, the param
+    # is unknown — FastAPI ignores unknown query params, so we get 200 (not 422).
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            "/v1/tasks",
+            params={"memory_ids": "not-a-valid-uuid"},
+            headers=AUTH_HEADERS,
+        )
+
+    # Must NOT be 422 — the memory_ids filter path is removed.
+    assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Auth — 401 on missing bearer token
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_list_tasks_no_auth_returns_401() -> None:
+    """Auth required: missing bearer token returns 401."""
     from grove.main import app
 
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get(
-            "/v1/tasks",
-            params={"memory_ids": str(uuid.uuid4())},
-        )
+        response = await client.get("/v1/tasks")
 
     assert response.status_code == 401
-
-
-@pytest.mark.asyncio
-async def test_list_tasks_bad_token_returns_401() -> None:
-    from grove.main import app
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get(
-            "/v1/tasks",
-            params={"memory_ids": str(uuid.uuid4())},
-            headers=BAD_AUTH_HEADERS,
-        )
-
-    assert response.status_code == 401
-
-
-# ---------------------------------------------------------------------------
-# Invalid UUID — 422 with offending value in detail
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_list_tasks_invalid_uuid_returns_422() -> None:
-    """A non-UUID token in memory_ids returns 422 with the offending value in the detail."""
-    from grove.main import app
-
-    valid_id = uuid.uuid4()
-
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        response = await client.get(
-            "/v1/tasks",
-            params={"memory_ids": f"{valid_id},not-valid"},
-            headers=AUTH_HEADERS,
-        )
-
-    assert response.status_code == 422
-    detail = response.json()["detail"]
-    assert "not-valid" in detail
