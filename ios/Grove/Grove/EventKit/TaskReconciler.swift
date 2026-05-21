@@ -44,11 +44,18 @@ final class TaskReconciler {
   /// Tests inject a stub closure to avoid a live network.
   var patchProvider: (UUID, String) async throws -> TaskDTO
 
+  /// Async closure that calls `GET /v1/tasks?memory_ids=…`.
+  ///
+  /// Production code wires to `GroveAPI.shared.listTasksByMemoryIDs`.
+  /// Tests inject a stub closure to avoid a live network.
+  var listTasksProvider: ([UUID]) async throws -> [TaskDTO]
+
   // MARK: - Init
 
   init(
     pendingStore: any PendingReminderStoring,
-    patchProvider: ((UUID, String) async throws -> TaskDTO)? = nil
+    patchProvider: ((UUID, String) async throws -> TaskDTO)? = nil,
+    listTasksProvider: (([UUID]) async throws -> [TaskDTO])? = nil
   ) {
     self.pendingStore = pendingStore
     self.patchProvider = patchProvider ?? { taskID, identifier in
@@ -56,6 +63,33 @@ final class TaskReconciler {
         taskID: taskID,
         eventkitIdentifier: identifier
       )
+    }
+    self.listTasksProvider = listTasksProvider ?? { memoryIDs in
+      try await GroveAPI.shared.listTasksByMemoryIDs(memoryIDs)
+    }
+  }
+
+  // MARK: - Foreground sweep
+
+  /// Fetch all pending-reminder entries from the store, batch-fetch their
+  /// corresponding server tasks, and reconcile.
+  ///
+  /// Called on `scenePhase == .active` so tasks whose memory the user has never
+  /// navigated to (e.g. captured offline, enriched in the background) are still
+  /// linked without relying on `TaskRowView.onAppear`.
+  ///
+  /// Early-return when the store is empty — avoids a network call when there is
+  /// nothing to do (the common case after all pending reminders are resolved).
+  func reconcileAllPending() async {
+    let entries = pendingStore.all()
+    guard !entries.isEmpty else { return }
+
+    let memoryIDs = entries.map { $0.memoryID }
+    do {
+      let tasks = try await listTasksProvider(memoryIDs)
+      await reconcile(tasks: tasks)
+    } catch {
+      logger.error("reconcileAllPending failed to fetch tasks: \(error, privacy: .public)")
     }
   }
 

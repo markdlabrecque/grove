@@ -72,6 +72,7 @@
 		B100001E /* TaskLinkingViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001E /* TaskLinkingViewModelTests.swift */; };
 		B100001F /* TrackAsTaskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001F /* TrackAsTaskTests.swift */; };
 		B1000020 /* EmptyCaptureRefusalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000020 /* EmptyCaptureRefusalTests.swift */; };
+		B1000021 /* TaskReconcilerSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000021 /* TaskReconcilerSweepTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -142,6 +143,7 @@
 		A200002D /* TaskReconciler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskReconciler.swift; sourceTree = "<group>"; };
 		B200001F /* TrackAsTaskTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackAsTaskTests.swift; sourceTree = "<group>"; };
 		B2000020 /* EmptyCaptureRefusalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyCaptureRefusalTests.swift; sourceTree = "<group>"; };
+		B2000021 /* TaskReconcilerSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskReconcilerSweepTests.swift; sourceTree = "<group>"; };
 		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
 		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
 		B2000019 /* StubNetworkFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubNetworkFixtures.swift; sourceTree = "<group>"; };
@@ -331,6 +333,7 @@
 				B200001E /* TaskLinkingViewModelTests.swift */,
 				B200001F /* TrackAsTaskTests.swift */,
 				B2000020 /* EmptyCaptureRefusalTests.swift */,
+				B2000021 /* TaskReconcilerSweepTests.swift */,
 				B2000017 /* KeychainStoreStub.swift */,
 				B2000018 /* SettingsViewModelKeychainFailureTests.swift */,
 				B3000002 /* Fixtures */,
@@ -568,6 +571,7 @@
 				B100001E /* TaskLinkingViewModelTests.swift in Sources */,
 				B100001F /* TrackAsTaskTests.swift in Sources */,
 				B1000020 /* EmptyCaptureRefusalTests.swift in Sources */,
+				B1000021 /* TaskReconcilerSweepTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -11,15 +11,21 @@ import GroveTestSupport
 /// Outer serialised wrapper for all test suites that share `StubURLProtocol`.
 ///
 /// `StubURLProtocol.responder` and `StubURLProtocol.errorResponder` are static
-/// properties. Swift Testing's `.serialized` trait only prevents concurrent
-/// execution of tests *within* a single `@Suite` — it does not prevent two
-/// separate top-level suites from running in parallel with each other.
+/// properties on the legacy path (see `StubURLProtocol.swift`). Swift Testing's
+/// `.serialized` trait only prevents concurrent execution of tests *within* a
+/// single `@Suite` — it does not prevent two separate top-level suites from
+/// running in parallel with each other.
 ///
 /// Moving `UploadQueueTests` and `CaptureViewModelTests` here as nested suites
 /// under this outer `.serialized` suite ensures that no two tests from either
 /// suite can run concurrently, eliminating the cross-suite static-mutation race
 /// that caused `tryDrainSuccessDeletesRow` to fail non-deterministically when
 /// `CaptureViewModelTests` clobbered the responder mid-test.
+///
+/// New tests should use `StubURLProtocol.makeSession(responder:)` instead —
+/// it is race-free without `.serialized`. The static-responder path is retained
+/// for the existing suites here that cannot embed a per-test ID because the
+/// URLSession is owned by the system under test (`UploadQueue`, `CaptureViewModel`).
 ///
 /// See: GitHub issue #228.
 @Suite("StubNetwork", .serialized)

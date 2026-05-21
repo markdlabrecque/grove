@@ -11,6 +11,10 @@ struct GroveApp: App {
   // handlers when a capture upload finishes while the app is suspended.
   @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
+  /// Tracks `UIApplication` lifecycle phase so we can trigger a reconciliation
+  /// sweep whenever the app comes back to the foreground.
+  @Environment(\.scenePhase) private var scenePhase
+
   // MARK: - SwiftData container
 
   /// The shared model container for the app. Contains `QueuedCapture` rows —
@@ -126,5 +130,15 @@ struct GroveApp: App {
       RootView()
     }
     .modelContainer(GroveApp.modelContainer)
+    .onChange(of: scenePhase) { _, newPhase in
+      if newPhase == .active {
+        // Foreground sweep: reconcile any pending-reminder entries whose
+        // memory the user may not have navigated to yet. Belt-and-braces
+        // alongside TaskRowView.onAppear which handles the in-view case.
+        Task {
+          await GroveApp.taskReconciler.reconcileAllPending()
+        }
+      }
+    }
   }
 }
