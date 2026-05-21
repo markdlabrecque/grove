@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Application root: a three-tab shell containing the Save (capture), Ask
-/// (retrieval), and Settings tabs.
+/// Application root: a four-tab shell containing the Save (capture), Ask
+/// (retrieval), Tasks, and Settings tabs.
 ///
 /// The Settings tab was added in #184.  It hosts `SettingsView`, which
 /// provides server URL / bearer token configuration (Keychain-persisted),

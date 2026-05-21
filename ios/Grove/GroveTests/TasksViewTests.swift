@@ -20,6 +20,24 @@ import Foundation
 
 // MARK: - Stub provider
 
+/// A stub for `EventKitProviding` whose `fetchIncompleteReminders()` throws,
+/// used to cover the fetch-error path in `TasksViewModel.load()`.
+@MainActor
+private final class ThrowingFetchProvider: EventKitProviding {
+  func requestAccess() async -> Bool { true }
+
+  func createReminder(title: String, dueDateComponents: DateComponents?) async throws -> String {
+    throw EventKitError.saveFailed
+  }
+
+  func fetchCompletion(for identifier: String) -> Bool? { nil }
+
+  func fetchIncompleteReminders() async throws -> [ReminderListItem] {
+    struct FetchError: Error {}
+    throw FetchError()
+  }
+}
+
 /// A minimal stub for `EventKitProviding` used only by `TasksViewTests`.
 /// Does NOT conflict with `StubEventKitProvider` in `TaskLinkingViewModelTests`.
 @MainActor
@@ -175,6 +193,20 @@ struct TasksViewTests {
     #expect(url?.scheme == "x-apple-reminderkit")
     #expect(url?.host == "REMCDReminder")
     #expect(url?.path == "/\(identifier)")
+  }
+
+  // MARK: - Fetch error → empty state
+
+  @Test("fetch error: thrown error collapses to .empty")
+  func fetchErrorCollapsesToEmpty() async throws {
+    let vm = TasksViewModel(provider: ThrowingFetchProvider())
+
+    await vm.load()
+
+    guard case .empty = vm.loadState else {
+      Issue.record("Expected .empty on fetch error, got \(vm.loadState)")
+      return
+    }
   }
 
   // MARK: - Nil due-date sort stability
