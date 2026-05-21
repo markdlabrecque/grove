@@ -53,26 +53,6 @@ public final class StubURLProtocol: URLProtocol {
   // Marked nonisolated(unsafe) because all accesses are guarded by `lock`.
   nonisolated(unsafe) private static var registry: [UUID: RegistryEntry] = [:]
 
-  // MARK: - Legacy static responders (backward compatibility)
-
-  /// A global success responder for use in suites that cannot embed a per-test
-  /// stub identifier in the session config (e.g. because the URLSession is
-  /// created inside the system under test).
-  ///
-  /// Only active when a request does NOT carry an `X-Stub-ID` header.
-  /// Suites that use this path MUST be annotated `@Suite(.serialized)` to prevent
-  /// concurrent tests from clobbering each other's responder. Prefer
-  /// `makeSession(responder:)` for new tests — it is race-free even in parallel suites.
-  ///
-  /// Set to non-nil before the request fires; clear with `= nil` in `defer`.
-  nonisolated(unsafe) public static var responder: ((URLRequest) -> (HTTPURLResponse, Data))?
-
-  /// A global error responder for the legacy static path.
-  ///
-  /// When set, `startLoading` delivers this error rather than calling `responder`.
-  /// Same safety requirements as `responder` above.
-  nonisolated(unsafe) public static var errorResponder: ((URLRequest) -> Error)?
-
   /// Registers a success responder keyed to `id`. Used internally by `makeSession`.
   private static func register(id: UUID, entry: RegistryEntry) {
     lock.withLock { registry[id] = entry }
@@ -167,49 +147,34 @@ public final class StubURLProtocol: URLProtocol {
   }
 
   override public func startLoading() {
-    // Fast path: per-test isolated session with X-Stub-ID header (preferred).
-    if let stubIDString = request.value(forHTTPHeaderField: StubURLProtocol.stubIDHeaderKey),
-       let stubID = UUID(uuidString: stubIDString) {
-      guard let registryEntry = StubURLProtocol.entry(for: stubID) else {
-        preconditionFailure(
-          "StubURLProtocol: no entry found for stub ID \(stubID). " +
-          "The teardown closure may have been called before the request completed, " +
-          "or the stub ID header was set to an unregistered value."
-        )
-      }
-      switch registryEntry {
-      case .success(let responder):
-        let (response, data) = responder(request)
-        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: data)
-        client?.urlProtocolDidFinishLoading(self)
-      case .failure(let errorResponder):
-        client?.urlProtocol(self, didFailWithError: errorResponder(request))
-      }
-      return
+    guard
+      let stubIDString = request.value(forHTTPHeaderField: StubURLProtocol.stubIDHeaderKey),
+      let stubID = UUID(uuidString: stubIDString)
+    else {
+      preconditionFailure(
+        "StubURLProtocol: request carries no \(StubURLProtocol.stubIDHeaderKey) header. " +
+        "All sessions must be created via StubURLProtocol.makeSession(responder:) or " +
+        "StubURLProtocol.makeSession(errorResponder:) so each test gets an isolated registry slot."
+      )
     }
 
-    // Fallback: legacy static responder path for suites that cannot embed a
-    // per-test ID (e.g. when the URLSession is owned by the system under test).
-    // The calling suite MUST be @Suite(.serialized) to prevent cross-test races.
-    if let errorResponder = StubURLProtocol.errorResponder {
-      client?.urlProtocol(self, didFailWithError: errorResponder(request))
-      return
+    guard let registryEntry = StubURLProtocol.entry(for: stubID) else {
+      preconditionFailure(
+        "StubURLProtocol: no entry found for stub ID \(stubID). " +
+        "The teardown closure may have been called before the request completed, " +
+        "or the stub ID header was set to an unregistered value."
+      )
     }
 
-    if let responder = StubURLProtocol.responder {
+    switch registryEntry {
+    case .success(let responder):
       let (response, data) = responder(request)
       client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
       client?.urlProtocol(self, didLoad: data)
       client?.urlProtocolDidFinishLoading(self)
-      return
+    case .failure(let errorResponder):
+      client?.urlProtocol(self, didFailWithError: errorResponder(request))
     }
-
-    preconditionFailure(
-      "StubURLProtocol: request has no \(StubURLProtocol.stubIDHeaderKey) header and no " +
-      "static responder is set. Either use StubURLProtocol.makeSession(responder:) to create " +
-      "an isolated session, or set StubURLProtocol.responder before the request fires."
-    )
   }
 
   override public func stopLoading() {
