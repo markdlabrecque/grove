@@ -235,3 +235,27 @@ async def test_list_tasks_bad_token_returns_401() -> None:
         )
 
     assert response.status_code == 401
+
+
+# ---------------------------------------------------------------------------
+# Invalid UUID — 422 with offending value in detail
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_tasks_invalid_uuid_returns_422() -> None:
+    """A non-UUID token in memory_ids returns 422 with the offending value in the detail."""
+    from grove.main import app
+
+    valid_id = uuid.uuid4()
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.get(
+            "/v1/tasks",
+            params={"memory_ids": f"{valid_id},not-valid"},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 422
+    detail = response.json()["detail"]
+    assert "not-valid" in detail
