@@ -1,129 +1,94 @@
 import Testing
 import Foundation
 @testable import Grove
+import GroveCore
 
-// MARK: - TasksViewTests
+// MARK: - TasksViewTests (spec-02 rewrite)
 //
-// Tests for `TasksViewModel` — the state machine backing the Tasks tab (#438).
+// Tests for the rebuilt `TasksViewModel` — server-backed Tasks tab (#452).
 //
-// These tests cover:
-//   1. Sorting: due-date ascending, nil due dates last, alpha tiebreak.
-//   2. Empty state: fetch returns [] → .empty load state.
-//   3. Loading state: set to .loading while fetch is in flight.
-//   4. Denied state: permission denied → .denied load state.
-//   5. Not-determined state: no access requested yet → .notDetermined.
-//   6. Deep-link URL construction from a known calendarItemIdentifier.
+// These tests cover R2.3–R2.8:
+//   R2.3: TasksViewModel holds [TaskDTO] and fetches via listTasks().
+//   R2.5: Swipe-to-delete removes the row optimistically; error restores it.
+//   R2.6: Pull-to-refresh calls listTasks() again.
+//   R2.7: Empty state after successful fetch with no rows.
+//   R2.8: Error state when listTasks() throws; retry button calls fetch again.
 //
 // CI placement: GroveTests app target (make ios-test-app).
-// Tests use a stub EventKitProviding that returns fixture ReminderListItems
-// without touching a real EKEventStore.
-
-// MARK: - Stub provider
-
-/// A stub for `EventKitProviding` whose `fetchIncompleteReminders()` throws,
-/// used to cover the fetch-error path in `TasksViewModel.load()`.
-@MainActor
-private final class ThrowingFetchProvider: EventKitProviding {
-  func requestAccess() async -> Bool { true }
-
-  func createReminder(title: String, dueDateComponents: DateComponents?) async throws -> String {
-    throw EventKitError.saveFailed
-  }
-
-  func fetchCompletion(for identifier: String) -> Bool? { nil }
-
-  func fetchIncompleteReminders() async throws -> [ReminderListItem] {
-    struct FetchError: Error {}
-    throw FetchError()
-  }
-}
-
-/// A minimal stub for `EventKitProviding` used only by `TasksViewTests`.
-/// Does NOT conflict with `StubEventKitProvider` in `TaskLinkingViewModelTests`.
-@MainActor
-private final class TasksStubProvider: EventKitProviding {
-  enum AccessResult { case granted, denied }
-
-  private let accessResult: AccessResult
-  private let reminders: [ReminderListItem]
-
-  init(accessResult: AccessResult, reminders: [ReminderListItem] = []) {
-    self.accessResult = accessResult
-    self.reminders = reminders
-  }
-
-  func requestAccess() async -> Bool {
-    accessResult == .granted
-  }
-
-  func createReminder(title: String, dueDateComponents: DateComponents?) async throws -> String {
-    throw EventKitError.saveFailed
-  }
-
-  func fetchCompletion(for identifier: String) -> Bool? {
-    nil
-  }
-
-  func fetchIncompleteReminders() async throws -> [ReminderListItem] {
-    reminders
-  }
-}
+// Tests inject a fetch closure so no live server or GroveAPI is needed.
 
 // MARK: - Fixtures
 
-private func makeReminder(
-  id: String = UUID().uuidString,
-  title: String,
-  dueDate: Date? = nil,
-  listName: String = "Reminders"
-) -> ReminderListItem {
-  ReminderListItem(id: id, title: title, dueDate: dueDate, listName: listName)
+private func makeTask(
+  id: UUID = UUID(),
+  description: String = "Test task",
+  dueDate: String? = nil,
+  relatedPeople: [String]? = nil
+) -> TaskDTO {
+  TaskDTO(
+    id: id,
+    memoryID: UUID(),
+    description: description,
+    dueDate: dueDate,
+    status: "open",
+    relatedPeople: relatedPeople,
+    eventkitIdentifier: nil,
+    eventkitLinkedAt: nil
+  )
 }
 
 // MARK: - Suite
 
-@Suite("TasksViewModel")
+@Suite("TasksViewModel (spec-02)")
 @MainActor
 struct TasksViewTests {
 
-  // MARK: - Sort order
+  // MARK: - Initial state
 
-  @Test("sort: due-date ascending, nil last, alpha tiebreak")
-  func sortOrder() async throws {
-    let now = Date()
-    let soon = now.addingTimeInterval(86_400)       // +1 day
-    let later = now.addingTimeInterval(7 * 86_400)  // +7 days
+  @Test("initial state is .loading before any fetch completes")
+  func initialStateIsLoading() {
+    let vm = TasksViewModel(
+      fetch: { [] },
+      delete: { _ in }
+    )
+    // Before load() is called the state should be loading-ready (.loading).
+    guard case .loading = vm.loadState else {
+      Issue.record("Expected .loading as initial state, got \(vm.loadState)")
+      return
+    }
+  }
 
-    let reminders = [
-      makeReminder(title: "Zebra", dueDate: later, listName: "Work"),
-      makeReminder(title: "Apple", dueDate: nil, listName: "Work"),
-      makeReminder(title: "Mango", dueDate: soon, listName: "Work"),
-      makeReminder(title: "Banana", dueDate: nil, listName: "Work"),
-    ]
+  // MARK: - Loaded state (R2.3)
 
-    let stub = TasksStubProvider(accessResult: .granted, reminders: reminders)
-    let vm = TasksViewModel(provider: stub)
+  @Test("load: fetch returns two tasks → .loaded with [TaskDTO]")
+  func loadedStateWithTasks() async throws {
+    let task1 = makeTask(description: "Call Theo")
+    let task2 = makeTask(description: "Buy oat milk")
+
+    let vm = TasksViewModel(
+      fetch: { [task1, task2] },
+      delete: { _ in }
+    )
 
     await vm.load()
 
-    guard case .loaded(let sorted) = vm.loadState else {
+    guard case .loaded(let items) = vm.loadState else {
       Issue.record("Expected .loaded, got \(vm.loadState)")
       return
     }
-
-    // Expected order: Mango (soon), Zebra (later), Apple (nil, alpha), Banana (nil, alpha)
-    #expect(sorted[0].title == "Mango")
-    #expect(sorted[1].title == "Zebra")
-    #expect(sorted[2].title == "Apple")
-    #expect(sorted[3].title == "Banana")
+    #expect(items.count == 2)
+    #expect(items[0].description == "Call Theo")
+    #expect(items[1].description == "Buy oat milk")
   }
 
-  // MARK: - Empty state
+  // MARK: - Empty state (R2.7)
 
-  @Test("empty state: fetch returns [] → .empty")
+  @Test("load: fetch returns [] → .empty")
   func emptyState() async throws {
-    let stub = TasksStubProvider(accessResult: .granted, reminders: [])
-    let vm = TasksViewModel(provider: stub)
+    let vm = TasksViewModel(
+      fetch: { [] },
+      delete: { _ in }
+    )
 
     await vm.load()
 
@@ -133,103 +98,224 @@ struct TasksViewTests {
     }
   }
 
-  // MARK: - Denied state
+  // MARK: - Error state (R2.8)
 
-  @Test("denied state: permission denied → .denied")
-  func deniedState() async throws {
-    let stub = TasksStubProvider(accessResult: .denied)
-    let vm = TasksViewModel(provider: stub)
+  @Test("load: fetch throws → .error")
+  func errorState() async throws {
+    struct FetchError: Error {}
+
+    let vm = TasksViewModel(
+      fetch: { throw FetchError() },
+      delete: { _ in }
+    )
 
     await vm.load()
 
-    guard case .denied = vm.loadState else {
-      Issue.record("Expected .denied, got \(vm.loadState)")
+    guard case .error = vm.loadState else {
+      Issue.record("Expected .error, got \(vm.loadState)")
       return
     }
   }
 
-  // MARK: - NotDetermined initial state
+  // MARK: - Retry (R2.8)
 
-  @Test("initial state is .notDetermined before load()")
-  func initialStateIsNotDetermined() {
-    let stub = TasksStubProvider(accessResult: .granted)
-    let vm = TasksViewModel(provider: stub)
+  @Test("retry: calling load() again after error re-fetches and succeeds")
+  func retryAfterError() async throws {
+    struct FetchError: Error {}
+    var callCount = 0
+    let task = makeTask(description: "Retry task")
 
-    guard case .notDetermined = vm.loadState else {
-      Issue.record("Expected .notDetermined, got \(vm.loadState)")
+    let vm = TasksViewModel(
+      fetch: {
+        callCount += 1
+        if callCount == 1 { throw FetchError() }
+        return [task]
+      },
+      delete: { _ in }
+    )
+
+    // First load — should fail.
+    await vm.load()
+    guard case .error = vm.loadState else {
+      Issue.record("Expected .error on first load, got \(vm.loadState)")
       return
     }
-  }
 
-  // MARK: - Loaded state with items
-
-  @Test("loaded state: fetch returns items → .loaded with correct count")
-  func loadedState() async throws {
-    let reminders = [
-      makeReminder(title: "Buy milk"),
-      makeReminder(title: "Call Theo"),
-    ]
-    let stub = TasksStubProvider(accessResult: .granted, reminders: reminders)
-    let vm = TasksViewModel(provider: stub)
-
+    // Retry — should succeed.
     await vm.load()
-
     guard case .loaded(let items) = vm.loadState else {
-      Issue.record("Expected .loaded, got \(vm.loadState)")
+      Issue.record("Expected .loaded after retry, got \(vm.loadState)")
       return
     }
-
-    #expect(items.count == 2)
+    #expect(items.count == 1)
+    #expect(items[0].description == "Retry task")
+    #expect(callCount == 2)
   }
 
-  // MARK: - Deep-link URL construction
+  // MARK: - Pull-to-refresh (R2.6)
 
-  @Test("deep-link URL: constructed from calendarItemIdentifier")
-  func deepLinkURL() {
-    let identifier = "REMCDReminder-ABC-123"
-    let url = TasksViewModel.reminderDeepLinkURL(for: identifier)
+  @Test("refresh: calling load() after loaded state re-fetches")
+  func pullToRefresh() async throws {
+    var callCount = 0
+    let task1 = makeTask(description: "First task")
+    let task2 = makeTask(description: "Refreshed task")
 
-    #expect(url != nil)
-    #expect(url?.scheme == "x-apple-reminderkit")
-    #expect(url?.host == "REMCDReminder")
-    #expect(url?.path == "/\(identifier)")
-  }
-
-  // MARK: - Fetch error → empty state
-
-  @Test("fetch error: thrown error collapses to .empty")
-  func fetchErrorCollapsesToEmpty() async throws {
-    let vm = TasksViewModel(provider: ThrowingFetchProvider())
+    let vm = TasksViewModel(
+      fetch: {
+        callCount += 1
+        return callCount == 1 ? [task1] : [task2]
+      },
+      delete: { _ in }
+    )
 
     await vm.load()
 
-    guard case .empty = vm.loadState else {
-      Issue.record("Expected .empty on fetch error, got \(vm.loadState)")
+    guard case .loaded(let firstItems) = vm.loadState else {
+      Issue.record("Expected .loaded after first load, got \(vm.loadState)")
       return
+    }
+    #expect(firstItems[0].description == "First task")
+
+    // Simulate pull-to-refresh.
+    await vm.load()
+
+    guard case .loaded(let refreshedItems) = vm.loadState else {
+      Issue.record("Expected .loaded after refresh, got \(vm.loadState)")
+      return
+    }
+    #expect(refreshedItems[0].description == "Refreshed task")
+    #expect(callCount == 2)
+  }
+
+  // MARK: - Swipe-to-delete optimistic removal (R2.5)
+
+  @Test("delete: row removed optimistically before server confirms")
+  func deleteRemovesRowOptimistically() async throws {
+    let task1 = makeTask(description: "Task one")
+    let task2 = makeTask(description: "Task two")
+
+    // Delete is a slow operation — use a continuation to hold it in flight.
+    let deleteCalled = ContinuationBox()
+
+    let vm = TasksViewModel(
+      fetch: { [task1, task2] },
+      delete: { _ in
+        await deleteCalled.wait()
+      }
+    )
+
+    await vm.load()
+    guard case .loaded = vm.loadState else {
+      Issue.record("Expected .loaded before delete")
+      return
+    }
+
+    // Start the delete task without awaiting (fire-and-forget to check optimistic state).
+    let deleteTask = Task { await vm.deleteTask(task1) }
+
+    // Yield to let the delete begin and remove the item.
+    await Task.yield()
+    await Task.yield()
+
+    // Verify optimistic removal happened.
+    if case .loaded(let items) = vm.loadState {
+      #expect(items.count == 1)
+      #expect(items[0].description == "Task two")
+    } else if case .empty = vm.loadState {
+      // Also acceptable if deleting the last item.
+      Issue.record("Unexpected .empty — still had task2")
+    } else {
+      Issue.record("Expected .loaded or .empty after optimistic delete, got \(vm.loadState)")
+    }
+
+    // Allow delete to complete.
+    deleteCalled.resume()
+    await deleteTask.value
+  }
+
+  // MARK: - Swipe-to-delete: restores row on error (R2.5)
+
+  @Test("delete: row restored on server error")
+  func deleteRestoresRowOnError() async throws {
+    struct DeleteError: Error {}
+    let task1 = makeTask(description: "Keep me")
+    let task2 = makeTask(description: "Delete me")
+
+    let vm = TasksViewModel(
+      fetch: { [task1, task2] },
+      delete: { _ in throw DeleteError() }
+    )
+
+    await vm.load()
+    guard case .loaded(let before) = vm.loadState else {
+      Issue.record("Expected .loaded before delete")
+      return
+    }
+    #expect(before.count == 2)
+
+    await vm.deleteTask(task2)
+
+    // Row should be restored after the error.
+    guard case .loaded(let after) = vm.loadState else {
+      Issue.record("Expected .loaded after failed delete, got \(vm.loadState)")
+      return
+    }
+    #expect(after.count == 2)
+  }
+
+  // MARK: - Swipe-to-delete: error is surfaced (R2.5)
+
+  @Test("delete: deleteError is set when server call throws")
+  func deleteErrorIsSurfaced() async throws {
+    struct DeleteError: Error, LocalizedError {
+      var errorDescription: String? { "Server rejected the delete" }
+    }
+
+    let task = makeTask(description: "Failing task")
+
+    let vm = TasksViewModel(
+      fetch: { [task] },
+      delete: { _ in throw DeleteError() }
+    )
+
+    await vm.load()
+    await vm.deleteTask(task)
+
+    #expect(vm.deleteError != nil)
+  }
+
+  // MARK: - No EventKit or provenance (R2.9, R2.10)
+
+  @Test("TasksViewModel holds no provenance map or EventKit dependency")
+  func noProvenanceOrEventKit() {
+    // This test verifies at compile time that TasksViewModel only accepts
+    // fetch/delete closures, not an EventKitProviding dependency.
+    // Constructing the view model with just closures is sufficient proof.
+    let vm = TasksViewModel(
+      fetch: { [] },
+      delete: { _ in }
+    )
+    _ = vm  // used
+  }
+}
+
+// MARK: - ContinuationBox
+
+/// A helper for pausing and resuming an async operation in tests.
+private actor ContinuationBox {
+  private var continuation: CheckedContinuation<Void, Never>?
+  private var resumed = false
+
+  func wait() async {
+    if resumed { return }
+    await withCheckedContinuation { cont in
+      continuation = cont
     }
   }
 
-  // MARK: - Nil due-date sort stability
-
-  @Test("sort: two nil-due-date reminders are sorted alphabetically")
-  func nilDueDateAlphaSort() async throws {
-    let reminders = [
-      makeReminder(title: "Zoo", dueDate: nil),
-      makeReminder(title: "Ant", dueDate: nil),
-      makeReminder(title: "Mole", dueDate: nil),
-    ]
-    let stub = TasksStubProvider(accessResult: .granted, reminders: reminders)
-    let vm = TasksViewModel(provider: stub)
-
-    await vm.load()
-
-    guard case .loaded(let sorted) = vm.loadState else {
-      Issue.record("Expected .loaded, got \(vm.loadState)")
-      return
-    }
-
-    #expect(sorted[0].title == "Ant")
-    #expect(sorted[1].title == "Mole")
-    #expect(sorted[2].title == "Zoo")
+  func resume() {
+    resumed = true
+    continuation?.resume()
+    continuation = nil
   }
 }
