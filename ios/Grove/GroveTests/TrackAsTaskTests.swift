@@ -346,6 +346,8 @@ final class StubEventKitProviderCounting: EventKitProviding {
   }
 
   func fetchCompletion(for identifier: String) -> Bool? { false }
+
+  func fetchIncompleteReminders() async throws -> [ReminderListItem] { [] }
 }
 
 /// An in-memory `PendingReminderStoring` implementation for tests.

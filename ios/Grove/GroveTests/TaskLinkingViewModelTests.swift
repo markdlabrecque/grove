@@ -214,4 +214,8 @@ final class StubEventKitProvider: EventKitProviding {
     // Stub: always return not completed.
     false
   }
+
+  func fetchIncompleteReminders() async throws -> [ReminderListItem] {
+    []
+  }
 }
