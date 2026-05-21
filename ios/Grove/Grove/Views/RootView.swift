@@ -76,7 +76,8 @@ struct RootView: View {
 
   // MARK: - Tab selection
 
-  /// Drives programmatic tab switching.  The Settings tab is index 2.
+  /// Drives programmatic tab switching.  The Settings tab is index 3.
+  /// Tab indices: 0 = Save, 1 = Ask, 2 = Tasks, 3 = Settings.
   @State private var selectedTab: Int = 0
 
   // MARK: - Banner state
@@ -132,7 +133,7 @@ struct RootView: View {
       // Auth failure is more urgent than an unfinished dictation.
       if showAuthBanner {
         AuthRequiredBanner {
-          selectedTab = 2  // Settings tab index.
+          selectedTab = 3  // Settings tab index (renumbered from 2 in #438).
         }
         .transition(.move(edge: .top).combined(with: .opacity))
         .animation(.easeInOut(duration: 0.25), value: showAuthBanner)
@@ -175,11 +176,17 @@ struct RootView: View {
           }
           .tag(1)
 
+        TasksView()
+          .tabItem {
+            Label("Tasks", systemImage: "checklist")
+          }
+          .tag(2)
+
         SettingsView()
           .tabItem {
             Label("Settings", systemImage: "gearshape.fill")
           }
-          .tag(2)
+          .tag(3)
       }
       .tint(.forest500)
     }

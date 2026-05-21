@@ -1,9 +1,9 @@
 import Foundation
 import os
 
-/// State machine for the Tasks tab.
+/// State machine for the Tasks tab (#438).
 ///
-/// Drives `TasksView` through permission, loading, and data states.
+/// Drives `TasksView` through EventKit permission, loading, and data states.
 /// Tests inject a stub `EventKitProviding` to exercise state transitions
 /// without touching a real `EKEventStore`.
 ///
@@ -53,23 +53,61 @@ final class TasksViewModel {
 
   // MARK: - Load
 
-  /// Request EventKit access and, if granted, fetch incomplete reminders.
+  /// Request EventKit access and, if granted, fetch all incomplete reminders.
   ///
   /// Sets `loadState` through the full permission → loading → data cycle.
   /// Safe to call on each tab appear and on pull-to-refresh.
   func load() async {
-    // TODO(#438): implement
+    let granted = await provider.requestAccess()
+
+    guard granted else {
+      loadState = .denied
+      return
+    }
+
+    loadState = .loading
+
+    do {
+      let items = try await provider.fetchIncompleteReminders()
+      let sorted = Self.sorted(items)
+      loadState = sorted.isEmpty ? .empty : .loaded(sorted)
+    } catch {
+      logger.error("fetchIncompleteReminders failed: \(error, privacy: .public)")
+      loadState = .empty
+    }
   }
 
-  // MARK: - Helpers
+  // MARK: - Sort
+
+  /// Sorts reminder list items by due date ascending, nil due dates last,
+  /// with alphabetical title as a tiebreak.
+  static func sorted(_ items: [ReminderListItem]) -> [ReminderListItem] {
+    items.sorted { lhs, rhs in
+      switch (lhs.dueDate, rhs.dueDate) {
+      case let (.some(l), .some(r)):
+        if l == r { return lhs.title.localizedCompare(rhs.title) == .orderedAscending }
+        return l < r
+      case (.some, .none):
+        // lhs has a due date, rhs does not → lhs comes first
+        return true
+      case (.none, .some):
+        // lhs has no due date, rhs does → rhs comes first
+        return false
+      case (.none, .none):
+        return lhs.title.localizedCompare(rhs.title) == .orderedAscending
+      }
+    }
+  }
+
+  // MARK: - Deep-link URL
 
   /// Constructs the Reminders.app deep-link URL for a given
   /// `calendarItemIdentifier`.
   ///
-  /// Returns `nil` if the URL string is malformed (should never happen in
-  /// practice given the opaque-string identifier format).
+  /// Scheme: `x-apple-reminderkit://REMCDReminder/<identifier>`
+  ///
+  /// Returns `nil` if the URL string is malformed.
   static func reminderDeepLinkURL(for identifier: String) -> URL? {
-    // TODO(#438): implement
-    return nil
+    URL(string: "x-apple-reminderkit://REMCDReminder/\(identifier)")
   }
 }
