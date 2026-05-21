@@ -1062,6 +1062,28 @@ public struct QueryResult: Codable, Hashable, Sendable {
   }
 }
 
+/// Ask-flow context passed to `MemoryDetailView` when navigating from search
+/// results. Carries the relevance metadata that lives on the `QueryResult` side
+/// of the model, so `MemoryDetailView` can display score, match type, and chunk
+/// index without holding a full `QueryResult`.
+///
+/// `nil` is the correct value when navigating from a non-search surface (e.g.,
+/// the Tasks provenance badge).
+public struct QueryContext: Hashable, Sendable {
+  /// Cosine-similarity score in 0–1 (higher is more relevant).
+  public let score: Float
+  /// `"whole"` (full-memory match) or `"chunk"` (chunk-level match).
+  public let matchedVia: String
+  /// 0-based chunk index; `nil` when `matchedVia == "whole"`.
+  public let matchedChunkIndex: Int?
+
+  public init(score: Float, matchedVia: String, matchedChunkIndex: Int?) {
+    self.score = score
+    self.matchedVia = matchedVia
+    self.matchedChunkIndex = matchedChunkIndex
+  }
+}
+
 /// Wire format returned by POST /v1/queries.
 ///
 /// Matches the server's `QueryResponse` Pydantic model.

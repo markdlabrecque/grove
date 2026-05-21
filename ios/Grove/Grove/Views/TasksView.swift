@@ -55,17 +55,11 @@ struct TasksView: View {
         .navigationTitle("Tasks")
         .navigationBarTitleDisplayMode(.large)
         // R3.4: Navigate to MemoryDetailView when a UUID is pushed onto the path.
+        // No QueryContext is passed here — provenance navigation is not an Ask
+        // search result, so there is no relevance score or match type to show.
         .navigationDestination(for: UUID.self) { memoryID in
           MemoryDetailView(
-            result: QueryResult(
-              memoryID: memoryID,
-              score: 1.0,
-              matchedVia: "provenance",
-              matchedChunkIndex: nil,
-              excerpt: "",
-              capturedAt: nil,
-              sourceModality: nil
-            ),
+            memoryID: memoryID,
             onDeleteSuccess: { _ in
               // Pop back to the Tasks tab after deletion.
               navigationPath.removeLast()
