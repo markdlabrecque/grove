@@ -73,6 +73,11 @@
 		B100001F /* TrackAsTaskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001F /* TrackAsTaskTests.swift */; };
 		B1000020 /* EmptyCaptureRefusalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000020 /* EmptyCaptureRefusalTests.swift */; };
 		B1000021 /* TaskReconcilerSweepTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000021 /* TaskReconcilerSweepTests.swift */; };
+		B1000022 /* TasksViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000022 /* TasksViewTests.swift */; };
+		A100002E /* ReminderListItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200002E /* ReminderListItem.swift */; };
+		A100002F /* TasksViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200002F /* TasksViewModel.swift */; };
+		A1000030 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000030 /* TasksView.swift */; };
+		A1000031 /* ReminderRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000031 /* ReminderRowView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -144,6 +149,11 @@
 		B200001F /* TrackAsTaskTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackAsTaskTests.swift; sourceTree = "<group>"; };
 		B2000020 /* EmptyCaptureRefusalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyCaptureRefusalTests.swift; sourceTree = "<group>"; };
 		B2000021 /* TaskReconcilerSweepTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskReconcilerSweepTests.swift; sourceTree = "<group>"; };
+		B2000022 /* TasksViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksViewTests.swift; sourceTree = "<group>"; };
+		A200002E /* ReminderListItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderListItem.swift; sourceTree = "<group>"; };
+		A200002F /* TasksViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksViewModel.swift; sourceTree = "<group>"; };
+		A2000030 /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
+		A2000031 /* ReminderRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReminderRowView.swift; sourceTree = "<group>"; };
 		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
 		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
 		B2000019 /* StubNetworkFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubNetworkFixtures.swift; sourceTree = "<group>"; };
@@ -245,6 +255,7 @@
 				A2000028 /* LiveEventKitProvider.swift */,
 				A2000029 /* TaskLinkingViewModel.swift */,
 				A200002D /* TaskReconciler.swift */,
+				A200002E /* ReminderListItem.swift */,
 			);
 			path = EventKit;
 			sourceTree = "<group>";
@@ -276,6 +287,9 @@
 				A200001F /* NavWordmarkView.swift */,
 				A2000025 /* DictationResumeBanner.swift */,
 				A200002A /* TaskRowView.swift */,
+				A2000030 /* TasksView.swift */,
+				A2000031 /* ReminderRowView.swift */,
+				A200002F /* TasksViewModel.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -334,6 +348,7 @@
 				B200001F /* TrackAsTaskTests.swift */,
 				B2000020 /* EmptyCaptureRefusalTests.swift */,
 				B2000021 /* TaskReconcilerSweepTests.swift */,
+				B2000022 /* TasksViewTests.swift */,
 				B2000017 /* KeychainStoreStub.swift */,
 				B2000018 /* SettingsViewModelKeychainFailureTests.swift */,
 				B3000002 /* Fixtures */,
@@ -540,6 +555,10 @@
 				A1000029 /* TaskLinkingViewModel.swift in Sources */,
 				A100002A /* TaskRowView.swift in Sources */,
 				A100002D /* TaskReconciler.swift in Sources */,
+				A100002E /* ReminderListItem.swift in Sources */,
+				A100002F /* TasksViewModel.swift in Sources */,
+				A1000030 /* TasksView.swift in Sources */,
+				A1000031 /* ReminderRowView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -572,6 +591,7 @@
 				B100001F /* TrackAsTaskTests.swift in Sources */,
 				B1000020 /* EmptyCaptureRefusalTests.swift in Sources */,
 				B1000021 /* TaskReconcilerSweepTests.swift in Sources */,
+				B1000022 /* TasksViewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

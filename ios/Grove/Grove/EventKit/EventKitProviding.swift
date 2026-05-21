@@ -31,6 +31,14 @@ protocol EventKitProviding: AnyObject {
   /// user deleted the reminder from the Reminders app). Returns the
   /// `isCompleted` boolean otherwise.
   func fetchCompletion(for identifier: String) -> Bool?
+
+  /// Fetch all incomplete EKReminders from the device and return them as
+  /// `ReminderListItem` value types.
+  ///
+  /// The mapping from `EKReminder` to `ReminderListItem` is performed by the
+  /// live provider inside this method, so callers never hold `EKReminder`
+  /// references. Throws on EventKit fetch errors.
+  func fetchIncompleteReminders() async throws -> [ReminderListItem]
 }
 
 /// Errors produced by EventKit operations.
