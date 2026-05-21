@@ -186,6 +186,93 @@ struct MemoryDetailViewModelTests {
     #expect(vm.deleteError != nil)
   }
 
+  // MARK: - loadContent: no-op when excerpt is non-empty
+
+  @Test("loadContent() is a no-op when result.excerpt is non-empty (Ask-flow navigation)")
+  func loadContentNoOpWhenExcerptNonEmpty() async throws {
+    var fetchCalled = false
+    let vm = MemoryDetailViewModel(
+      result: makeResult(),  // makeResult() returns a non-empty excerpt
+      fetchProvider: { _ in
+        fetchCalled = true
+        return MemoryDetailDTO(
+          id: Self.memoryID,
+          content: "Should not be fetched",
+          capturedAt: nil,
+          sourceModality: nil
+        )
+      }
+    )
+
+    await vm.loadContent()
+
+    #expect(fetchCalled == false, "fetchProvider must not be called when excerpt is non-empty")
+    #expect(vm.fetchedContent == nil)
+    #expect(vm.isFetchingContent == false)
+  }
+
+  // MARK: - loadContent: fetches content when excerpt is empty
+
+  @Test("loadContent() fetches and populates fetchedContent when excerpt is empty (provenance navigation)")
+  func loadContentFetchesWhenExcerptEmpty() async throws {
+    let emptyResult = QueryResult(
+      memoryID: Self.memoryID,
+      score: 1.0,
+      matchedVia: "provenance",
+      matchedChunkIndex: nil,
+      excerpt: "",
+      capturedAt: nil,
+      sourceModality: nil
+    )
+    let expectedContent = "Remember to call Theo about the upcoming demo."
+    let vm = MemoryDetailViewModel(
+      result: emptyResult,
+      fetchProvider: { _ in
+        MemoryDetailDTO(
+          id: Self.memoryID,
+          content: expectedContent,
+          capturedAt: Date(timeIntervalSince1970: 1_778_423_400),
+          sourceModality: "text"
+        )
+      }
+    )
+
+    await vm.loadContent()
+
+    #expect(vm.fetchedContent == expectedContent)
+    #expect(vm.isFetchingContent == false)
+    #expect(vm.fetchError == nil)
+  }
+
+  // MARK: - loadContent: surfaces error when fetch fails
+
+  @Test("loadContent() sets fetchError and does not populate fetchedContent when fetch throws")
+  func loadContentSurfacesFetchError() async throws {
+    struct FetchFailure: Error, LocalizedError {
+      var errorDescription: String? { "server unavailable" }
+    }
+
+    let emptyResult = QueryResult(
+      memoryID: Self.memoryID,
+      score: 1.0,
+      matchedVia: "provenance",
+      matchedChunkIndex: nil,
+      excerpt: "",
+      capturedAt: nil,
+      sourceModality: nil
+    )
+    let vm = MemoryDetailViewModel(
+      result: emptyResult,
+      fetchProvider: { _ in throw FetchFailure() }
+    )
+
+    await vm.loadContent()
+
+    #expect(vm.fetchedContent == nil)
+    #expect(vm.isFetchingContent == false)
+    #expect(vm.fetchError != nil)
+  }
+
   // MARK: - Ask results regression: deleted source no longer appears
 
   /// Regression test: after a successful delete, the `QueryResult` whose
