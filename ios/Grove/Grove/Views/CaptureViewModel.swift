@@ -47,7 +47,6 @@ final class CaptureViewModel {
 
   private let uploadQueue: UploadQueue
   private let eventKitProvider: (any EventKitProviding)?
-  private let pendingReminderStore: (any PendingReminderStoring)?
 
   // MARK: - Init
 
@@ -58,16 +57,12 @@ final class CaptureViewModel {
   ///   backed by an in-memory `ModelContainer`.
   /// - Parameter eventKitProvider: Mockable EventKit boundary for tests.
   ///   Defaults to `LiveEventKitProvider` in production.
-  /// - Parameter pendingReminderStore: Persistent store for reconciliation
-  ///   entries. Defaults to `UserDefaultsPendingReminderStore.shared`.
   init(
     uploadQueue: UploadQueue = GroveApp.uploadQueue,
-    eventKitProvider: (any EventKitProviding)? = nil,
-    pendingReminderStore: (any PendingReminderStoring)? = nil
+    eventKitProvider: (any EventKitProviding)? = nil
   ) {
     self.uploadQueue = uploadQueue
     self.eventKitProvider = eventKitProvider ?? LiveEventKitProvider()
-    self.pendingReminderStore = pendingReminderStore ?? UserDefaultsPendingReminderStore.shared
   }
 
   // MARK: - Inputs
@@ -250,15 +245,11 @@ final class CaptureViewModel {
           let dueDateComponents = taskDueDate.map { date -> DateComponents in
             Calendar.current.dateComponents([.year, .month, .day], from: date)
           }
-          let identifier = try await ekProvider.createReminder(
+          // Create the reminder fire-and-forget — the identifier is discarded.
+          // Grove no longer tracks EKReminder identifiers after creation (spec-02).
+          _ = try await ekProvider.createReminder(
             title: trimmed,
             dueDateComponents: dueDateComponents
-          )
-          // Store the mapping so the reconciler can PATCH the task row
-          // once enrichment lands.
-          pendingReminderStore?.store(
-            memoryID: payload.clientID,  // keyed by clientID until server ID arrives
-            calendarItemIdentifier: identifier
           )
         } catch {
           // Reminder save failed — not fatal. Capture is already safe.

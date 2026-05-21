@@ -234,22 +234,19 @@ struct TasksView: View {
           id: UUID(), memoryID: UUID(),
           description: "Call Theo about the demo",
           dueDate: tomorrowStr, status: "open",
-          relatedPeople: ["Theo"],
-          eventkitIdentifier: nil, eventkitLinkedAt: nil
+          relatedPeople: ["Theo"]
         ),
         TaskDTO(
           id: UUID(), memoryID: UUID(),
           description: "Buy oat milk",
           dueDate: nil, status: "open",
-          relatedPeople: nil,
-          eventkitIdentifier: nil, eventkitLinkedAt: nil
+          relatedPeople: nil
         ),
         TaskDTO(
           id: UUID(), memoryID: UUID(),
           description: "Review PR #452 — the rebuild spec is detailed",
           dueDate: "2026-08-15", status: "open",
-          relatedPeople: ["mark", "sarah"],
-          eventkitIdentifier: nil, eventkitLinkedAt: nil
+          relatedPeople: ["mark", "sarah"]
         ),
       ]
     },

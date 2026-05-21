@@ -4,18 +4,19 @@ import Foundation
 
 /// A single extracted task from a Grove memory.
 ///
-/// Returned by `GET /v1/memories/{id}` (embedded in `TaskSchema`) and by
-/// `PATCH /v1/tasks/{id}` (the full updated row after EventKit linking).
+/// Returned by `GET /v1/tasks` (the server-native task list endpoint).
 ///
-/// Fields mirror `TaskSchema` on the server (grove/schemas/task.py):
+/// Fields mirror `TaskSchema` on the server (`grove/schemas/task.py`):
 ///   - `id`, `memoryID`, `description`, `dueDate`, `status`, `relatedPeople`
-///     are present in V1.
-///   - `eventkitIdentifier`, `eventkitLinkedAt` are added in #391.
 ///
 /// `dueDate` is a server-formatted date string (`"YYYY-MM-DD"`) rather than a
 /// `Date`, because the server stores only the date component (no time, no
 /// timezone). Callers that need a `DateComponents` value for EventKit should
 /// use `dueDateComponents`.
+///
+/// The server may still include `eventkit_identifier` / `eventkit_linked_at` in
+/// responses during the Part 3 → Part 4 transition window — Swift's `Codable`
+/// default behaviour ignores unknown keys, so no decoder configuration is needed.
 public struct TaskDTO: Codable, Sendable, Identifiable, Equatable {
   public let id: UUID
   public let memoryID: UUID
@@ -26,10 +27,6 @@ public struct TaskDTO: Codable, Sendable, Identifiable, Equatable {
   public let status: String?
   /// Names of people related to this task, or `nil` when not yet enriched.
   public let relatedPeople: [String]?
-  /// The `calendarItemIdentifier` of the linked `EKReminder`, or nil if not yet linked.
-  public let eventkitIdentifier: String?
-  /// ISO 8601 string of when the EventKit link was created, or nil.
-  public let eventkitLinkedAt: String?
 
   public init(
     id: UUID,
@@ -37,9 +34,7 @@ public struct TaskDTO: Codable, Sendable, Identifiable, Equatable {
     description: String,
     dueDate: String?,
     status: String?,
-    relatedPeople: [String]?,
-    eventkitIdentifier: String?,
-    eventkitLinkedAt: String?
+    relatedPeople: [String]?
   ) {
     self.id = id
     self.memoryID = memoryID
@@ -47,8 +42,6 @@ public struct TaskDTO: Codable, Sendable, Identifiable, Equatable {
     self.dueDate = dueDate
     self.status = status
     self.relatedPeople = relatedPeople
-    self.eventkitIdentifier = eventkitIdentifier
-    self.eventkitLinkedAt = eventkitLinkedAt
   }
 
   public enum CodingKeys: String, CodingKey {
@@ -58,8 +51,6 @@ public struct TaskDTO: Codable, Sendable, Identifiable, Equatable {
     case dueDate = "due_date"
     case status
     case relatedPeople = "related_people"
-    case eventkitIdentifier = "eventkit_identifier"
-    case eventkitLinkedAt = "eventkit_linked_at"
   }
 
   // MARK: - Derived helpers
@@ -83,38 +74,3 @@ public struct TaskDTO: Codable, Sendable, Identifiable, Equatable {
   }
 }
 
-// MARK: - TaskLinkingError
-
-/// Errors specific to the EventKit-linking flow for tasks.
-public enum TaskLinkingError: Error, LocalizedError, Equatable {
-  /// The task is already linked to a different `EKReminder`.
-  ///
-  /// Thrown by `GroveAPI.patchTaskEventKit` when the server returns 409.
-  /// The associated value is the `existing_identifier` from the 409 body —
-  /// callers should self-heal by adopting this identifier instead of the one
-  /// they attempted to write.
-  case alreadyLinked(existingIdentifier: String)
-
-  /// The EventKit permission request was denied by the user.
-  case permissionDenied
-
-  /// The `EKReminder` save failed (EventKit-level error).
-  case saveFailed
-
-  /// The reminder lookup returned nil — the user deleted the reminder in
-  /// the Reminders app.
-  case reminderDeleted
-
-  public var errorDescription: String? {
-    switch self {
-    case .alreadyLinked:
-      return "This task is already linked to an Apple Reminder."
-    case .permissionDenied:
-      return "Grove needs access to Reminders to create tasks. Enable Reminders access in Settings."
-    case .saveFailed:
-      return "Could not save the reminder. Please try again."
-    case .reminderDeleted:
-      return "The linked reminder was deleted in the Reminders app."
-    }
-  }
-}
