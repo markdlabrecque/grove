@@ -169,10 +169,11 @@ async def test_list_tasks_sorted_created_at_desc(db_session: AsyncSession) -> No
     from grove.main import app
 
     mem = await _make_memory(db_session, "Sort order test")
-    # Insert two tasks; database server_default gives them close but distinct timestamps.
-    # Insert sequentially so created_at order is deterministic.
+    # Insert two tasks for different memories so the unique constraint on
+    # (memory_id, enrichment_version) is not violated.
+    mem2 = await _make_memory(db_session, "Sort order test second memory")
     task_first = await _make_task(db_session, mem, "Task inserted first")
-    task_second = await _make_task(db_session, mem, "Task inserted second")
+    task_second = await _make_task(db_session, mem2, "Task inserted second")
 
     try:
         async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
@@ -180,7 +181,8 @@ async def test_list_tasks_sorted_created_at_desc(db_session: AsyncSession) -> No
 
         assert response.status_code == 200
         body = response.json()
-        our_tasks = [item for item in body if item["memory_id"] == str(mem.id)]
+        our_task_ids = {str(task_first.id), str(task_second.id)}
+        our_tasks = [item for item in body if item["id"] in our_task_ids]
         assert len(our_tasks) == 2
 
         # Newest (second inserted) should appear before oldest (first inserted).
@@ -190,6 +192,7 @@ async def test_list_tasks_sorted_created_at_desc(db_session: AsyncSession) -> No
         await db_session.delete(task_first)
         await db_session.delete(task_second)
         await db_session.delete(mem)
+        await db_session.delete(mem2)
         await db_session.commit()
 
 

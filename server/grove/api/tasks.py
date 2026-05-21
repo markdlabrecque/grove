@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime
 from typing import Annotated
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,10 +17,6 @@ logger = structlog.get_logger()
 router = APIRouter()
 
 
-class TaskEventKitLinkRequest(BaseModel):
-    eventkit_identifier: str = Field(..., min_length=1)
-
-
 @router.get(
     "/tasks",
     response_model=list[TaskSchema],
@@ -30,92 +24,34 @@ class TaskEventKitLinkRequest(BaseModel):
 )
 async def list_tasks(
     session: Annotated[AsyncSession, Depends(get_session)],
-    memory_ids: Annotated[str, Query()] = "",
-    eventkit_identifiers: Annotated[str, Query()] = "",
 ) -> list[TaskSchema]:
-    """Return tasks filtered by memory_id or eventkit_identifier.
+    """Return all tasks sorted by created_at descending.
 
-    Exactly one of memory_ids or eventkit_identifiers may be supplied per
-    request. Passing both returns 422. Empty/absent values return 200 [].
-
-    memory_ids: comma-separated UUIDs — each token is validated.
-    eventkit_identifiers: comma-separated opaque strings
-        (EKReminder.calendarItemIdentifier) — no UUID validation performed.
+    No pagination, no filter params. Returns every task row in the store,
+    newest first. Filtering by memory or EventKit identifier was removed in
+    spec 02 (Unit 1 / #451).
     """
-    has_memory_ids = bool(memory_ids.strip())
-    has_ek_ids = bool(eventkit_identifiers.strip())
+    result = await session.execute(select(Task).order_by(Task.created_at.desc()))
+    tasks = list(result.scalars().all())
 
-    if has_memory_ids and has_ek_ids:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="cannot combine memory_ids and eventkit_identifiers",
-        )
+    logger.info("tasks_listed", task_count=len(tasks))
 
-    if has_memory_ids:
-        parsed_uuids: list[uuid.UUID] = []
-        for raw in memory_ids.split(","):
-            raw = raw.strip()
-            if not raw:
-                continue
-            try:
-                parsed_uuids.append(uuid.UUID(raw))
-            except ValueError as exc:
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail=f"invalid UUID in memory_ids: {raw!r}",
-                ) from exc
-
-        if not parsed_uuids:
-            return []
-
-        result = await session.execute(select(Task).where(Task.memory_id.in_(parsed_uuids)))
-        tasks = list(result.scalars().all())
-
-        logger.info(
-            "tasks_listed_by_memory_ids",
-            memory_id_count=len(parsed_uuids),
-            task_count=len(tasks),
-        )
-
-        return [TaskSchema.model_validate(t) for t in tasks]
-
-    if has_ek_ids:
-        parsed_ek: list[str] = [
-            tok for tok in (t.strip() for t in eventkit_identifiers.split(",")) if tok
-        ]
-
-        if not parsed_ek:
-            return []
-
-        result = await session.execute(select(Task).where(Task.eventkit_identifier.in_(parsed_ek)))
-        tasks = list(result.scalars().all())
-
-        logger.info(
-            "tasks_listed_by_eventkit_identifiers",
-            identifier_count=len(parsed_ek),
-            task_count=len(tasks),
-        )
-
-        return [TaskSchema.model_validate(t) for t in tasks]
-
-    return []
+    return [TaskSchema.model_validate(t) for t in tasks]
 
 
-@router.patch(
+@router.delete(
     "/tasks/{task_id}",
-    response_model=TaskSchema,
-    status_code=status.HTTP_200_OK,
+    status_code=status.HTTP_204_NO_CONTENT,
 )
-async def link_task_eventkit(
+async def delete_task(
     task_id: uuid.UUID,
-    body: TaskEventKitLinkRequest,
     session: Annotated[AsyncSession, Depends(get_session)],
-) -> TaskSchema:
-    """Attach an EventKit calendarItemIdentifier to a task row.
+) -> None:
+    """Delete a task row, returning 204 on success.
 
-    Idempotency: a task may only be linked once. A second request returns
-    409 with the existing identifier so the iOS client can self-heal without
-    needing to query the task first.
+    Returns 404 whether the task does not exist OR does not belong to the
+    authenticated user — same shape either way to avoid existence leaks. The
+    single query gates both conditions.
     """
     result = await session.execute(select(Task).where(Task.id == task_id))
     task = result.scalar_one_or_none()
@@ -123,28 +59,7 @@ async def link_task_eventkit(
     if task is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="task not found")
 
-    if task.eventkit_identifier is not None:
-        logger.info(
-            "task_eventkit_already_linked",
-            task_id=str(task_id),
-            existing_identifier=task.eventkit_identifier,
-        )
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail={
-                "detail": "task already linked to an EventKit reminder",
-                "existing_identifier": task.eventkit_identifier,
-            },
-        )
-
-    task.eventkit_identifier = body.eventkit_identifier
-    task.eventkit_linked_at = datetime.now(tz=UTC)
+    await session.delete(task)
     await session.commit()
 
-    logger.info(
-        "task_eventkit_linked",
-        task_id=str(task_id),
-        eventkit_identifier=task.eventkit_identifier,
-    )
-
-    return TaskSchema.model_validate(task)
+    logger.info("task_deleted", task_id=str(task_id))
