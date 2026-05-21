@@ -250,9 +250,8 @@ struct GroveAPISmokeTests {
 
   @Test("patchTaskEventKit sends PATCH to /v1/tasks/{id}")
   func patchTaskEventKitMethod() async throws {
-    // Use a class box so the closure can capture and mutate it.
-    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
-    let box = Box<URLRequest>()
+    // Use CaptureBox so the closure can capture and mutate it.
+    let box = CaptureBox<URLRequest>()
 
     let (api, teardown) = makeAPI { request in
       box.value = request
@@ -279,8 +278,7 @@ struct GroveAPISmokeTests {
 
   @Test("patchTaskEventKit encodes eventkit_identifier in body")
   func patchTaskEventKitBody() async throws {
-    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
-    let box = Box<Data>()
+    let box = CaptureBox<Data>()
 
     let (api, teardown) = makeAPI { request in
       // URLSession delivers the body as an HTTPBodyStream when using data(for:)
@@ -465,8 +463,7 @@ struct GroveAPISmokeTests {
 
   @Test("patchTaskEventKit includes Authorization header")
   func patchTaskEventKitAuthorizationHeader() async throws {
-    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
-    let box = Box<URLRequest>()
+    let box = CaptureBox<URLRequest>()
 
     let (api, teardown) = makeAPI { request in
       box.value = request
