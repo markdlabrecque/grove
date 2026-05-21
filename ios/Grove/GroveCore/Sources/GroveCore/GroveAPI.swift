@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Async HTTP client for the Grove backend.
 ///
@@ -44,6 +45,13 @@ public actor GroveAPI {
   // MARK: - Shared instance
 
   public static let shared = GroveAPI()
+
+  // MARK: - Logging
+
+  private let logger = Logger(
+    subsystem: "com.markdlabrecque.grove",
+    category: "api"
+  )
 
   // MARK: - Private state — sessions
 
@@ -285,7 +293,7 @@ public actor GroveAPI {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
 
-    print("[query] sent query_chars=\(queryText.count) status=\(status)")
+    logger.info("[query] sent query_chars=\(queryText.count, privacy: .public) status=\(status, privacy: .public)")
 
     guard status == 200 else {
       let detail = extractDetail(from: data)
@@ -293,7 +301,7 @@ public actor GroveAPI {
     }
 
     let result = try decoder.decode(QueryResponseBody.self, from: data)
-    print("[query] sent query_chars=\(queryText.count) status=\(status) sources=\(result.sources.count)")
+    logger.info("[query] sent query_chars=\(queryText.count, privacy: .public) status=\(status, privacy: .public) sources=\(result.sources.count, privacy: .public)")
     return result
   }
 
@@ -331,7 +339,7 @@ public actor GroveAPI {
     }
 
     let status = httpResponse.statusCode
-    print("[recent-queries] limit=\(limit) status=\(status)")
+    logger.info("[recent-queries] limit=\(limit, privacy: .public) status=\(status, privacy: .public)")
 
     guard status == 200 else {
       let detail = extractDetail(from: data)
@@ -375,7 +383,7 @@ public actor GroveAPI {
     }
 
     let status = httpResponse.statusCode
-    print("[feedback] query_id=\(queryID.uuidString.lowercased()) feedback=\(feedback.rawValue) status=\(status)")
+    logger.info("[feedback] query_id=\(queryID.uuidString.lowercased(), privacy: .public) feedback=\(feedback.rawValue, privacy: .public) status=\(status, privacy: .public)")
 
     guard status == 204 else {
       let detail = extractDetail(from: data)
@@ -423,7 +431,7 @@ public actor GroveAPI {
     }
 
     let status = httpResponse.statusCode
-    print("[task-link] task_id=\(taskID.uuidString.lowercased()) status=\(status)")
+    logger.info("[task-link] task_id=\(taskID.uuidString.lowercased(), privacy: .public) status=\(status, privacy: .public)")
 
     // 409: task already linked — extract the existing identifier from the body
     // so the caller can self-heal without a separate GET.
@@ -487,7 +495,7 @@ public actor GroveAPI {
     }
 
     let status = httpResponse.statusCode
-    print("[list-tasks] memory_id_count=\(memoryIDs.count) status=\(status)")
+    logger.info("[list-tasks] memory_id_count=\(memoryIDs.count, privacy: .public) status=\(status, privacy: .public)")
 
     guard status == 200 else {
       let detail = extractDetail(from: data)
@@ -522,7 +530,7 @@ public actor GroveAPI {
     }
 
     let status = httpResponse.statusCode
-    print("[delete] memory_id=\(id.uuidString.lowercased()) status=\(status)")
+    logger.info("[delete] memory_id=\(id.uuidString.lowercased(), privacy: .public) status=\(status, privacy: .public)")
 
     guard status == 204 else {
       let detail = extractDetail(from: data)
@@ -568,7 +576,7 @@ public actor GroveAPI {
       do {
         try FileManager.default.removeItem(at: upload.tempFileURL)
       } catch {
-        print("[capture] failed to delete temp file \(upload.tempFileURL.path): \(error)")
+        logger.error("[capture] failed to delete temp file \(upload.tempFileURL.path, privacy: .public): \(error)")
       }
     }
 
@@ -583,7 +591,7 @@ public actor GroveAPI {
     }
 
     let status = response.statusCode
-    print("[capture] sent status=\(status)")
+    logger.info("[capture] sent status=\(status, privacy: .public)")
 
     // 200 (idempotent re-upload) and 201 (new record) are both success.
     guard status == 200 || status == 201 else {
