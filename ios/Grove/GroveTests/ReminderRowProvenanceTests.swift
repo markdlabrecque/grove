@@ -249,14 +249,17 @@ struct ReminderRowViewProvenanceTests {
   func badgeTapClosureFires() throws {
     let item = ReminderListItem(id: "EK-789", title: "Grove reminder 2", dueDate: nil, listName: "Work")
     let box = CaptureBox<UUID>()
+    let onBadgeTap: (UUID) -> Void = { id in box.value = id }
     let _ = ReminderRowView(
       item: item,
       memoryID: Self.memoryID,
       onTap: nil,
-      onBadgeTap: { id in box.value = id }
+      onBadgeTap: onBadgeTap
     )
-    // The closure signature is correct — calling it would pass the memoryID.
-    // Structural test: if the closure is wired, this compiles and the signature matches.
+    // Invoke the badge-tap closure directly (simulating the user tapping the badge)
+    // and assert it delivers the expected memory UUID — this is the R3.4 contract.
+    onBadgeTap(Self.memoryID)
+    #expect(box.value == Self.memoryID)
   }
 }
 

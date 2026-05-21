@@ -65,7 +65,7 @@ final class TasksViewModel {
   ///
   /// Production: calls `GroveAPI.shared.listTasksByEventKitIdentifiers(_:)`.
   /// Tests: inject a stub that returns fixture `TaskDTO`s or throws.
-  let provenanceLookup: ([String]) async throws -> [TaskDTO]
+  private let provenanceLookup: ([String]) async throws -> [TaskDTO]
 
   private let logger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "com.markdlabrecque.grove",
