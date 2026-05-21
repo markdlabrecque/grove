@@ -85,15 +85,23 @@ struct AppDelegateHandlerTests {
       forIdentifier: "com.example.some-other-session"
     )
 
+    // Trigger the drain on the main actor, then poll until box.called flips.
+    //
+    // The previous sentinel-continuation pattern was racy: drain spawns a
+    // single `Task { @MainActor in handlers.forEach { $0() } }` and the order
+    // of items in Array(dict.values) is non-deterministic. When the sentinel
+    // was called first inside forEach it resumed the continuation — but the
+    // box.called = true handler had not yet executed in that same forEach
+    // iteration, so the outer #expect(box.called) could observe false.
+    //
+    // Polling with Task.checkCancellation() inside withBridgeTimeout is the
+    // same pattern used to fix a structurally identical race in #411.
+    await api.drainBackgroundCompletionHandlers()
+
     try await withBridgeTimeout(seconds: 2) {
-      await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-        Task { @MainActor in
-          await api.storeBackgroundCompletionHandler(
-            { cont.resume() },
-            forIdentifier: "com.markdlabrecque.grove.capture-upload-sentinel"
-          )
-          await api.drainBackgroundCompletionHandlers()
-        }
+      while !box.called {
+        try Task.checkCancellation()
+        await Task.yield()
       }
     }
 
