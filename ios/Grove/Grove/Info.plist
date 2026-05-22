@@ -28,8 +28,6 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Grove uses the microphone to transcribe your spoken thoughts into captures.</string>
-	<key>NSRemindersFullAccessUsageDescription</key>
-	<string>Grove links your extracted tasks to Apple Reminders so you can mark them done and see live status. Grove only writes to and reads back tasks it has created; it never reads other reminder content.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Grove uses on-device speech recognition to convert your voice to text when capturing thoughts.</string>
 	<key>UIApplicationSceneManifest</key>
