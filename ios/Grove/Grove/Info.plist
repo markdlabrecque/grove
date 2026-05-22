@@ -28,7 +28,7 @@
 	<true/>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Grove uses the microphone to transcribe your spoken thoughts into captures.</string>
-<key>NSSpeechRecognitionUsageDescription</key>
+	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Grove uses on-device speech recognition to convert your voice to text when capturing thoughts.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
