@@ -463,3 +463,54 @@ async def test_idempotent_null_captured_at_returns_200(db_session: AsyncSession)
 
     await db_session.delete(row)
     await db_session.commit()
+
+
+# ---------------------------------------------------------------------------
+# client_intent='task': capture-time task row insertion (#474)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_capture_with_task_intent_creates_task_row(
+    payload: dict, db_session: AsyncSession
+) -> None:
+    """POST /v1/captures with client_intent='task' inserts a tasks row immediately.
+
+    The row must be visible in the DB within the same request cycle, before any
+    enrichment worker runs.  Confidence is 1.0, status is 'open', due_date and
+    related_people are null, description matches the submitted content.
+    """
+    from grove.main import app
+    from grove.models.task import Task
+
+    respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+        return_value=httpx.Response(200, json=_make_openai_response(1))
+    )
+
+    payload["client_intent"] = "task"
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        response = await client.post("/v1/captures", json=payload, headers=AUTH_HEADERS)
+
+    assert response.status_code == 201, response.text
+    memory_id = uuid.UUID(response.json()["id"])
+
+    result = await db_session.execute(select(Task).where(Task.memory_id == memory_id))
+    tasks = result.scalars().all()
+
+    assert len(tasks) == 1, f"Expected exactly 1 task row at capture time, got {len(tasks)}"
+    task = tasks[0]
+    assert task.description == payload["content"]
+    assert task.status == "open"
+    assert task.confidence == 1.0
+    assert task.due_date is None
+    assert task.related_people is None
+    assert task.enrichment_version is None  # sentinel: not yet enriched by the worker
+
+    # Cleanup — cascade removes the task row via FK.
+    client_id = uuid.UUID(payload["client_id"])
+    mem_result = await db_session.execute(select(Memory).where(Memory.client_id == client_id))
+    mem = mem_result.scalar_one()
+    await db_session.delete(mem)
+    await db_session.commit()
