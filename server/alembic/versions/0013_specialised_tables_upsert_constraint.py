@@ -38,7 +38,12 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # tasks is excluded here: migration 0019 permanently dropped the tasks table,
+    # so attempting to drop its constraint when downgrading 0013 → 0012 would raise
+    # UndefinedTableError.
     for table in _TABLES:
+        if table == "tasks":
+            continue
         op.drop_constraint(
             f"uq_{table}_memory_id_enrichment_version",
             table,

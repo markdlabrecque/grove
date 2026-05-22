@@ -67,21 +67,6 @@ class PeopleInteractionSchema(BaseModel):
     model_config = {"from_attributes": True}
 
 
-class TaskSchema(BaseModel):
-    id: uuid.UUID
-    memory_id: uuid.UUID
-    description: str
-    due_date: date | None
-    status: str | None
-    related_people: list[str] | None
-    confidence: float
-    # NULL for capture-time rows; stamped by the enrichment worker.
-    enrichment_version: int | None
-    created_at: datetime
-
-    model_config = {"from_attributes": True}
-
-
 class AppointmentSchema(BaseModel):
     id: uuid.UUID
     memory_id: uuid.UUID
@@ -115,7 +100,6 @@ class MemoryDetailSchema(BaseModel):
     chunks: list[ChunkSchema]
     decisions: list[DecisionSchema]
     people_interactions: list[PeopleInteractionSchema]
-    tasks: list[TaskSchema]
     appointments: list[AppointmentSchema]
 
     model_config = {"from_attributes": True}
@@ -256,7 +240,7 @@ async def delete_memory(
 ) -> None:
     """Delete a memory and cascade to all related rows.
 
-    Cascade covers: memory_chunks, decisions, people_interactions, tasks,
+    Cascade covers: memory_chunks, decisions, people_interactions,
     appointments — via SQLAlchemy ORM "all, delete-orphan" which triggers the
     DB-level ON DELETE CASCADE FKs on those tables.
 
@@ -291,7 +275,6 @@ async def get_memory(
             selectinload(Memory.chunks),
             selectinload(Memory.decisions),
             selectinload(Memory.people_interactions),
-            selectinload(Memory.tasks),
             selectinload(Memory.appointments),
         )
     )
@@ -308,7 +291,6 @@ async def get_memory(
         chunk_count=len(memory.chunks),
         decision_count=len(memory.decisions),
         people_interaction_count=len(memory.people_interactions),
-        task_count=len(memory.tasks),
         appointment_count=len(memory.appointments),
     )
 
@@ -332,6 +314,5 @@ async def get_memory(
         people_interactions=[
             PeopleInteractionSchema.model_validate(p) for p in memory.people_interactions
         ],
-        tasks=[TaskSchema.model_validate(t) for t in memory.tasks],
         appointments=[AppointmentSchema.model_validate(a) for a in memory.appointments],
     )

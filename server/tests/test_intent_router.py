@@ -36,7 +36,6 @@ from grove.models.decision import Decision
 from grove.models.memory import Memory
 from grove.models.people_interaction import PeopleInteraction
 from grove.models.query_log import QueryLog
-from grove.models.task import Task
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -187,8 +186,8 @@ class TestIntentParser:
     def test_happy_path_multiple_intents(self) -> None:
         from grove.retrieval.intent_router import parse_intent_response
 
-        result = parse_intent_response('{"intents": ["tasks", "appointments"]}')
-        assert set(result) == {"tasks", "appointments"}
+        result = parse_intent_response('{"intents": ["decisions", "appointments"]}')
+        assert set(result) == {"decisions", "appointments"}
 
     def test_general_intent_returns_general(self) -> None:
         from grove.retrieval.intent_router import parse_intent_response
@@ -275,31 +274,6 @@ async def test_query_people(db_session: AsyncSession) -> None:
         await db_session.commit()
 
         results = await query_people(db_session, "Alice meeting")
-        assert memory_id in results
-    finally:
-        await _delete_memory(db_session, memory_id)
-
-
-@pytest.mark.asyncio
-async def test_query_tasks(db_session: AsyncSession) -> None:
-    """query_tasks returns memory_ids for open tasks due in the relevant window."""
-    from grove.retrieval.intent_router import query_tasks
-
-    memory_id = await _seed_memory(db_session, content="Need to send Alice the RFC draft.")
-    try:
-        task = Task(
-            id=uuid.uuid4(),
-            memory_id=memory_id,
-            description="Send Alice the RFC draft",
-            status="open",
-            due_date=None,
-            confidence=0.9,
-            enrichment_version=1,
-        )
-        db_session.add(task)
-        await db_session.commit()
-
-        results = await query_tasks(db_session, "open tasks for Alice")
         assert memory_id in results
     finally:
         await _delete_memory(db_session, memory_id)
@@ -549,7 +523,6 @@ async def test_tables_searched_populated(db_session: AsyncSession) -> None:
         # general intent means no specialised tables queried
         assert "decisions" in ts
         assert "people_interactions" in ts
-        assert "tasks" in ts
         assert "appointments" in ts
     finally:
         await _delete_memory(db_session, memory_id)

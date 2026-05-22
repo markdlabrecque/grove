@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from grove.models.appointment import Appointment
     from grove.models.decision import Decision
     from grove.models.people_interaction import PeopleInteraction
-    from grove.models.task import Task
 
 
 class Memory(Base):
@@ -48,10 +47,6 @@ class Memory(Base):
     enriched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
     enriched_version: Mapped[int | None] = mapped_column(Integer)
     enrichment_error: Mapped[str | None] = mapped_column(Text)
-    # Client-supplied intent set at capture time. V1 value: "task". Nullable
-    # (no intent signal) for all other captures. Kept loose — no CHECK
-    # constraint — so future intent values require no schema change.
-    client_intent: Mapped[str | None] = mapped_column(Text)
 
     chunks: Mapped[list[MemoryChunk]] = relationship(
         "MemoryChunk",
@@ -64,9 +59,6 @@ class Memory(Base):
     )
     people_interactions: Mapped[list[PeopleInteraction]] = relationship(
         "PeopleInteraction", back_populates="memory", cascade="all, delete-orphan"
-    )
-    tasks: Mapped[list[Task]] = relationship(
-        "Task", back_populates="memory", cascade="all, delete-orphan"
     )
     appointments: Mapped[list[Appointment]] = relationship(
         "Appointment", back_populates="memory", cascade="all, delete-orphan"

@@ -7,7 +7,6 @@ from grove.models.enrichment_state import EnrichmentState
 from grove.models.memory import Memory, MemoryChunk
 from grove.models.people_interaction import PeopleInteraction
 from grove.models.query_log import QueryLog
-from grove.models.task import Task
 
 __all__ = [
     "Appointment",
@@ -18,5 +17,4 @@ __all__ = [
     "MemoryChunk",
     "PeopleInteraction",
     "QueryLog",
-    "Task",
 ]

@@ -33,4 +33,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column("memories", "client_intent")
+    # No-op: migration 0019 permanently dropped the client_intent column.
+    # Attempting to drop it here when downgrading 0016 → 0015 would raise
+    # UndefinedColumnError because the column no longer exists in the schema.
+    pass
