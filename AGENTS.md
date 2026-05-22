@@ -307,7 +307,30 @@ Rules during the trial:
    need to wait on CI. This applies only post–PR-open; never dispatch
    Theo on the red-commit push alone.
 
-6. **Rollback.** If parallel dispatch produces a lost-commit, branch
+6. **Worktree confinement.** Briefing an implementer dispatched with
+   `isolation: "worktree"` MUST use repo-relative paths only
+   (`server/grove/api/captures.py`), never absolute paths under
+   `/Users/mark/Projects/grove/...`. Absolute paths cause agents to
+   operate against the orchestrator's main checkout instead of their
+   isolated worktree, defeating the harness's `isolation` request and
+   producing the cross-branch contamination class documented in
+   [[parallel-agents-share-cwd]].
+
+7. **Contamination check (orchestrator, after every implementer
+   hand-back).** Before dispatching the next step (Theo, merge, next
+   ticket) or creating a new branch in the main checkout, run:
+   ```
+   git -C /Users/mark/Projects/grove status --short
+   git -C /Users/mark/Projects/grove branch --show-current
+   ```
+   The expected state is HEAD on `develop` and only the known
+   long-standing untracked paths (e.g. `docs/specs/`). If HEAD has
+   moved to a feature branch or there are unexpected modifications,
+   the implementer's worktree isolation was bypassed and the main
+   tree is contaminated. Investigate before proceeding — do NOT
+   create new branches from a contaminated HEAD.
+
+8. **Rollback.** If parallel dispatch produces a lost-commit, branch
    contamination, or merge-order regression, revert to the
    strict-serial rules archived below and update this section.
 
