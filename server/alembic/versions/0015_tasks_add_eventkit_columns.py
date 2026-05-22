@@ -31,5 +31,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column("tasks", "eventkit_linked_at")
-    op.drop_column("tasks", "eventkit_identifier")
+    # No-op: migration 0017 permanently dropped these columns. Attempting to
+    # drop them here when downgrading 0015 → 0014 would raise
+    # UndefinedColumnError because they no longer exist in the schema.
+    pass
