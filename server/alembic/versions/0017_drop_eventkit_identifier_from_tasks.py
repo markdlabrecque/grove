@@ -10,10 +10,10 @@ EventKit. The iOS PATCH /v1/tasks/{id} handler that wrote these columns was
 removed in the Tasks tab rebuild (Part 2 of #404 spec). The columns are now
 entirely dead — no server path reads or writes them.
 
-Downgrade intentionally raises NotImplementedError: restoring the columns
-would be meaningless without the PATCH handler, and any previously stored
-values have already been abandoned by the iOS client. Callers that need to
-recover should re-add the columns via a new forward migration.
+Downgrade is a no-op: restoring the columns would be meaningless without the
+PATCH handler, and any previously stored values have already been abandoned by
+the iOS client. Callers that need to recover should re-add the columns via a
+new forward migration.
 """
 
 from collections.abc import Sequence
@@ -32,7 +32,4 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    raise NotImplementedError(
-        "forward-only cleanup of dead EventKit-coupling columns — "
-        "see migration docstring for rationale"
-    )
+    pass
