@@ -298,7 +298,16 @@ Rules during the trial:
    `develop` tip — otherwise the second squash can drop commits the
    way #131 did.
 
-5. **Rollback.** If parallel dispatch produces a lost-commit, branch
+5. **Theo runs in parallel with CI.** When the implementer hands back
+   a PR, dispatch Theo and start the CI watcher concurrently. Merge
+   requires both signals green. If CI fails first, brief the
+   implementer with the CI errors *and* any Theo findings already
+   received so the next push is a single batched fix-up. If Theo
+   finds must-fixes first, send the implementer back immediately — no
+   need to wait on CI. This applies only post–PR-open; never dispatch
+   Theo on the red-commit push alone.
+
+6. **Rollback.** If parallel dispatch produces a lost-commit, branch
    contamination, or merge-order regression, revert to the
    strict-serial rules archived below and update this section.
 
