@@ -162,8 +162,9 @@ cert-renew: ## Refresh the cert AND gracefully reload Apache
 .PHONY: health
 health: ## Curl the public healthz + readyz endpoints
 	@source .env && \
-	echo "→ /healthz" && curl -sf "https://$$TAILSCALE_HOSTNAME/healthz" && echo && \
-	echo "→ /readyz"  && curl -sf "https://$$TAILSCALE_HOSTNAME/readyz"  && echo
+	HTTPS_PORT="$${GROVE_HTTPS_PORT:-8443}"; \
+	echo "→ /healthz" && curl -sf "https://$$TAILSCALE_HOSTNAME:$$HTTPS_PORT/healthz" && echo && \
+	echo "→ /readyz"  && curl -sf "https://$$TAILSCALE_HOSTNAME:$$HTTPS_PORT/readyz"  && echo
 
 # smoke-ingress: Mac-side verification of the Tailnet → Apache (TLS) → FastAPI path.
 # Covers steps 1–5 of the former docs/manual-tests/tailscale-tls-ingress.md.
@@ -181,8 +182,9 @@ smoke-ingress: ## Verify Tailnet → Apache TLS → FastAPI ingress is healthy (
 	if [ -z "$${BEARER_TOKEN:-}" ]; then echo "FAIL: BEARER_TOKEN not set in .env"; exit 1; fi; \
 	HOST="$$TAILSCALE_HOSTNAME"; \
 	TOKEN="$$BEARER_TOKEN"; \
+	HTTPS_PORT="$${GROVE_HTTPS_PORT:-8443}"; \
 	\
-	echo "--- smoke-ingress: $$HOST ---"; \
+	echo "--- smoke-ingress: $$HOST:$$HTTPS_PORT ---"; \
 	\
 	echo ""; \
 	echo "1. Apache vhost config (ServerName + SSLCertificate lines):"; \
@@ -195,7 +197,7 @@ smoke-ingress: ## Verify Tailnet → Apache TLS → FastAPI ingress is healthy (
 	\
 	echo ""; \
 	echo "2. TLS handshake (cert subject CN + verify ok + HTTP 200 on /healthz):"; \
-	TLS_OUT=$$(curl -sv --resolve "$$HOST:443:127.0.0.1" "https://$$HOST/healthz" 2>&1); \
+	TLS_OUT=$$(curl -sv --resolve "$$HOST:$$HTTPS_PORT:127.0.0.1" "https://$$HOST:$$HTTPS_PORT/healthz" 2>&1); \
 	if echo "$$TLS_OUT" | grep -q "verify ok"; then \
 		echo "   PASS: verify ok"; \
 	else \
@@ -210,13 +212,13 @@ smoke-ingress: ## Verify Tailnet → Apache TLS → FastAPI ingress is healthy (
 	\
 	echo ""; \
 	echo "3. Public health endpoints over TLS:"; \
-	HEALTHZ=$$(curl -o /dev/null -sw "%{http_code}" "https://$$HOST/healthz"); \
+	HEALTHZ=$$(curl -o /dev/null -sw "%{http_code}" "https://$$HOST:$$HTTPS_PORT/healthz"); \
 	if [ "$$HEALTHZ" = "200" ]; then \
 		echo "   PASS: /healthz → 200"; \
 	else \
 		echo "   FAIL: /healthz → $$HEALTHZ (expected 200)"; exit 1; \
 	fi; \
-	READYZ=$$(curl -o /dev/null -sw "%{http_code}" "https://$$HOST/readyz"); \
+	READYZ=$$(curl -o /dev/null -sw "%{http_code}" "https://$$HOST:$$HTTPS_PORT/readyz"); \
 	if [ "$$READYZ" = "200" ]; then \
 		echo "   PASS: /readyz → 200"; \
 	else \
@@ -225,7 +227,7 @@ smoke-ingress: ## Verify Tailnet → Apache TLS → FastAPI ingress is healthy (
 	\
 	echo ""; \
 	echo "4. Auth gate — unauthenticated POST /v1/captures must return 401:"; \
-	UNAUTH=$$(curl -o /dev/null -sw "%{http_code}" -X POST "https://$$HOST/v1/captures" \
+	UNAUTH=$$(curl -o /dev/null -sw "%{http_code}" -X POST "https://$$HOST:$$HTTPS_PORT/v1/captures" \
 		-H 'Content-Type: application/json' -d '{}'); \
 	if [ "$$UNAUTH" = "401" ]; then \
 		echo "   PASS: unauthenticated POST → 401"; \
@@ -237,7 +239,7 @@ smoke-ingress: ## Verify Tailnet → Apache TLS → FastAPI ingress is healthy (
 	echo "5. Authenticated round-trip — POST /v1/captures with valid bearer:"; \
 	CID=$$(uuidgen | tr A-Z a-z); \
 	NOW=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
-	AUTH=$$(curl -o /dev/null -sw "%{http_code}" -X POST "https://$$HOST/v1/captures" \
+	AUTH=$$(curl -o /dev/null -sw "%{http_code}" -X POST "https://$$HOST:$$HTTPS_PORT/v1/captures" \
 		-H "Authorization: Bearer $$TOKEN" \
 		-H 'Content-Type: application/json' \
 		-d "{\"client_id\":\"$$CID\",\"content\":\"tls smoke from tailnet\",\"source_modality\":\"text\",\"source_device\":\"tailnet-curl\",\"captured_at\":\"$$NOW\"}"); \
