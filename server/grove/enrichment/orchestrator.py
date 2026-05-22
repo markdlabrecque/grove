@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import structlog
-from sqlalchemy import inspect
+from sqlalchemy import inspect, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -257,17 +257,42 @@ async def classify_and_write(
                 forced_due_date = None
                 forced_related_people = None
 
-            await insert_if_not_exists(
-                session,
-                Task,
-                memory_id=memory.id,
-                enrichment_version=PIPELINE_VERSION,
-                description=forced_description,
-                due_date=forced_due_date,
-                status="open",
-                related_people=forced_related_people,
-                confidence=1.0,
+            # Check for a capture-time row (enrichment_version IS NULL).  When
+            # POST /v1/captures inserted the row eagerly, we UPDATE it in place
+            # rather than inserting a duplicate.  Description stays as the
+            # user-typed capture-time value; due_date and related_people are
+            # populated from the LLM extraction.  enrichment_version is stamped
+            # to mark the row as enriched.
+            existing_result = await session.execute(
+                select(Task).where(
+                    Task.memory_id == memory.id,
+                    Task.enrichment_version.is_(None),
+                )
             )
+            existing_task = existing_result.scalar_one_or_none()
+
+            if existing_task is not None:
+                await session.execute(
+                    update(Task)
+                    .where(Task.id == existing_task.id)
+                    .values(
+                        due_date=forced_due_date,
+                        related_people=forced_related_people,
+                        enrichment_version=PIPELINE_VERSION,
+                    )
+                )
+            else:
+                await insert_if_not_exists(
+                    session,
+                    Task,
+                    memory_id=memory.id,
+                    enrichment_version=PIPELINE_VERSION,
+                    description=forced_description,
+                    due_date=forced_due_date,
+                    status="open",
+                    related_people=forced_related_people,
+                    confidence=1.0,
+                )
             if report is not None:
                 report.record_accepted("tasks", confidence=1.0)
             accepted += 1

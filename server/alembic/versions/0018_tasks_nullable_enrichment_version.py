@@ -1,0 +1,33 @@
+"""Make tasks.enrichment_version nullable to support capture-time task insertion
+
+Revision ID: 0018
+Revises: 0017
+Create Date: 2026-05-22
+
+When a task row is created at POST /v1/captures time (before enrichment runs),
+there is no PIPELINE_VERSION to stamp yet.  NULL is the correct sentinel for
+"inserted at capture time, not yet enriched".  The enrichment worker updates the
+column (and populates due_date / related_people) when it processes the memory.
+
+Downgrade restores NOT NULL.  A fresh DB will have no capture-time rows, so the
+constraint restore is safe against Alembic's 'alembic downgrade base' pass in CI.
+"""
+
+from collections.abc import Sequence
+
+import sqlalchemy as sa
+
+from alembic import op
+
+revision: str = "0018"
+down_revision: str | None = "0017"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
+
+
+def upgrade() -> None:
+    op.alter_column("tasks", "enrichment_version", existing_type=sa.Integer(), nullable=True)
+
+
+def downgrade() -> None:
+    op.alter_column("tasks", "enrichment_version", existing_type=sa.Integer(), nullable=False)

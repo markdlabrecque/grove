@@ -36,7 +36,9 @@ class Task(Base):
     status: Mapped[str | None] = mapped_column(Text)
     related_people: Mapped[list[str] | None] = mapped_column(ARRAY(Text()))
     confidence: Mapped[float] = mapped_column(Float, nullable=False)
-    enrichment_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    # NULL when the row was created at capture time (before enrichment runs).
+    # Stamped with PIPELINE_VERSION when the enrichment worker processes the memory.
+    enrichment_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )

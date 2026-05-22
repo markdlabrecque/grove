@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from grove.core.db import get_session
 from grove.embeddings import WHOLE_VS_CHUNKS_THRESHOLD, chunk, count_tokens, get_embedding_provider
 from grove.models.memory import Memory, MemoryChunk
+from grove.models.task import Task
 
 logger = structlog.get_logger()
 
@@ -179,6 +180,26 @@ async def create_capture(
                     )
                     for idx, (text, vec) in enumerate(zip(chunk_texts, chunk_vectors, strict=True))
                 ]
+            )
+
+        # Eagerly insert a task row when the user explicitly marked this capture
+        # as a task.  enrichment_version=None is the sentinel for "created at
+        # capture time, not yet enriched".  The enrichment worker will UPDATE this
+        # row (due_date, related_people, enrichment_version) rather than insert a
+        # new one.  This guarantees the task appears in GET /v1/tasks immediately
+        # without waiting for async enrichment.
+        if body.client_intent == "task":
+            session.add(
+                Task(
+                    id=uuid.uuid4(),
+                    memory_id=row.id,
+                    description=body.content,
+                    status="open",
+                    confidence=1.0,
+                    enrichment_version=None,
+                    due_date=None,
+                    related_people=None,
+                )
             )
 
     total_elapsed_ms = (time.monotonic() - total_start) * 1000

@@ -539,21 +539,29 @@ async def test_enrichment_refines_capture_time_task_row(
     await db_session.refresh(memory)
     assert memory.enriched is True
 
-    result = await db_session.execute(select(TaskModel).where(TaskModel.memory_id == memory.id))
+    # Capture stable scalar values before expiring the identity map.
+    memory_id = memory.id
+    memory_content = memory.content
+
+    # Expire the identity map so the next SELECT fetches fresh data from the DB,
+    # rather than returning the stale capture_time_task instance cached above.
+    db_session.expire_all()
+
+    result = await db_session.execute(select(TaskModel).where(TaskModel.memory_id == memory_id))
     tasks = result.scalars().all()
 
     # No duplicate: still exactly one row.
     assert len(tasks) == 1, f"Expected exactly 1 task row after enrichment, got {len(tasks)}"
     t = tasks[0]
     # Description stays as the original user-typed content (capture-time wins).
-    assert t.description == memory.content
+    assert t.description == memory_content
     # Enrichment populates previously-null fields.
     assert t.due_date == date(2024, 7, 1)
     assert t.related_people == ["Dr. Smith"]
     # enrichment_version is now stamped.
     assert t.enrichment_version is not None
 
-    await db_session.delete(await db_session.get(Memory, memory.id))
+    await db_session.delete(await db_session.get(Memory, memory_id))
     await db_session.commit()
 
 
