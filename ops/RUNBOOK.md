@@ -362,8 +362,6 @@ SELECT 'decisions',             COUNT(*) FROM decisions
 UNION ALL
 SELECT 'people_interactions',   COUNT(*) FROM people_interactions
 UNION ALL
-SELECT 'tasks',                 COUNT(*) FROM tasks
-UNION ALL
 SELECT 'appointments',          COUNT(*) FROM appointments
 UNION ALL
 SELECT 'query_logs',            COUNT(*) FROM query_logs
@@ -402,8 +400,6 @@ SELECT 'decisions',             COUNT(*) FROM decisions
 UNION ALL
 SELECT 'people_interactions',   COUNT(*) FROM people_interactions
 UNION ALL
-SELECT 'tasks',                 COUNT(*) FROM tasks
-UNION ALL
 SELECT 'appointments',          COUNT(*) FROM appointments
 UNION ALL
 SELECT 'query_logs',            COUNT(*) FROM query_logs
@@ -424,8 +420,6 @@ UNION ALL
 SELECT 'decisions',             COUNT(*) FROM decisions
 UNION ALL
 SELECT 'people_interactions',   COUNT(*) FROM people_interactions
-UNION ALL
-SELECT 'tasks',                 COUNT(*) FROM tasks
 UNION ALL
 SELECT 'appointments',          COUNT(*) FROM appointments
 UNION ALL
@@ -457,7 +451,7 @@ and should be recorded here when done.
 
 | Date | Environment | Who | Counts matched? | Notes |
 |------|-------------|-----|-----------------|-------|
-| 2026-05-15 | Local dev-stack dry-run | Margot (agent) | Yes — all 8 tables 0 rows (empty dev DB) | pgvector 0.8.2, image `pgvector/pgvector:pg16`, 9 tables restored incl. `alembic_version`. Production drill pending. |
+| 2026-05-15 | Local dev-stack dry-run | Margot (agent) | Yes — all 7 tables 0 rows (empty dev DB) | pgvector 0.8.2, image `pgvector/pgvector:pg16`, 8 tables restored incl. `alembic_version`. Production drill pending. |
 
 **Counts from 2026-05-15 local dry-run:**
 
@@ -473,7 +467,6 @@ Source (dev DB):
  memory_chunks       |     0
  people_interactions |     0
  query_logs          |     0
- tasks               |     0
 ```
 
 Restored (throwaway container):
@@ -488,7 +481,6 @@ Restored (throwaway container):
  memory_chunks       |     0
  people_interactions |     0
  query_logs          |     0
- tasks               |     0
 ```
 
 Diff: none (counts identical).

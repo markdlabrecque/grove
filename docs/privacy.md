@@ -29,7 +29,7 @@ Reference: PRD §7.3 (privacy posture), §6.6 (query log retention), §1.6 (back
 | **OpenAI** (`text-embedding-3-small`) | Memory content (capture); query text (retrieval) | Per capture, per query | Generate 1536d embedding for similarity search | API inputs not used for training per OpenAI API terms |
 | **OpenRouter — synthesis** (`openai/gpt-4o-mini` by default) | Query text + retrieved memory excerpts | Per query that triggers synthesis | Compose RAG answer | Varies by underlying provider; OpenRouter passes through provider terms |
 | **OpenRouter — intent router** (`openai/gpt-4o-mini` by default) | Query text only | Per query | Classify intent before specialised-table retrieval | Same as synthesis |
-| **OpenRouter — enrichment classifier** (`openai/gpt-4o-mini` by default) | Full memory content | Per memory, during hourly enrichment run | Classify into decisions / tasks / people / appointments | Same as synthesis |
+| **OpenRouter — enrichment classifier** (`openai/gpt-4o-mini` by default) | Full memory content | Per memory, during hourly enrichment run | Classify into decisions / people / appointments | Same as synthesis |
 | **Hetzner** (CX22 VPS) | Postgres database (memories, chunks, specialised tables, query logs) | Continuously (hosting) | Run the application | Indefinite while the instance exists |
 | **Backup target** (Hetzner Storage Box *or* Backblaze B2 — not yet selected for production) | Compressed `pg_dump -Fc` of the whole database | Nightly | Disaster recovery | 30 days, then deleted by host cron |
 
@@ -101,7 +101,7 @@ Query logs are included in the nightly backup and the 30-day retention applies t
 **Cascades** (via SQLAlchemy `delete-orphan` + DB-level `ON DELETE CASCADE`):
 
 - `memory_chunks` (the embedded segments)
-- `decisions`, `people_interactions`, `tasks`, `appointments` (specialised enrichment rows)
+- `decisions`, `people_interactions`, `appointments` (specialised enrichment rows)
 
 **Does NOT cascade** (intentional, per PRD §6.6):
 

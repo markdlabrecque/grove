@@ -17,8 +17,8 @@ Grove is intentionally single-tenant in V1. Every architectural decision — aut
 |---|---|---|
 | **iOS client** | SwiftUI + SwiftData, URLSession background uploads, on-device Speech transcription. Auth = a single `BEARER_TOKEN` baked into `.xcconfig` at build time. | None. One build = one user. No login flow. |
 | **API** | FastAPI 0.115, async SQLAlchemy 2.x, uvicorn. Auth = constant-time compare against the env var `BEARER_TOKEN`. | None. No user concept exists. |
-| **Database** | Postgres 16 + pgvector (HNSW, 1536-dim). 10 tables, all immutable-append. **No `user_id` column anywhere.** | None. Tenancy column missing on every table. |
-| **Enrichment** | Hourly batch worker (planned). Reads all unenriched memories globally, classifies, writes to specialized tables (`decisions`, `people_interactions`, `tasks`, `appointments`). | None. Single global queue. |
+| **Database** | Postgres 16 + pgvector (HNSW, 1536-dim). 9 tables, all immutable-append. **No `user_id` column anywhere.** | None. Tenancy column missing on every table. |
+| **Enrichment** | Hourly batch worker (planned). Reads all unenriched memories globally, classifies, writes to specialized tables (`decisions`, `people_interactions`, `appointments`). | None. Single global queue. |
 | **LLM/embeddings** | OpenAI `text-embedding-3-small` for vectors. OpenRouter (cheap Haiku-class) planned for synthesis and classification. Direct SDK calls — no gateway, no per-tenant accounting. | None. No spend caps, no metering. |
 | **Hosting** | Hetzner CX22 (2 vCPU, 4 GB RAM), Docker Compose, Apache httpd reverse proxy, Tailscale-issued LE certs. Nightly `pg_dump` to Storage Box / B2. | Adequate for one user; trivial for ~100. |
 | **Cost** | Target $5–10/mo, ceiling $20/mo. Dominated by hosting today; LLM spend negligible at personal volume. | Linear in users once usage is real. |
@@ -62,7 +62,7 @@ Not nothing. A few V1 decisions help:
 - The xcconfig `BEARER_TOKEN` goes away; the app fetches a per-user JWT and refreshes it.
 
 **Schema migration.**
-- Add `user_id UUID NOT NULL REFERENCES users(id)` to: `memories`, `memory_chunks`, `query_logs`, `enrichment_state`, `decisions`, `people_interactions`, `tasks`, `appointments`.
+- Add `user_id UUID NOT NULL REFERENCES users(id)` to: `memories`, `memory_chunks`, `query_logs`, `enrichment_state`, `decisions`, `people_interactions`, `appointments`.
 - Composite indexes: every existing index needs to be `(user_id, ...)`. This includes the HNSW vector indexes — pgvector supports filtered ANN, but filtered HNSW with low selectivity is painful, so a composite B-tree on `(user_id, created_at)` plus a per-user pre-filter via partial indexes or partitioning is the realistic shape.
 - Consider Postgres **Row-Level Security (RLS)** policies as a belt-and-braces guard. RLS at 100 users is essentially free and prevents a class of "forgot the WHERE clause" bugs that *will* happen otherwise.
 
