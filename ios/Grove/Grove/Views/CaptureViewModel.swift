@@ -1,7 +1,6 @@
 import Foundation
 import SwiftUI
 import GroveCore
-import EventKit
 
 /// View state and save logic for the capture screen.
 ///
@@ -20,6 +19,10 @@ import EventKit
 ///   4. Fire a background `Task` calling `uploadQueue.tryDrain()` — attempts to
 ///      flush the queue right now. If the device is offline the row stays in the
 ///      queue and `NetworkMonitor` will drain it on reconnect.
+///
+/// Note: the `clientIntent` field on `CapturePayload` / `CaptureRequestBody` is
+/// retained as a server contract field but is no longer set by the capture UI
+/// (#482). It will be removed in a later server-side cleanup ticket (#487).
 ///
 /// If `enqueue` itself fails (e.g. disk full) the error is surfaced to the user
 /// so they know the capture was NOT saved.
@@ -46,7 +49,6 @@ final class CaptureViewModel {
   // MARK: - Dependencies
 
   private let uploadQueue: UploadQueue
-  private let eventKitProvider: (any EventKitProviding)?
 
   // MARK: - Init
 
@@ -55,14 +57,8 @@ final class CaptureViewModel {
   /// - Parameter uploadQueue: The shared `UploadQueue` instance. Defaults to
   ///   `GroveApp.uploadQueue` for production use. Tests inject a stub queue
   ///   backed by an in-memory `ModelContainer`.
-  /// - Parameter eventKitProvider: Mockable EventKit boundary for tests.
-  ///   Defaults to `LiveEventKitProvider` in production.
-  init(
-    uploadQueue: UploadQueue = GroveApp.uploadQueue,
-    eventKitProvider: (any EventKitProviding)? = nil
-  ) {
+  init(uploadQueue: UploadQueue = GroveApp.uploadQueue) {
     self.uploadQueue = uploadQueue
-    self.eventKitProvider = eventKitProvider ?? LiveEventKitProvider()
   }
 
   // MARK: - Inputs
@@ -72,14 +68,6 @@ final class CaptureViewModel {
       scheduleLanguageDetection()
     }
   }
-
-  /// When `true` the capture will be tagged with `client_intent: "task"` and
-  /// an Apple Reminder will be created at save time.
-  var trackAsTask: Bool = false
-
-  /// The user-selected due date for the task reminder.
-  /// Shown only when `trackAsTask` is `true`.
-  var taskDueDate: Date? = nil
 
   // MARK: - Derived state
 
@@ -125,11 +113,6 @@ final class CaptureViewModel {
 
   var showErrorAlert: Bool = false
   var errorMessage: String = ""
-
-  /// `true` when the user had `trackAsTask` on at save time but EventKit
-  /// permission was denied. The UI shows a non-fatal banner explaining
-  /// that the reminder was not created and offering a link to Settings.
-  var showReminderPermissionDeniedBanner: Bool = false
 
   // MARK: - Test seam
 
@@ -188,18 +171,13 @@ final class CaptureViewModel {
     guard let trimmed = CaptureGuard.trimmedContent(content) else { return }
 
     saveStatus = .loading
-    showReminderPermissionDeniedBanner = false
-
-    // Determine the client intent based on the toggle.
-    let intent: String? = trackAsTask ? "task" : nil
 
     let payload = CaptureViewModel.buildPayload(
       content: trimmed,
       sourceModality: "text",
       applyFillerCleanup: applyFillerCleanup,
       detectedLanguage: detectedLanguage,
-      languageHint: languageHint,
-      clientIntent: intent
+      languageHint: languageHint
     )
 
     // Encode the payload to the same bytes the queue will POST, so there is a
@@ -231,41 +209,9 @@ final class CaptureViewModel {
     // Notify test observers of the enqueued clientID (test seam).
     _enqueueObserver?(payload.clientID.uuidString)
 
-    // Step 1b — if "Track as task" is on, create an Apple Reminder immediately
-    // after the capture is safely persisted. Permission is requested here (on
-    // Save tap), not earlier on toggle flip, per the ticket spec.
-    //
-    // If permission is denied: capture is already safe — we show a non-fatal
-    // banner and continue. The upload will still include client_intent: "task"
-    // so the server-side enrichment guarantee still holds.
-    if trackAsTask, let ekProvider = eventKitProvider {
-      let granted = await ekProvider.requestAccess()
-      if granted {
-        do {
-          let dueDateComponents = taskDueDate.map { date -> DateComponents in
-            Calendar.current.dateComponents([.year, .month, .day], from: date)
-          }
-          // Create the reminder fire-and-forget — the identifier is discarded.
-          // Grove no longer tracks EKReminder identifiers after creation (spec-02).
-          _ = try await ekProvider.createReminder(
-            title: trimmed,
-            dueDateComponents: dueDateComponents
-          )
-        } catch {
-          // Reminder save failed — not fatal. Capture is already safe.
-          print("[track-as-task] createReminder failed: \(error)")
-        }
-      } else {
-        // Permission denied — show the non-fatal banner.
-        showReminderPermissionDeniedBanner = true
-      }
-    }
-
     // Step 2 — report success to the UI. The capture is now safe on disk.
     saveStatus = .success
     content = ""
-    trackAsTask = false
-    taskDueDate = nil
 
     // Step 3 — fire-and-forget drain. Attempt an immediate upload; if the
     // network is unavailable the row stays in the queue and NetworkMonitor
@@ -312,8 +258,8 @@ final class CaptureViewModel {
   ///   - applyFillerCleanup: When `true`, run `FillerWordCleaner.clean(_:)`.
   ///   - detectedLanguage: BCP-47 code from `LanguageDetector`, or `nil`.
   ///   - languageHint: User-set language preference from Settings, or `nil`.
-  ///   - clientIntent: Optional intent signal. V1 valid values: `"task"` or nil.
-  ///     When nil the key is omitted from the encoded JSON entirely.
+  ///   - clientIntent: Optional intent signal. When nil the key is omitted
+  ///     from the encoded JSON entirely.
   /// - Returns: A `CapturePayload` ready to encode.
   nonisolated static func buildPayload(
     content: String,
