@@ -186,7 +186,7 @@ Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_in
 
 ## Phase 4 — Enrichment
 
-**Goal:** Hourly batch enrichment classifying memories into the four specialized tables, versioned and resumable.
+**Goal:** Hourly batch enrichment classifying memories into the three specialized tables, versioned and resumable.
 
 ### Tasks
 
