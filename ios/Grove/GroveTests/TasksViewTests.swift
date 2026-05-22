@@ -323,16 +323,6 @@ struct TasksViewTests {
     // refresh call before the error is thrown.
     var deleteContinuation: CheckedContinuation<Void, Error>? = nil
 
-    let vm = TasksViewModel(
-      fetch: { [task1] },   // refresh returns only task1 (task2 already gone server-side)
-      delete: { _ in
-        // Suspend until the test resumes us, then throw to trigger the restore path.
-        try await withCheckedThrowingContinuation { cont in
-          deleteContinuation = cont
-        }
-      }
-    )
-
     // Step 1: initial load → [task1, task2] (we prime the vm manually here
     // because the fetch closure always returns [task1]; seed via a
     // separate fetch stub for the first call only).
