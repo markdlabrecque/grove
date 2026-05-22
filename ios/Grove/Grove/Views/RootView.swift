@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Application root: a four-tab shell containing the Save (capture), Ask
-/// (retrieval), Tasks, and Settings tabs.
+/// Application root: a three-tab shell containing the Save (capture), Ask
+/// (retrieval), and Settings tabs.
 ///
 /// The Settings tab was added in #184.  It hosts `SettingsView`, which
 /// provides server URL / bearer token configuration (Keychain-persisted),
@@ -76,8 +76,8 @@ struct RootView: View {
 
   // MARK: - Tab selection
 
-  /// Drives programmatic tab switching.  The Settings tab is index 3.
-  /// Tab indices: 0 = Save, 1 = Ask, 2 = Tasks, 3 = Settings.
+  /// Drives programmatic tab switching.  The Settings tab is index 2.
+  /// Tab indices: 0 = Save, 1 = Ask, 2 = Settings.
   @State private var selectedTab: Int = 0
 
   // MARK: - Banner state
@@ -133,7 +133,7 @@ struct RootView: View {
       // Auth failure is more urgent than an unfinished dictation.
       if showAuthBanner {
         AuthRequiredBanner {
-          selectedTab = 3  // Settings tab index (renumbered from 2 in #438).
+          selectedTab = 2  // Settings tab index (renumbered from 3 in #483).
         }
         .transition(.move(edge: .top).combined(with: .opacity))
         .animation(.easeInOut(duration: 0.25), value: showAuthBanner)
@@ -176,17 +176,11 @@ struct RootView: View {
           }
           .tag(1)
 
-        TasksView()
-          .tabItem {
-            Label("Tasks", systemImage: "checklist")
-          }
-          .tag(2)
-
         SettingsView()
           .tabItem {
             Label("Settings", systemImage: "gearshape.fill")
           }
-          .tag(3)
+          .tag(2)
       }
       .tint(.forest500)
     }

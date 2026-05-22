@@ -68,10 +68,6 @@
 		A100002B /* EventKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A200002B /* EventKit.framework */; };
 		B100001F /* TrackAsTaskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B200001F /* TrackAsTaskTests.swift */; };
 		B1000020 /* EmptyCaptureRefusalTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000020 /* EmptyCaptureRefusalTests.swift */; };
-		B1000022 /* TasksViewTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2000022 /* TasksViewTests.swift */; };
-		A100002F /* TasksViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200002F /* TasksViewModel.swift */; };
-		A1000030 /* TasksView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000030 /* TasksView.swift */; };
-		A1000032 /* TaskRowViewV2.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000032 /* TaskRowViewV2.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -138,10 +134,6 @@
 		A200002B /* EventKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = EventKit.framework; path = System/Library/Frameworks/EventKit.framework; sourceTree = SDKROOT; };
 		B200001F /* TrackAsTaskTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrackAsTaskTests.swift; sourceTree = "<group>"; };
 		B2000020 /* EmptyCaptureRefusalTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyCaptureRefusalTests.swift; sourceTree = "<group>"; };
-		B2000022 /* TasksViewTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksViewTests.swift; sourceTree = "<group>"; };
-		A200002F /* TasksViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksViewModel.swift; sourceTree = "<group>"; };
-		A2000030 /* TasksView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TasksView.swift; sourceTree = "<group>"; };
-		A2000032 /* TaskRowViewV2.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TaskRowViewV2.swift; sourceTree = "<group>"; };
 		B2000017 /* KeychainStoreStub.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainStoreStub.swift; sourceTree = "<group>"; };
 		B2000018 /* SettingsViewModelKeychainFailureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewModelKeychainFailureTests.swift; sourceTree = "<group>"; };
 		B2000019 /* StubNetworkFixtures.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StubNetworkFixtures.swift; sourceTree = "<group>"; };
@@ -271,9 +263,6 @@
 				A200001B /* UploadQueueDebugView.swift */,
 				A200001F /* NavWordmarkView.swift */,
 				A2000025 /* DictationResumeBanner.swift */,
-				A2000032 /* TaskRowViewV2.swift */,
-				A2000030 /* TasksView.swift */,
-				A200002F /* TasksViewModel.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -330,7 +319,6 @@
 				B200001D /* RootViewTests.swift */,
 				B200001F /* TrackAsTaskTests.swift */,
 				B2000020 /* EmptyCaptureRefusalTests.swift */,
-				B2000022 /* TasksViewTests.swift */,
 				B2000017 /* KeychainStoreStub.swift */,
 				B2000018 /* SettingsViewModelKeychainFailureTests.swift */,
 				B3000002 /* Fixtures */,
@@ -534,9 +522,6 @@
 				A1000026 /* CaptureViaDictationIntent.swift in Sources */,
 				A1000027 /* EventKitProviding.swift in Sources */,
 				A1000028 /* LiveEventKitProvider.swift in Sources */,
-				A100002F /* TasksViewModel.swift in Sources */,
-				A1000030 /* TasksView.swift in Sources */,
-				A1000032 /* TaskRowViewV2.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -567,7 +552,6 @@
 				B100001D /* RootViewTests.swift in Sources */,
 				B100001F /* TrackAsTaskTests.swift in Sources */,
 				B1000020 /* EmptyCaptureRefusalTests.swift in Sources */,
-				B1000022 /* TasksViewTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
