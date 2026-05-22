@@ -14,7 +14,7 @@ This plan breaks the V1 PRD into the five phases sketched in §12 of the PRD, wi
 | LLM routing | **OpenRouter gateway** for synthesis and classification |
 | Embedding provider | **OpenAI `text-embedding-3-small` direct** (1536-dim, cheap, no benefit from routing) |
 | Chunking strategy | **Paragraph-based, ~400-token cap, ~50-token overlap** |
-| V1 specialized tables | `decisions`, `people_interactions`, `tasks`, `appointments` |
+| V1 specialized tables | `decisions`, `people_interactions`, `appointments` |
 | Specialized-table retrieval | **Hybrid**: vector search on `memories` + intent-driven joins to specialized tables |
 
 ---
@@ -65,8 +65,7 @@ Rationale for monorepo: single-user project, server + iOS evolve together, promp
    - `0004_enrichment_state.py`
    - `0005_decisions.py`
    - `0006_people_interactions.py`
-   - `0007_tasks.py` *(see §Schema additions)*
-   - `0008_appointments.py` *(see §Schema additions)*
+   - `0007_appointments.py` *(see §Schema additions)*
    - HNSW index on `memories.embedding` and `memory_chunks.embedding` (pgvector)
 5. **Auth**: bearer-token middleware reading a single token from env/secret; constant-time compare; 401 on miss.
 6. **Backups**: `pg_dump` nightly to a Hetzner Storage Box (or Backblaze B2), 30-day retention, restore drill documented.
@@ -78,18 +77,6 @@ Rationale for monorepo: single-user project, server + iOS evolve together, promp
 Following the same shape as `decisions` and `people_interactions`:
 
 ```sql
-tasks (
-  id UUID PRIMARY KEY,
-  memory_id UUID NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
-  description TEXT NOT NULL,
-  due_date DATE,                     -- nullable; LLM extracts when present
-  status TEXT,                       -- 'open' (V1 default; lifecycle deferred)
-  related_people TEXT[],
-  confidence FLOAT NOT NULL,
-  enrichment_version INTEGER NOT NULL,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-)
-
 appointments (
   id UUID PRIMARY KEY,
   memory_id UUID NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
@@ -104,7 +91,7 @@ appointments (
 )
 ```
 
-Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_interactions`; `(due_date)` on `tasks`; `(starts_at)` on `appointments`.
+Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_interactions`; `(starts_at)` on `appointments`.
 
 ### Exit criteria
 
@@ -161,7 +148,7 @@ Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_in
 4. **Vector search**:
    - Top-K (default 12) cosine search over `memory_chunks.embedding` UNION `memories.embedding` (where chunks NULL), de-duplicated by `memory_id`, keeping best score per memory.
 5. **Intent router** (hybrid retrieval, kept deliberately small for V1):
-   - A tiny LLM call (cheap model via OpenRouter) classifies the query into zero or more of: `decisions`, `people_interactions`, `tasks`, `appointments`, or `general`.
+   - A tiny LLM call (cheap model via OpenRouter) classifies the query into zero or more of: `decisions`, `people_interactions`, `appointments`, or `general`.
    - For each detected intent, run a structured query against the matching specialized table (e.g., `WHERE person_name ILIKE …` for people-flavored queries; `WHERE starts_at >= now()` for "what's coming up"). Specialized matches contribute their parent `memory_id` to the candidate set with a small score boost.
    - `tables_searched` on the query log records exactly which tables participated — this is the signal needed to evaluate whether hybrid is earning its weight (PRD §11).
 6. **RAG synthesis**: compose query + retrieved memory excerpts (full text for short memories, matched chunk(s) + neighbours for long ones) into a system+user prompt; call OpenRouter; require inline `[#memory_id]`-style references the iOS UI can hyperlink. Default model is configurable; ship pointing at a cheap Haiku-class or GPT-4o-mini-class model.

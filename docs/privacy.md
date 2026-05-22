@@ -101,7 +101,7 @@ Query logs are included in the nightly backup and the 30-day retention applies t
 **Cascades** (via SQLAlchemy `delete-orphan` + DB-level `ON DELETE CASCADE`):
 
 - `memory_chunks` (the embedded segments)
-- `decisions`, `people_interactions`, `tasks`, `appointments` (specialised enrichment rows)
+- `decisions`, `people_interactions`, `appointments` (specialised enrichment rows)
 
 **Does NOT cascade** (intentional, per PRD §6.6):
 
