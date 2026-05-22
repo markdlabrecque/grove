@@ -48,7 +48,6 @@ _VALID_CLASSIFICATION_JSON = json.dumps(
                 "confidence": 0.92,
             }
         ],
-        "tasks": [],
         "appointments": [],
     }
 )
@@ -251,9 +250,7 @@ class TestHappyPath:
         bundle = _make_prompt_bundle()
         mem = _make_memory("Today was fine.", token_count=5)
 
-        empty_json = json.dumps(
-            {"decisions": [], "people_interactions": [], "tasks": [], "appointments": []}
-        )
+        empty_json = json.dumps({"decisions": [], "people_interactions": [], "appointments": []})
         respx.post(_OPENROUTER_URL).mock(
             return_value=httpx.Response(
                 200,
@@ -302,7 +299,6 @@ class TestErrorCases:
                 "people_interactions": [
                     {"person_name": "Alice", "confidence": 99.9}  # > 1.0 is invalid
                 ],
-                "tasks": [],
                 "appointments": [],
             }
         )

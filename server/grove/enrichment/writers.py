@@ -47,9 +47,8 @@ async def insert_if_not_exists(
     Args:
         session: An async SQLAlchemy session. The session is committed on success.
         model_class: The ORM model class (a subclass of grove.models.base.Base —
-            Decision, Task, PeopleInteraction,
-            Appointment, or any future specialised table that carries the
-            uq_{table}_memory_id_enrichment_version constraint).
+            Decision, PeopleInteraction, Appointment, or any future specialised
+            table that carries the uq_{table}_memory_id_enrichment_version constraint).
         memory_id: FK referencing memories.id.
         enrichment_version: Classifier pipeline version (PIPELINE_VERSION in run.py).
         **kwargs: All remaining column values for the row.

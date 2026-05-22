@@ -45,14 +45,6 @@ class PeopleInteraction(BaseModel):
     confidence: _Confidence
 
 
-class Task(BaseModel):
-    description: str
-    due_date: datetime.date | None = None
-    status: str | None = None
-    related_people: list[str] | None = None
-    confidence: _Confidence
-
-
 class Appointment(BaseModel):
     title: str | None = None
     starts_at: datetime.datetime | None = None
@@ -76,7 +68,6 @@ class Classification(BaseModel):
 
     decisions: list[Decision] = Field(default_factory=list)
     people_interactions: list[PeopleInteraction] = Field(default_factory=list)
-    tasks: list[Task] = Field(default_factory=list)
     appointments: list[Appointment] = Field(default_factory=list)
 
 

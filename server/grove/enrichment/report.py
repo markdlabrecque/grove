@@ -21,7 +21,7 @@ Usage
 from __future__ import annotations
 
 _ERROR_SAMPLE_CAP = 5
-_VALID_TYPES = frozenset({"decisions", "people_interactions", "tasks", "appointments"})
+_VALID_TYPES = frozenset({"decisions", "people_interactions", "appointments"})
 
 
 class RunReport:
@@ -34,7 +34,6 @@ class RunReport:
         self._counts: dict[str, int] = {
             "decisions": 0,
             "people_interactions": 0,
-            "tasks": 0,
             "appointments": 0,
         }
         self._dropped: int = 0

@@ -2,8 +2,8 @@ enrichment_version: 1
 
 system_prompt: |
   You are an extraction assistant. Given a memory text, identify and extract
-  structured information into four categories: decisions, people_interactions,
-  tasks, and appointments. Return a JSON object with four keys — one per
+  structured information into three categories: decisions, people_interactions,
+  and appointments. Return a JSON object with three keys — one per
   category — each containing a list of extracted items. Return empty lists
   for categories with nothing to extract.
 
@@ -146,65 +146,6 @@ types:
         items: string
         nullable: true
         description: Action items arising from the interaction.
-      confidence:
-        type: number
-        minimum: 0.0
-        maximum: 1.0
-        description: Extraction confidence.
-
-  tasks:
-    definition: |
-      A task is an explicit commitment to do something — a to-do item, action
-      item, or follow-up. The memory must contain a clear intention to act,
-      not just an observation or wish. Vague aspirations ("I should exercise
-      more") are borderline; concrete commitments ("Book the dentist by
-      Thursday") qualify.
-    examples:
-      - input: |
-          Need to send Alice the OAuth2 RFC draft before our meeting next
-          Tuesday.
-        output:
-          description: "Send Alice the OAuth2 RFC draft"
-          due_date: null
-          status: "open"
-          related_people: ["Alice"]
-          confidence: 0.96
-      - input: |
-          Book the venue for the company offsite — Theo wants it done by
-          June 30.
-        output:
-          description: "Book venue for company offsite"
-          due_date: "2026-06-30"
-          status: "open"
-          related_people: ["Theo"]
-          confidence: 0.93
-      - input: |
-          Renew passport before the Singapore trip in September.
-        output:
-          description: "Renew passport before Singapore trip"
-          due_date: null
-          status: "open"
-          related_people: []
-          confidence: 0.89
-    fields:
-      description:
-        type: string
-        nullable: false
-        description: What needs to be done.
-      due_date:
-        type: string
-        format: date
-        nullable: true
-        description: "ISO 8601 date (YYYY-MM-DD) when the task is due."
-      status:
-        type: string
-        nullable: true
-        description: "Task status. V1 default is 'open'."
-      related_people:
-        type: array
-        items: string
-        nullable: true
-        description: People connected to this task.
       confidence:
         type: number
         minimum: 0.0

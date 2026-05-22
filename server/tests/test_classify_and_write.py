@@ -55,7 +55,6 @@ from grove.enrichment.schemas import (
     Classification,
     Decision,
     PeopleInteraction,
-    Task,
 )
 from grove.models import (
     Appointment as AppointmentModel,
@@ -68,9 +67,6 @@ from grove.models import (
 )
 from grove.models import (
     PeopleInteraction as PeopleInteractionModel,
-)
-from grove.models import (
-    Task as TaskModel,
 )
 
 _engine = create_async_engine(settings.database_url, poolclass=NullPool)
@@ -146,22 +142,6 @@ def _make_mixed_classification() -> Classification:
                 topics=None,
                 next_steps=None,
                 confidence=0.30,  # < 0.7 — dropped
-            ),
-        ],
-        tasks=[
-            Task(
-                description="Follow up on budget",
-                due_date=None,
-                status="open",
-                related_people=["Alice"],
-                confidence=0.75,  # >= 0.7 — accepted
-            ),
-            Task(
-                description="Maybe do something",
-                due_date=None,
-                status=None,
-                related_people=None,
-                confidence=0.40,  # < 0.7 — dropped
             ),
         ],
         appointments=[
@@ -281,15 +261,6 @@ async def test_classify_and_write_happy_path(db_session: AsyncSession) -> None:
         assert interactions[0].confidence == 0.90
         assert interactions[0].enrichment_version == PIPELINE_VERSION
 
-        # --- Accepted Task row ---
-        result = await db_session.execute(select(TaskModel).where(TaskModel.memory_id == memory.id))
-        tasks = result.scalars().all()
-        assert len(tasks) == 1, f"Expected 1 Task row, got {len(tasks)}"
-        assert tasks[0].description == "Follow up on budget"
-        assert tasks[0].status == "open"
-        assert tasks[0].confidence == 0.75
-        assert tasks[0].enrichment_version == PIPELINE_VERSION
-
         # --- Accepted Appointment row ---
         result = await db_session.execute(
             select(AppointmentModel).where(AppointmentModel.memory_id == memory.id)
@@ -336,7 +307,7 @@ async def test_classify_and_write_classification_error(db_session: AsyncSession)
         assert memory.enrichment_error == error_msg
 
         # No specialised rows written
-        for model_class in (DecisionModel, PeopleInteractionModel, TaskModel, AppointmentModel):
+        for model_class in (DecisionModel, PeopleInteractionModel, AppointmentModel):
             result = await db_session.execute(
                 select(model_class).where(model_class.memory_id == memory.id)
             )
@@ -378,7 +349,7 @@ async def test_classify_and_write_skipped_reason(db_session: AsyncSession) -> No
         assert memory.enrichment_error == SkippedReason.TOO_LARGE
 
         # No specialised rows written
-        for model_class in (DecisionModel, PeopleInteractionModel, TaskModel, AppointmentModel):
+        for model_class in (DecisionModel, PeopleInteractionModel, AppointmentModel):
             result = await db_session.execute(
                 select(model_class).where(model_class.memory_id == memory.id)
             )
@@ -492,7 +463,7 @@ async def test_classify_and_write_atomicity_on_writer_failure(db_session: AsyncS
         )
 
         # No specialised rows — full rollback.
-        for model_class in (DecisionModel, PeopleInteractionModel, TaskModel, AppointmentModel):
+        for model_class in (DecisionModel, PeopleInteractionModel, AppointmentModel):
             result = await db_session.execute(
                 select(model_class).where(model_class.memory_id == memory.id)
             )
@@ -604,15 +575,6 @@ async def test_classify_and_write_version_stamping(db_session: AsyncSession) -> 
                 confidence=0.88,
             )
         ],
-        tasks=[
-            Task(
-                description="Version check task",
-                due_date=None,
-                status="open",
-                related_people=None,
-                confidence=0.72,
-            )
-        ],
         appointments=[],
     )
     mock_result = ClassificationResult(
@@ -647,13 +609,6 @@ async def test_classify_and_write_version_stamping(db_session: AsyncSession) -> 
         assert interactions[0].enrichment_version == PIPELINE_VERSION, (
             f"PeopleInteraction enrichment_version={interactions[0].enrichment_version!r}, "
             f"expected {PIPELINE_VERSION}"
-        )
-
-        result = await db_session.execute(select(TaskModel).where(TaskModel.memory_id == memory.id))
-        tasks = result.scalars().all()
-        assert len(tasks) == 1
-        assert tasks[0].enrichment_version == PIPELINE_VERSION, (
-            f"Task enrichment_version={tasks[0].enrichment_version!r}, expected {PIPELINE_VERSION}"
         )
     finally:
         await _delete_memory(db_session, memory)

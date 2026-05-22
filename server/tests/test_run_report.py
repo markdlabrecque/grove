@@ -129,8 +129,8 @@ async def test_run_report_happy_path(db_session: AsyncSession) -> None:
     """
     memories = await _seed_memories(db_session, 3)
 
-    # Each call returns: 1 decision (conf 0.8) + 1 task (conf 0.9)
-    # Total accepted: 3 decisions + 3 tasks = 6 writes
+    # Each call returns: 1 decision (conf 0.8) + 1 appointment (conf 0.9)
+    # Total accepted: 3 decisions + 3 appointments = 6 writes
     # Average confidence = (0.8 + 0.9 + 0.8 + 0.9 + 0.8 + 0.9) / 6 = 5.1/6 = 0.85
     # Per call: 10 input tokens, 5 output tokens, cost 0.001 USD
     # Totals: 30 input, 15 output, 0.003 USD
@@ -142,7 +142,7 @@ async def test_run_report_happy_path(db_session: AsyncSession) -> None:
         from grove.enrichment.run import PIPELINE_VERSION
 
         report.record_accepted("decisions", confidence=0.8)
-        report.record_accepted("tasks", confidence=0.9)
+        report.record_accepted("appointments", confidence=0.9)
         report.record_llm_usage(input_tokens=10, output_tokens=5, cost_usd=0.001)
         memory.enriched = True
         memory.enriched_at = _dt.now(tz=UTC)
@@ -157,9 +157,9 @@ async def test_run_report_happy_path(db_session: AsyncSession) -> None:
         report_data = json.loads(state.notes) if isinstance(state.notes, str) else state.notes
 
         assert report_data["counts_by_type"]["decisions"] == 3
-        assert report_data["counts_by_type"]["tasks"] == 3
+        assert report_data["counts_by_type"]["appointments"] == 3
         assert report_data["counts_by_type"]["people_interactions"] == 0
-        assert report_data["counts_by_type"]["appointments"] == 0
+        assert "tasks" not in report_data["counts_by_type"]
         assert report_data["error_count"] == 0
         assert report_data["error_samples"] == []
         assert report_data["total_input_tokens"] == 30
@@ -217,8 +217,8 @@ async def test_run_report_error_path(db_session: AsyncSession) -> None:
         # 2 successful memories, each with 1 people_interaction
         assert report_data["counts_by_type"]["people_interactions"] == 2
         assert report_data["counts_by_type"]["decisions"] == 0
-        assert report_data["counts_by_type"]["tasks"] == 0
         assert report_data["counts_by_type"]["appointments"] == 0
+        assert "tasks" not in report_data["counts_by_type"]
     finally:
         await _cleanup(db_session, memories)
 
@@ -286,8 +286,8 @@ async def test_run_report_empty_run(db_session: AsyncSession) -> None:
 
     assert report_data["counts_by_type"]["decisions"] == 0
     assert report_data["counts_by_type"]["people_interactions"] == 0
-    assert report_data["counts_by_type"]["tasks"] == 0
     assert report_data["counts_by_type"]["appointments"] == 0
+    assert "tasks" not in report_data["counts_by_type"]
     assert report_data["dropped_low_confidence"] == 0
     assert report_data["error_count"] == 0
     assert report_data["error_samples"] == []
@@ -400,7 +400,7 @@ async def test_run_report_structured_log_emitted(db_session: AsyncSession) -> No
 
         from grove.enrichment.run import PIPELINE_VERSION
 
-        report.record_accepted("tasks", confidence=0.8)
+        report.record_accepted("decisions", confidence=0.8)
         report.record_llm_usage(input_tokens=5, output_tokens=3, cost_usd=0.001)
         memory.enriched = True
         memory.enriched_at = _dt.now(tz=UTC)
@@ -425,7 +425,8 @@ async def test_run_report_structured_log_emitted(db_session: AsyncSession) -> No
         assert len(report_events) == 1, f"Expected 1 run_report log event, got: {cap}"
 
         evt = report_events[0]
-        assert evt["counts_by_type"]["tasks"] == 1
+        assert evt["counts_by_type"]["decisions"] == 1
+        assert "tasks" not in evt["counts_by_type"]
         assert evt["error_count"] == 0
         assert evt["total_input_tokens"] == 5
         assert evt["total_output_tokens"] == 3

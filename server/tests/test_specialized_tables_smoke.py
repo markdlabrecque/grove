@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from grove.core.config import settings
-from grove.models import Appointment, Decision, Memory, PeopleInteraction, Task
+from grove.models import Appointment, Decision, Memory, PeopleInteraction
 
 
 @pytest.fixture
@@ -102,35 +102,6 @@ async def test_people_interaction_create_and_cascade_delete(
     result = await db_session.execute(
         select(PeopleInteraction).where(PeopleInteraction.id == interaction_id)
     )
-    assert result.scalar_one_or_none() is None
-
-
-async def test_task_create_and_cascade_delete(db_session: AsyncSession, memory: Memory) -> None:
-    task = Task(
-        id=uuid.uuid4(),
-        memory_id=memory.id,
-        description="Send Alice the OAuth2 RFC draft",
-        due_date=None,
-        status="open",
-        related_people=["Alice"],
-        confidence=0.95,
-        enrichment_version=1,
-    )
-    db_session.add(task)
-    await db_session.commit()
-
-    fetched = await db_session.get(Task, task.id)
-    assert fetched is not None
-    assert fetched.description == "Send Alice the OAuth2 RFC draft"
-    assert fetched.status == "open"
-    assert fetched.related_people == ["Alice"]
-    assert fetched.confidence == pytest.approx(0.95)
-
-    task_id = task.id
-    await db_session.delete(memory)
-    await db_session.commit()
-
-    result = await db_session.execute(select(Task).where(Task.id == task_id))
     assert result.scalar_one_or_none() is None
 
 
