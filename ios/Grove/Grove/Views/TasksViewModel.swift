@@ -28,6 +28,13 @@ import os
 /// calls the delete closure, and restores the row on failure. On failure,
 /// `deleteError` is set so the view can surface a banner or per-row indicator.
 ///
+/// ## Optimistic-delete / refresh race guard (#458)
+///
+/// Every call to `load()` increments `loadGeneration`. On the error path of
+/// `deleteTask(_:)`, the restore is skipped when `loadGeneration` has advanced
+/// past the value captured at the start of the delete — meaning a fresher
+/// `load()` has already landed and the stale snapshot must not overwrite it.
+///
 /// ## Dependency injection
 ///
 /// `fetch` and `delete` closures are injected so unit tests can stub the
@@ -56,6 +63,11 @@ final class TasksViewModel {
   /// Non-nil when a swipe-to-delete call threw. Cleared on the next
   /// successful delete or on the next `load()` call.
   private(set) var deleteError: Error? = nil
+
+  /// Monotonically increasing counter bumped at the START of every `load()`
+  /// call. Used by `deleteTask(_:)` to detect whether a fresher load has
+  /// completed between the optimistic removal and the error-path restore.
+  private var loadGeneration: UInt64 = 0
 
   // MARK: - Dependencies
 
@@ -97,6 +109,7 @@ final class TasksViewModel {
   /// Safe to call on `.onAppear` and on pull-to-refresh. Transitions through
   /// `.loading` before settling on `.empty`, `.loaded`, or `.error`.
   func load() async {
+    loadGeneration &+= 1
     loadState = .loading
     deleteError = nil
 
@@ -114,10 +127,15 @@ final class TasksViewModel {
   /// Optimistically remove `task` from the list, call the delete closure,
   /// and restore the row on failure.
   ///
-  /// On failure, `deleteError` is set with the thrown error.
+  /// On failure, `deleteError` is set with the thrown error. The restore is
+  /// skipped if `loadGeneration` has advanced (i.e. a `load()` call landed
+  /// after the optimistic removal), preventing the stale snapshot from
+  /// overwriting a fresher list.
   func deleteTask(_ task: TaskDTO) async {
-    // Capture the current list so we can restore it on failure.
+    // Capture the current list and the generation so we can detect a
+    // concurrent load() that completes between here and the catch block.
     guard case .loaded(let current) = loadState else { return }
+    let generationAtDelete = loadGeneration
 
     // Optimistic removal.
     let updated = current.filter { $0.id != task.id }
@@ -128,7 +146,13 @@ final class TasksViewModel {
       try await delete(task.id)
     } catch {
       logger.error("deleteTask failed for id=\(task.id.uuidString.lowercased(), privacy: .public): \(error, privacy: .public)")
-      // Restore the original list.
+      // Only restore the pre-delete snapshot when no intervening load() has
+      // produced a fresher list. If loadGeneration has advanced, the fresh
+      // list is already in place and must not be overwritten.
+      guard loadGeneration == generationAtDelete else {
+        deleteError = error
+        return
+      }
       loadState = .loaded(current)
       deleteError = error
     }
