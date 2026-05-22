@@ -19,7 +19,7 @@ iPhone (on tailnet)
    ▼
 $TAILSCALE_HOSTNAME  (Tailscale MagicDNS → CGNAT IP, only routable on the tailnet)
    │
-   ▼  port 443 published by docker-compose
+   ▼  port ${GROVE_HTTPS_PORT:-8443} published by docker-compose
 ┌─────────────────┐   ┌────────────┐   ┌────────────────────┐
 │ apache (httpd)  │ → │ app (api)  │ → │ postgres (pgvector)│
 │  TLS terminates │   │  uvicorn   │   │                    │
@@ -32,6 +32,20 @@ managed Let's Encrypt flow and reverse-proxies to the FastAPI app on the
 internal compose network. The Apache config is rendered from
 `ops/apache/*.template` files at container start, substituting
 `@@TAILSCALE_HOSTNAME@@` with the value from `.env`.
+
+### Why a non-default port?
+
+The Apache container's host port defaults to **8443** rather than 443.
+DDEV's reverse-proxy container claims port 443 on dev machines that run any
+DDEV project; binding 443 there causes a `port is already allocated` error
+at `docker compose up`. Port 8443 is a conventional alternative for
+developer HTTPS that avoids this conflict.
+
+To override — for example on a dedicated production host with no DDEV — set
+`GROVE_HTTPS_PORT=443` in your `.env` before `make up`. If you update this
+value on a running stack, run `make down && make up` so Docker releases and
+re-binds the port. Make sure to also update the iOS app's base URL
+xcconfig to match.
 
 ## One-time setup
 
@@ -62,6 +76,8 @@ Fill in `.env`:
 - `BEARER_TOKEN` — `openssl rand -hex 32`
 - `POSTGRES_PASSWORD` — `openssl rand -hex 24`
 - `TAILSCALE_HOSTNAME` — your laptop's MagicDNS name from step 1
+- `GROVE_HTTPS_PORT` — defaults to `8443`; change to `443` only on a
+  dedicated host with no DDEV (see "Why a non-default port?" above)
 - `GH_TOKEN` — fine-grained PAT for the project's GitHub identity (see
   next section)
 - `OPENAI_API_KEY` / `OPENROUTER_API_KEY` can stay blank until Phase 2/3
@@ -126,8 +142,9 @@ make health
 ```
 
 `make health` curls the public health endpoints over HTTPS using the hostname
-from `.env`. From the iPhone (on the tailnet), browsing to
-`https://$TAILSCALE_HOSTNAME/healthz` should return JSON, no cert warning.
+and port from `.env`. From the iPhone (on the tailnet), browsing to
+`https://$TAILSCALE_HOSTNAME:${GROVE_HTTPS_PORT:-8443}/healthz` should return
+JSON, no cert warning.
 
 ## CI (GitHub Actions)
 
