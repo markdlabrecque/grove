@@ -7,5 +7,5 @@
 // escaped as $(). The BASE_URL example below uses $() to produce the
 // double-slash in https://.
 
-BASE_URL = https:/$()/<your-tailnet-host>.ts.net
+BASE_URL = https:/$()/<your-tailnet-host>.ts.net:8443
 BEARER_TOKEN = replace-me
