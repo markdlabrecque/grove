@@ -212,7 +212,7 @@ async def test_patch_task_handler_removed_returns_405_or_404() -> None:
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         response = await client.patch(
             f"/v1/tasks/{random_id}",
-            json={"eventkit_identifier": "some-id"},
+            json={"description": "updated"},
             headers=AUTH_HEADERS,
         )
 
