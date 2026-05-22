@@ -226,7 +226,7 @@ final class SettingsViewModel: ObservableObject {
     let raw = serverURLText.trimmingCharacters(in: .whitespacesAndNewlines)
 
     guard KeychainStore.isValidServerURL(raw), let url = URL(string: raw) else {
-      serverURLError = "Enter a valid URL (e.g. https://grove.example.ts.net)"
+      serverURLError = "Enter a valid URL (e.g. https://grove.example.ts.net:8443)"
       return
     }
 

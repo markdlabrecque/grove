@@ -104,7 +104,7 @@ struct SettingsView: View {
         iconColor: .forest500,
         content: {
           VStack(alignment: .leading, spacing: 4) {
-            TextField("https://grove.example.ts.net", text: $viewModel.serverURLText)
+            TextField("https://grove.example.ts.net:8443", text: $viewModel.serverURLText)
               .textInputAutocapitalization(.never)
               .autocorrectionDisabled(true)
               .keyboardType(.URL)
