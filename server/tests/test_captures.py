@@ -514,3 +514,47 @@ async def test_capture_with_task_intent_creates_task_row(
     mem = mem_result.scalar_one()
     await db_session.delete(mem)
     await db_session.commit()
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_task_intent_idempotent_second_post_does_not_duplicate_task(
+    payload: dict, db_session: AsyncSession
+) -> None:
+    """Race-winner path must not insert a second task row.
+
+    When client_intent='task' and a second POST arrives with the same client_id
+    (idempotent retry or concurrent request), the on_conflict_do_nothing path
+    returns the existing memory row without inserting a new task row.  There must
+    be exactly one task row for the memory at the end.
+    """
+    from grove.main import app
+    from grove.models.task import Task
+
+    respx.post(_OPENAI_EMBEDDINGS_URL).mock(
+        return_value=httpx.Response(200, json=_make_openai_response(1))
+    )
+
+    payload["client_intent"] = "task"
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        r1 = await client.post("/v1/captures", json=payload, headers=AUTH_HEADERS)
+        r2 = await client.post("/v1/captures", json=payload, headers=AUTH_HEADERS)
+
+    assert r1.status_code == 201, r1.text
+    assert r2.status_code == 200, r2.text
+    assert r1.json()["id"] == r2.json()["id"]
+
+    memory_id = uuid.UUID(r1.json()["id"])
+    result = await db_session.execute(select(Task).where(Task.memory_id == memory_id))
+    tasks = result.scalars().all()
+    assert len(tasks) == 1, (
+        f"Expected exactly 1 task row after idempotent re-POST, got {len(tasks)}"
+    )
+
+    # Cleanup — cascade removes the task row via FK.
+    client_id = uuid.UUID(payload["client_id"])
+    mem_result = await db_session.execute(select(Memory).where(Memory.client_id == client_id))
+    mem = mem_result.scalar_one()
+    await db_session.delete(mem)
+    await db_session.commit()

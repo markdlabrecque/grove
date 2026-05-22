@@ -4,7 +4,7 @@ import uuid
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, Float, ForeignKey, Integer, Text, UniqueConstraint
+from sqlalchemy import Date, Float, ForeignKey, Index, Integer, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TIMESTAMP
@@ -20,6 +20,15 @@ class Task(Base):
     __table_args__ = (
         UniqueConstraint(
             "memory_id", "enrichment_version", name="uq_tasks_memory_id_enrichment_version"
+        ),
+        # Partial unique index: enforces at most one capture-time row per memory.
+        # The composite constraint above cannot cover the NULL case because Postgres
+        # treats every NULL as distinct in a standard unique index.
+        Index(
+            "uq_tasks_memory_id_capture_time",
+            "memory_id",
+            unique=True,
+            postgresql_where="enrichment_version IS NULL",
         ),
     )
 
