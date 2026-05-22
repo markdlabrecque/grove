@@ -2,7 +2,6 @@ import SwiftUI
 import SwiftData
 import AppIntents
 import GroveCore
-import EventKit
 
 @main
 struct GroveApp: App {
