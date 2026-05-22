@@ -419,6 +419,7 @@ public actor GroveAPI {
     }
 
     let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
     return try decoder.decode([TaskDTO].self, from: data)
   }
 
