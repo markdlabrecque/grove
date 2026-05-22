@@ -49,4 +49,11 @@ SSLRandomSeed connect builtin
 SSLSessionCache shmcb:/usr/local/apache2/logs/ssl_scache(512000)
 SSLSessionCacheTimeout 300
 
+# iOS URLSession holds idle TLS connections for ~90s; 75s timeout ensures
+# the client always closes first, preventing errSSLClosedAbort (-1200) on tab
+# switches. See: https://github.com/markdlabrecque/grove/issues/465
+KeepAlive On
+KeepAliveTimeout 75
+MaxKeepAliveRequests 1000
+
 Include conf/extra/grove.conf
