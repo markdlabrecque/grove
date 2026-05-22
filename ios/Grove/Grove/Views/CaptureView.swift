@@ -1,5 +1,4 @@
 import SwiftUI
-import UIKit
 import GroveCore
 
 /// Capture tab — accepts text input and sends it to POST /v1/captures.
@@ -57,18 +56,10 @@ struct CaptureView: View {
           // MARK: Metadata row — char/token count + language chip
           metadataRow
 
-          // MARK: Track as task toggle + due date picker
-          trackAsTaskRow
-
           // MARK: Save button (§3.6)
           saveButton
 
           statusArea
-
-          // MARK: Permission-denied banner
-          if viewModel.showReminderPermissionDeniedBanner {
-            reminderPermissionBanner
-          }
 
           Spacer()
         }
@@ -144,141 +135,6 @@ struct CaptureView: View {
           .accessibilityLabel("Detected language: \(lang)")
       }
     }
-  }
-
-  // MARK: - Track as task row
-
-  /// "Track as task" toggle and optional inline due-date picker.
-  ///
-  /// The toggle is always visible below the metadata chips. When enabled, a
-  /// compact `DatePicker` is revealed (date-only, no time component) allowing
-  /// the user to optionally set a due date for the reminder.
-  ///
-  /// Visual language: uses `card` background and `forest500` toggle tint to
-  /// match the save button gradient and the existing forest-green palette.
-  @ViewBuilder
-  private var trackAsTaskRow: some View {
-    VStack(spacing: 0) {
-      // Toggle row
-      HStack {
-        Label("Track as task", systemImage: "checkmark.circle")
-          .font(.system(size: 15, weight: .medium))
-          .foregroundStyle(Color.ink700)
-
-        Spacer()
-
-        Toggle("", isOn: $viewModel.trackAsTask)
-          .tint(Color.forest500)
-          .labelsHidden()
-          .accessibilityLabel("Track as task")
-          .accessibilityHint(
-            viewModel.trackAsTask
-              ? "Toggle off to save without creating a reminder"
-              : "Toggle on to create an Apple Reminder when you save"
-          )
-      }
-      .padding(.horizontal, 16)
-      .padding(.vertical, 12)
-
-      // Inline due-date picker — shown only when the toggle is on.
-      if viewModel.trackAsTask {
-        Divider()
-          .padding(.horizontal, 16)
-
-        HStack {
-          Label("Due", systemImage: "calendar")
-            .font(.system(size: 15, weight: .medium))
-            .foregroundStyle(Color.ink700)
-
-          Spacer()
-
-          DatePicker(
-            "",
-            selection: Binding(
-              get: { viewModel.taskDueDate ?? Date() },
-              set: { viewModel.taskDueDate = $0 }
-            ),
-            displayedComponents: .date
-          )
-          .datePickerStyle(.compact)
-          .labelsHidden()
-          .tint(Color.forest500)
-          .accessibilityLabel("Due date")
-          .accessibilityHint("Optional due date for the task reminder")
-
-          // Clear due date button
-          if viewModel.taskDueDate != nil {
-            Button {
-              viewModel.taskDueDate = nil
-            } label: {
-              Image(systemName: "xmark.circle.fill")
-                .foregroundStyle(Color.ink700.opacity(0.5))
-            }
-            .accessibilityLabel("Clear due date")
-          }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-      }
-    }
-    .background(Color.card)
-    .clipShape(RoundedRectangle(cornerRadius: 14))
-    .overlay(
-      RoundedRectangle(cornerRadius: 14)
-        .strokeBorder(Color.hairline, lineWidth: 1)
-    )
-    .animation(.easeInOut(duration: 0.2), value: viewModel.trackAsTask)
-  }
-
-  // MARK: - Reminder permission-denied banner
-
-  /// Non-fatal banner shown when the user had "Track as task" on at save time
-  /// but EventKit permission was denied. The capture still saved — only the
-  /// reminder was skipped.
-  private var reminderPermissionBanner: some View {
-    HStack(spacing: 10) {
-      Image(systemName: "bell.slash.fill")
-        .foregroundStyle(Color.forest700)
-        .accessibilityHidden(true)
-
-      VStack(alignment: .leading, spacing: 2) {
-        Text("Reminder not created")
-          .font(.system(size: 14, weight: .semibold))
-          .foregroundStyle(Color.forest800)
-
-        Text("Grove needs Reminders access. ")
-          .font(.system(size: 13))
-          .foregroundStyle(Color.ink700)
-        + Text("Open Settings")
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(Color.forest700)
-      }
-      .onTapGesture {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-          UIApplication.shared.open(url)
-        }
-      }
-
-      Spacer()
-
-      Button {
-        viewModel.showReminderPermissionDeniedBanner = false
-      } label: {
-        Image(systemName: "xmark")
-          .font(.system(size: 13, weight: .semibold))
-          .foregroundStyle(Color.ink700.opacity(0.6))
-      }
-      .accessibilityLabel("Dismiss")
-    }
-    .padding(12)
-    .background(Color.sage200)
-    .clipShape(RoundedRectangle(cornerRadius: 12))
-    .overlay(
-      RoundedRectangle(cornerRadius: 12)
-        .strokeBorder(Color.sage300, lineWidth: 1)
-    )
-    .accessibilityElement(children: .combine)
-    .accessibilityLabel("Reminder not created. Grove needs Reminders access. Tap to open Settings.")
   }
 
   // MARK: - Save button (§3.6)
