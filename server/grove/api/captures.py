@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from grove.core.db import get_session
 from grove.embeddings import WHOLE_VS_CHUNKS_THRESHOLD, chunk, count_tokens, get_embedding_provider
 from grove.models.memory import Memory, MemoryChunk
+from grove.models.task import Task
 
 logger = structlog.get_logger()
 
@@ -158,9 +159,11 @@ async def create_capture(
         result = await session.execute(stmt)
         row = result.scalar_one_or_none()
 
+        is_new_memory = row is not None
         if row is None:
             # Race: another request inserted the same client_id between our
             # pre-check and the INSERT.  Fetch and return the winning row.
+            # Do NOT insert a task row here — the winning request already did.
             existing2 = await session.execute(
                 select(Memory).where(Memory.client_id == body.client_id)
             )
@@ -179,6 +182,24 @@ async def create_capture(
                     )
                     for idx, (text, vec) in enumerate(zip(chunk_texts, chunk_vectors, strict=True))
                 ]
+            )
+
+        # Eagerly insert a task row only when *this* request is the one that
+        # actually inserted the memory row.  The race-winner path (is_new_memory
+        # is False) must not insert a duplicate — the winning request already did,
+        # and uq_tasks_memory_id_capture_time would raise on commit anyway.
+        if body.client_intent == "task" and is_new_memory:
+            session.add(
+                Task(
+                    id=uuid.uuid4(),
+                    memory_id=row.id,
+                    description=body.content,
+                    status="open",
+                    confidence=1.0,
+                    enrichment_version=None,
+                    due_date=None,
+                    related_people=None,
+                )
             )
 
     total_elapsed_ms = (time.monotonic() - total_start) * 1000

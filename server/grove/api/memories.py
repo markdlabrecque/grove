@@ -75,7 +75,8 @@ class TaskSchema(BaseModel):
     status: str | None
     related_people: list[str] | None
     confidence: float
-    enrichment_version: int
+    # NULL for capture-time rows; stamped by the enrichment worker.
+    enrichment_version: int | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

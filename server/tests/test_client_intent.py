@@ -477,6 +477,95 @@ async def test_client_intent_none_uses_classifier_only(
 
 
 @pytest.mark.asyncio
+async def test_enrichment_refines_capture_time_task_row(
+    db_session: AsyncSession,
+) -> None:
+    """When a capture-time task row exists (enrichment_version IS NULL), enrichment
+    populates due_date and related_people from the LLM extraction without duplicating
+    the row.  Description stays as the user-typed content (capture-time value wins).
+    """
+    from datetime import date
+
+    from grove.enrichment.classifier import ClassificationResult
+    from grove.enrichment.orchestrator import classify_and_write
+    from grove.enrichment.schemas import Classification
+    from grove.enrichment.schemas import Task as TaskSchema
+
+    memory = await _seed_memory(db_session, client_intent="task")
+
+    # Simulate the capture-time row already inserted (enrichment_version=None).
+    from grove.models.task import Task as TaskModel
+
+    capture_time_task = TaskModel(
+        id=uuid.uuid4(),
+        memory_id=memory.id,
+        description=memory.content,
+        status="open",
+        confidence=1.0,
+        enrichment_version=None,  # capture-time sentinel
+        due_date=None,
+        related_people=None,
+    )
+    db_session.add(capture_time_task)
+    await db_session.commit()
+
+    # LLM extraction returns due_date and related_people.
+    llm_task = TaskSchema(
+        description="Refined description from LLM",
+        due_date=date(2024, 7, 1),
+        status="open",
+        related_people=["Dr. Smith"],
+        confidence=0.88,
+    )
+    classification = Classification(tasks=[llm_task])
+    mock_result = ClassificationResult(
+        classification=classification,
+        prompt_tokens=10,
+        completion_tokens=5,
+        total_tokens=15,
+        cost_usd=0.0001,
+    )
+
+    with patch(
+        "grove.enrichment.orchestrator.classify_memory",
+        new_callable=AsyncMock,
+        return_value=mock_result,
+    ):
+        async with _TestSession() as session:
+            mem = await session.get(Memory, memory.id)
+            assert mem is not None
+            await classify_and_write(mem, session)
+
+    await db_session.refresh(memory)
+    assert memory.enriched is True
+
+    # Capture stable scalar values before expiring the identity map.
+    memory_id = memory.id
+    memory_content = memory.content
+
+    # Expire the identity map so the next SELECT fetches fresh data from the DB,
+    # rather than returning the stale capture_time_task instance cached above.
+    db_session.expire_all()
+
+    result = await db_session.execute(select(TaskModel).where(TaskModel.memory_id == memory_id))
+    tasks = result.scalars().all()
+
+    # No duplicate: still exactly one row.
+    assert len(tasks) == 1, f"Expected exactly 1 task row after enrichment, got {len(tasks)}"
+    t = tasks[0]
+    # Description stays as the original user-typed content (capture-time wins).
+    assert t.description == memory_content
+    # Enrichment populates previously-null fields.
+    assert t.due_date == date(2024, 7, 1)
+    assert t.related_people == ["Dr. Smith"]
+    # enrichment_version is now stamped.
+    assert t.enrichment_version is not None
+
+    await db_session.delete(await db_session.get(Memory, memory_id))
+    await db_session.commit()
+
+
+@pytest.mark.asyncio
 async def test_client_intent_column_exists() -> None:
     """Smoke: memories.client_intent column is present (migration applied)."""
     async with _test_engine.connect() as conn:
