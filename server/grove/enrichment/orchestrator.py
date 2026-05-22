@@ -3,7 +3,7 @@
 Public API:
     classify_and_write(memory, session, *, report=None)
         Classify *memory* using #179's classifier, then write accepted
-        extractions (confidence >= CONFIDENCE_THRESHOLD) to the four
+        extractions (confidence >= CONFIDENCE_THRESHOLD) to the three
         specialised tables in the same transaction that is owned by
         the caller.  Marks memory.enriched = True on success; sets
         memory.enrichment_error and leaves enriched = False on failure.
@@ -13,7 +13,7 @@ Public API:
 Transaction contract:
     classify_and_write does NOT commit or roll back the session itself
     on the happy path — it calls session.commit() exactly once at the
-    end so that all four writers + the memory update are atomic.  On
+    end so that all three writers + the memory update are atomic.  On
     failure (ClassificationError, SkippedReason, or any writer
     exception) it rolls back and sets enrichment_error on the memory
     row using a separate flush.
@@ -26,14 +26,14 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 import structlog
-from sqlalchemy import inspect, select, update
+from sqlalchemy import inspect
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from grove.admin.spend import SpendCapExceededError, check_spend_cap
 from grove.enrichment.classifier import ClassificationError, SkippedReason, classify_memory
 from grove.enrichment.schemas import load_classification_prompts
-from grove.models import Appointment, Decision, Memory, PeopleInteraction, Task
+from grove.models import Appointment, Decision, Memory, PeopleInteraction
 
 if TYPE_CHECKING:
     from grove.enrichment.report import RunReport
@@ -95,7 +95,7 @@ async def classify_and_write(
     report: RunReport | None = None,
     spend_session_factory: async_sessionmaker[AsyncSession] | None = None,
 ) -> None:
-    """Classify *memory* and write accepted extractions to specialised tables.
+    """Classify *memory* and write accepted extractions to three specialised tables.
 
     Called once per memory by the enrichment worker.  All database writes
     (specialised-table inserts + memory.enriched = True) happen inside a
@@ -234,89 +234,6 @@ async def classify_and_write(
                 if report is not None:
                     report.record_dropped()
                 dropped += 1
-
-        # --- Task emission ---
-        # When the user explicitly marked this capture as a task
-        # (client_intent == "task"), guarantee exactly one tasks row with
-        # confidence 1.0.  Collapse any LLM extractions to a single row:
-        # pick the highest-confidence LLM extraction if one exists, otherwise
-        # fall back to the raw memory content.  The confidence threshold is
-        # intentionally bypassed — the user signal overrides classifier doubt.
-        if memory.client_intent == "task":
-            # Sort descending; highest-confidence LLM task is first (if any).
-            llm_tasks_sorted = sorted(
-                classification.tasks, key=lambda t: t.confidence, reverse=True
-            )
-            if llm_tasks_sorted:
-                best = llm_tasks_sorted[0]
-                forced_description = best.description or memory.content
-                forced_due_date = best.due_date
-                forced_related_people = best.related_people
-            else:
-                forced_description = memory.content
-                forced_due_date = None
-                forced_related_people = None
-
-            # Check for a capture-time row (enrichment_version IS NULL).  When
-            # POST /v1/captures inserted the row eagerly, we UPDATE it in place
-            # rather than inserting a duplicate.  Description stays as the
-            # user-typed capture-time value; due_date and related_people are
-            # populated from the LLM extraction.  enrichment_version is stamped
-            # to mark the row as enriched.
-            existing_result = await session.execute(
-                select(Task).where(
-                    Task.memory_id == memory.id,
-                    Task.enrichment_version.is_(None),
-                )
-            )
-            existing_task = existing_result.scalar_one_or_none()
-
-            if existing_task is not None:
-                await session.execute(
-                    update(Task)
-                    .where(Task.id == existing_task.id)
-                    .values(
-                        due_date=forced_due_date,
-                        related_people=forced_related_people,
-                        enrichment_version=PIPELINE_VERSION,
-                    )
-                )
-            else:
-                await insert_if_not_exists(
-                    session,
-                    Task,
-                    memory_id=memory.id,
-                    enrichment_version=PIPELINE_VERSION,
-                    description=forced_description,
-                    due_date=forced_due_date,
-                    status="open",
-                    related_people=forced_related_people,
-                    confidence=1.0,
-                )
-            if report is not None:
-                report.record_accepted("tasks", confidence=1.0)
-            accepted += 1
-        else:
-            for task in classification.tasks:
-                if task.confidence >= CONFIDENCE_THRESHOLD:
-                    await insert_if_not_exists(
-                        session,
-                        Task,
-                        memory_id=memory.id,
-                        enrichment_version=PIPELINE_VERSION,
-                        description=task.description,
-                        due_date=task.due_date,
-                        status=task.status,
-                        related_people=task.related_people,
-                        confidence=task.confidence,
-                    )
-                    if report is not None:
-                        report.record_accepted("tasks", confidence=task.confidence)
-                    accepted += 1
-                else:
-                    if report is not None:
-                        report.record_dropped()
-                    dropped += 1
 
         for appointment in classification.appointments:
             if appointment.confidence >= CONFIDENCE_THRESHOLD:

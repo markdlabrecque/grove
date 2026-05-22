@@ -23,7 +23,6 @@ from grove.enrichment.schemas import (
     Decision,
     PeopleInteraction,
     PromptBundle,
-    Task,
     load_classification_prompts,
 )
 
@@ -94,35 +93,6 @@ def test_people_interaction_nullable_fields():
 
 
 # ---------------------------------------------------------------------------
-# Task
-# ---------------------------------------------------------------------------
-
-
-def test_task_valid():
-    t = Task(
-        description="Send Alice the OAuth2 RFC draft",
-        due_date=datetime.date(2026, 6, 15),
-        status="open",
-        related_people=["Alice"],
-        confidence=0.95,
-    )
-    assert t.description == "Send Alice the OAuth2 RFC draft"
-    assert t.due_date == datetime.date(2026, 6, 15)
-
-
-def test_task_requires_description():
-    with pytest.raises(ValueError):
-        Task(confidence=0.8)
-
-
-def test_task_nullable_fields():
-    t = Task(description="Follow up with vendor", confidence=0.7)
-    assert t.due_date is None
-    assert t.status is None
-    assert t.related_people is None
-
-
-# ---------------------------------------------------------------------------
 # Appointment
 # ---------------------------------------------------------------------------
 
@@ -158,19 +128,17 @@ def test_classification_empty():
     c = Classification()
     assert c.decisions == []
     assert c.people_interactions == []
-    assert c.tasks == []
     assert c.appointments == []
 
 
 def test_classification_mixed():
     c = Classification(
         decisions=[Decision(confidence=0.9)],
-        tasks=[Task(description="Review RFC", confidence=0.8)],
+        appointments=[Appointment(confidence=0.8)],
     )
     assert len(c.decisions) == 1
-    assert len(c.tasks) == 1
+    assert len(c.appointments) == 1
     assert c.people_interactions == []
-    assert c.appointments == []
 
 
 # ---------------------------------------------------------------------------
@@ -184,7 +152,7 @@ def test_load_classification_prompts_v1():
     assert bundle.enrichment_version == 1
     assert bundle.system_prompt
     # Each type should have a non-empty definition in the bundle
-    for type_name in ("decisions", "people_interactions", "tasks", "appointments"):
+    for type_name in ("decisions", "people_interactions", "appointments"):
         assert type_name in bundle.type_definitions
         defn = bundle.type_definitions[type_name]
         assert defn.definition
@@ -228,26 +196,6 @@ def test_people_interaction_pydantic_fields_match_sqlalchemy():
     expected = sa_cols - db_managed
 
     pydantic_fields = set(PeopleInteraction.model_fields.keys())
-    assert expected == pydantic_fields, (
-        f"Mismatch — SA columns not in Pydantic: {expected - pydantic_fields}; "
-        f"Pydantic fields not in SA: {pydantic_fields - expected}"
-    )
-
-
-def test_task_pydantic_fields_match_sqlalchemy():
-    from grove.models.task import Task as SATask
-
-    sa_cols = {c.key for c in SATask.__table__.columns}
-    # db_managed: columns set by the DB or by non-enrichment code paths.
-    db_managed = {
-        "id",
-        "memory_id",
-        "enrichment_version",
-        "created_at",
-    }
-    expected = sa_cols - db_managed
-
-    pydantic_fields = set(Task.model_fields.keys())
     assert expected == pydantic_fields, (
         f"Mismatch — SA columns not in Pydantic: {expected - pydantic_fields}; "
         f"Pydantic fields not in SA: {pydantic_fields - expected}"
