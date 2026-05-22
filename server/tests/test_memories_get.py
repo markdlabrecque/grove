@@ -185,7 +185,6 @@ async def test_happy_path_returns_full_memory(
 
     # Specialized rows that were NOT inserted should be empty lists.
     assert body["people_interactions"] == []
-    assert body["tasks"] == []
 
 
 # ---------------------------------------------------------------------------
@@ -219,10 +218,9 @@ async def test_specialized_rows_grouped_correctly(
     assert len(body["decisions"]) == 1
     assert body["appointments"] == []
     assert body["people_interactions"] == []
-    assert body["tasks"] == []
 
     # The decision ID must not appear anywhere under the other lists.
     decision_id = str(decision.id)
-    for key in ("appointments", "people_interactions", "tasks"):
+    for key in ("appointments", "people_interactions"):
         for row in body[key]:
             assert row["id"] != decision_id

@@ -51,6 +51,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_tasks_due_date", table_name="tasks")
-    op.drop_index("ix_tasks_memory_id", table_name="tasks")
-    op.drop_table("tasks")
+    # No-op: migration 0019 permanently dropped the tasks table. Attempting to
+    # drop it here when downgrading 0008 → 0007 would raise
+    # UndefinedTableError because the table no longer exists in the schema.
+    pass

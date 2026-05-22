@@ -4,7 +4,7 @@ Requires a real Postgres+pgvector instance with migrations applied.
 DATABASE_URL is set by conftest.py (dev) or docker-compose CI env.
 
 Cascade behaviour:
-- memory_chunks, decisions, people_interactions, tasks, appointments are
+- memory_chunks, decisions, people_interactions, appointments are
   removed via SQLAlchemy ORM cascade ("all, delete-orphan") which triggers
   the DB-level ON DELETE CASCADE FKs.
 - query_logs.returned_memory_ids is an ARRAY(UUID) with no FK constraint —
@@ -32,7 +32,6 @@ from grove.models.decision import Decision
 from grove.models.memory import Memory, MemoryChunk
 from grove.models.people_interaction import PeopleInteraction
 from grove.models.query_log import QueryLog
-from grove.models.task import Task
 
 AUTH_HEADERS = {"Authorization": f"Bearer {os.environ.get('BEARER_TOKEN', 'test-token')}"}
 
@@ -67,7 +66,7 @@ async def db_session() -> AsyncIterator[AsyncSession]:
 
 @pytest.mark.asyncio
 async def test_delete_cascades_to_all_related_rows(db_session: AsyncSession) -> None:
-    """DELETE removes the memory, chunks, and all four specialised rows.
+    """DELETE removes the memory, chunks, and all specialised rows.
 
     The query_log that referenced the deleted memory must survive, with its
     returned_memory_ids array left unchanged (stale UUID — no FK constraint).
@@ -112,13 +111,6 @@ async def test_delete_cascades_to_all_related_rows(db_session: AsyncSession) -> 
         confidence=0.85,
         enrichment_version=1,
     )
-    task = Task(
-        id=uuid.uuid4(),
-        memory_id=memory_id,
-        description="Send project timeline to Sarah",
-        confidence=0.8,
-        enrichment_version=1,
-    )
     appointment = Appointment(
         id=uuid.uuid4(),
         memory_id=memory_id,
@@ -127,7 +119,7 @@ async def test_delete_cascades_to_all_related_rows(db_session: AsyncSession) -> 
         confidence=0.75,
         enrichment_version=1,
     )
-    db_session.add_all([chunk, decision, interaction, task, appointment])
+    db_session.add_all([chunk, decision, interaction, appointment])
     await db_session.flush()
 
     # query_log references the memory via returned_memory_ids (no FK).
@@ -144,7 +136,6 @@ async def test_delete_cascades_to_all_related_rows(db_session: AsyncSession) -> 
     chunk_id = chunk.id
     decision_id = decision.id
     interaction_id = interaction.id
-    task_id = task.id
     appointment_id = appointment.id
     query_log_id = query_log.id
 
@@ -166,7 +157,6 @@ async def test_delete_cascades_to_all_related_rows(db_session: AsyncSession) -> 
     assert await db_session.get(MemoryChunk, chunk_id) is None
     assert await db_session.get(Decision, decision_id) is None
     assert await db_session.get(PeopleInteraction, interaction_id) is None
-    assert await db_session.get(Task, task_id) is None
     assert await db_session.get(Appointment, appointment_id) is None
 
     # Assert: query_log survives with its returned_memory_ids unchanged.

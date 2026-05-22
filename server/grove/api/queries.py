@@ -5,7 +5,7 @@ Flow:
   2. Run cosine similarity over memories and memory_chunks (vector path).
   3. Classify query intent via a cheap OpenRouter call (intent router).
   4. For each non-general intent, run a structured query against the matching
-     specialised table (decisions / people_interactions / tasks / appointments).
+     specialised table (decisions / people_interactions / appointments).
      Empty tables are skipped efficiently via an EXISTS check.
   5. Merge vector and specialised hits, dedup by memory_id keeping highest score.
      Specialised hits receive a small score boost (intent_match_score_boost).
@@ -235,7 +235,6 @@ _TABLES_SEARCHED_INITIAL: dict = {
     "vector": True,
     "decisions": "skipped",
     "people_interactions": "skipped",
-    "tasks": "skipped",
     "appointments": "skipped",
 }
 
@@ -462,11 +461,11 @@ async def post_query(
                 error=str(exc),
             )
             # Ensure tables_searched is still populated even on failure.
-            for tbl in ("decisions", "people_interactions", "tasks", "appointments"):
+            for tbl in ("decisions", "people_interactions", "appointments"):
                 tables_searched.setdefault(tbl, "skipped")
     else:
         logger.warning("intent_router_skipped_no_api_key")
-        for tbl in ("decisions", "people_interactions", "tasks", "appointments"):
+        for tbl in ("decisions", "people_interactions", "appointments"):
             tables_searched[tbl] = "skipped"
 
     # Load content for specialised-only hits that have no snippet from vector search.

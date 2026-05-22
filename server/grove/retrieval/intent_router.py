@@ -5,7 +5,6 @@ Public API:
     parse_intent_response(raw_content) -> list[str]
     query_decisions(session, query_text) -> list[uuid.UUID]
     query_people(session, query_text) -> list[uuid.UUID]
-    query_tasks(session, query_text) -> list[uuid.UUID]
     query_appointments(session, query_text, forward_looking) -> list[uuid.UUID]
     run_specialised_queries(session, intents, query_text) -> SpecialisedQueryResult
     route_and_merge(session, query_text, vector_hits, *, api_key, model) -> HybridResult
@@ -42,13 +41,12 @@ from grove.llm.prompts import load_intent_prompts
 from grove.models.appointment import Appointment
 from grove.models.decision import Decision
 from grove.models.people_interaction import PeopleInteraction
-from grove.models.task import Task
 
 logger = structlog.get_logger(__name__)
 
 _DEFAULT_INTENT_VERSION = 1
 
-_VALID_INTENTS = frozenset(["decisions", "people_interactions", "tasks", "appointments", "general"])
+_VALID_INTENTS = frozenset(["decisions", "people_interactions", "appointments", "general"])
 
 # Number of words from the query to use in ILIKE matching.
 # The full query string is used — splitting is done by the DB pattern.
@@ -258,31 +256,6 @@ async def query_people(session: AsyncSession, query_text: str) -> list[uuid.UUID
     return list(result.scalars().all())
 
 
-async def query_tasks(session: AsyncSession, query_text: str) -> list[uuid.UUID]:
-    """Return distinct memory_ids from tasks matching query terms.
-
-    Filters to open tasks (status = 'open') that are current or recent
-    (due_date IS NULL OR due_date >= now() - 7 days), combined with a
-    text match on description.
-    """
-    from sqlalchemy import or_
-
-    patterns = _word_patterns(query_text)
-    description_match = or_(*[Task.description.ilike(p) for p in patterns])
-    seven_days_ago = text("now() - interval '7 days'")
-    stmt = (
-        select(Task.memory_id)
-        .where(
-            Task.status == "open",
-            or_(Task.due_date.is_(None), Task.due_date >= seven_days_ago),
-            description_match,
-        )
-        .distinct()
-    )
-    result = await session.execute(stmt)
-    return list(result.scalars().all())
-
-
 async def query_appointments(
     session: AsyncSession,
     query_text: str,
@@ -319,11 +292,10 @@ async def query_appointments(
 # Orchestrator: run all relevant specialised queries
 # ---------------------------------------------------------------------------
 
-# Canonical table names for the four specialised tables.
+# Canonical table names for the specialised tables.
 _SPECIALISED_TABLES: dict[str, str] = {
     "decisions": "decisions",
     "people_interactions": "people_interactions",
-    "tasks": "tasks",
     "appointments": "appointments",
 }
 
@@ -362,8 +334,6 @@ async def run_specialised_queries(
             hits = await query_decisions(session, query_text)
         elif intent_name == "people_interactions":
             hits = await query_people(session, query_text)
-        elif intent_name == "tasks":
-            hits = await query_tasks(session, query_text)
         elif intent_name == "appointments":
             # V1 scope: only surface upcoming appointments. Past-tense queries
             # ("what appointments did I miss?") fall through to semantic search

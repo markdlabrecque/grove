@@ -402,7 +402,6 @@ async def test_classify_and_write_atomicity_on_writer_failure(db_session: AsyncS
                 confidence=0.85,
             )
         ],
-        tasks=[],
         appointments=[],
     )
     mock_result = ClassificationResult(
@@ -507,7 +506,6 @@ async def test_classify_and_write_idempotent(db_session: AsyncSession) -> None:
             )
         ],
         people_interactions=[],
-        tasks=[],
         appointments=[],
     )
     mock_result = ClassificationResult(

@@ -30,11 +30,6 @@ class CaptureRequest(BaseModel):
     language: str = "en"
     captured_at: datetime
 
-    # Persisted to DB for future use; no values are actively consumed server-side.
-    # The "task" value from #474 is no longer sent by iOS (#482) and the
-    # capture-time task-insert path has been removed (#487).
-    client_intent: str | None = None
-
     @field_validator("content")
     @classmethod
     def content_must_not_be_blank(cls, v: str) -> str:
@@ -137,7 +132,6 @@ async def create_capture(
                 source_device=body.source_device,
                 language=body.language,
                 captured_at=body.captured_at,
-                client_intent=body.client_intent,
                 enriched=False,
                 embedding_model=provider.name,
                 token_count=token_count,

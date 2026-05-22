@@ -45,5 +45,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.execute("DROP INDEX IF EXISTS uq_tasks_memory_id_capture_time")
-    op.alter_column("tasks", "enrichment_version", existing_type=sa.Integer(), nullable=False)
+    # No-op: migration 0019 permanently dropped the tasks table. Attempting to
+    # alter the table here when downgrading 0018 → 0017 would raise
+    # UndefinedTableError because the table no longer exists in the schema.
+    pass
