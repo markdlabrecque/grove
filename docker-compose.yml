@@ -38,7 +38,7 @@ services:
     environment:
       TAILSCALE_HOSTNAME: ${TAILSCALE_HOSTNAME}
     ports:
-      - "443:443"
+      - "${GROVE_HTTPS_PORT:-8443}:443"
     volumes:
       - ./ops/apache/httpd.conf.template:/etc/apache-templates/httpd.conf.template:ro
       - ./ops/apache/grove.conf.template:/etc/apache-templates/grove.conf.template:ro
