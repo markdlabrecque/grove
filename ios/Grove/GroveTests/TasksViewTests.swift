@@ -296,5 +296,109 @@ struct TasksViewTests {
     )
     _ = vm  // used
   }
+
+  // MARK: - Optimistic-delete / refresh race (#458)
+
+  /// Regression test: if `load()` completes between the optimistic removal
+  /// and the error-path restore in `deleteTask(_:)`, the restore must NOT
+  /// overwrite the fresh list with the pre-refresh snapshot.
+  ///
+  /// Sequence under test:
+  ///  1. load() → [task1, task2]                  (.loaded)
+  ///  2. deleteTask(task2) — optimistic removal    (.loaded([task1]))
+  ///  3. delete closure suspends (network in flight)
+  ///  4. load() called (pull-to-refresh) → [task1] (.loaded([task1]))  ← generation bumps
+  ///  5. delete closure throws
+  ///  6. restore is SKIPPED because generation changed — list stays as [task1]
+  ///
+  /// Without the fix, step 6 restores [task1, task2], re-inserting the deleted row.
+  @Test("delete: stale restore does not overwrite a fresher load")
+  func deleteRestoreDoesNotOverwriteFreshLoad() async throws {
+    struct DeleteError: Error {}
+
+    let task1 = makeTask(description: "Keeper")
+    let task2 = makeTask(description: "To delete")
+
+    // The delete closure captures a continuation so we can interleave a
+    // refresh call before the error is thrown.
+    var deleteContinuation: CheckedContinuation<Void, Error>? = nil
+
+    let vm = TasksViewModel(
+      fetch: { [task1] },   // refresh returns only task1 (task2 already gone server-side)
+      delete: { _ in
+        // Suspend until the test resumes us, then throw to trigger the restore path.
+        try await withCheckedThrowingContinuation { cont in
+          deleteContinuation = cont
+        }
+      }
+    )
+
+    // Step 1: initial load → [task1, task2] (we prime the vm manually here
+    // because the fetch closure always returns [task1]; seed via a
+    // separate fetch stub for the first call only).
+    // Build a two-phase fetch: first call returns both tasks, subsequent
+    // calls return only task1 (simulating server state post-delete).
+    var fetchCallCount = 0
+    let vm2 = TasksViewModel(
+      fetch: {
+        fetchCallCount += 1
+        return fetchCallCount == 1 ? [task1, task2] : [task1]
+      },
+      delete: { _ in
+        try await withCheckedThrowingContinuation { cont in
+          deleteContinuation = cont
+        }
+      }
+    )
+
+    // Step 1: load two tasks.
+    await vm2.load()
+    guard case .loaded(let initial) = vm2.loadState else {
+      Issue.record("Expected .loaded([task1,task2]) after first load, got \(vm2.loadState)")
+      return
+    }
+    #expect(initial.count == 2)
+
+    // Step 2+3: start delete (suspends inside the closure).
+    async let deleteOp: Void = vm2.deleteTask(task2)
+
+    // Yield to allow deleteTask to reach the suspension point inside the
+    // delete closure and set `deleteContinuation`.
+    var waited = 0
+    while deleteContinuation == nil && waited < 50 {
+      try await Task.sleep(for: .milliseconds(10))
+      waited += 1
+    }
+    guard deleteContinuation != nil else {
+      Issue.record("Delete closure did not suspend within 500 ms")
+      return
+    }
+
+    // Step 4: refresh fires while delete is in flight.
+    await vm2.load()
+    // After refresh, loadState should be .loaded([task1]) — the fresh list.
+    guard case .loaded(let afterRefresh) = vm2.loadState else {
+      Issue.record("Expected .loaded([task1]) after mid-delete refresh, got \(vm2.loadState)")
+      return
+    }
+    #expect(afterRefresh.count == 1)
+    #expect(afterRefresh[0].id == task1.id)
+
+    // Step 5: release the delete continuation with an error.
+    deleteContinuation?.resume(throwing: DeleteError())
+    deleteContinuation = nil
+
+    // Await the delete task so any pending main-actor work drains.
+    await deleteOp
+
+    // Step 6: the fresh list [task1] must still be intact — task2 must NOT
+    // have been re-inserted by the stale restore.
+    guard case .loaded(let final) = vm2.loadState else {
+      Issue.record("Expected .loaded after delete error + refresh race, got \(vm2.loadState)")
+      return
+    }
+    #expect(final.count == 1, "Stale restore must not re-insert the deleted row")
+    #expect(final[0].id == task1.id)
+  }
 }
 
