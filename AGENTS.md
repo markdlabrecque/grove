@@ -82,14 +82,15 @@ For every ticket that requires implementation work:
 
 1. **Triage in the orchestrator session.**
    - **Pre-flight check (required before touching any ticket).**
-     Confirm the working copy is on `develop`, fast-forwarded to the
-     latest merge (`git pull --ff-only origin develop`), and clean
-     (`git status --short` is empty). If a previous ticket's PR is
-     open, in CI, under review, or merged-by-Theo-but-not-yet-pulled
-     locally, the previous ticket completes first — see the
-     Concurrency section for the strict pipeline rule. The only
-     exception is a dependency-resolution ticket whose sole purpose is
-     to unblock a parked PR.
+     Confirm the orchestrator's working copy is on `develop`,
+     fast-forwarded to the latest merge
+     (`git pull --ff-only origin develop`), and clean
+     (`git status --short` is empty). Under the parallel-dispatch
+     trial (see §Concurrency) a previous ticket's PR may still be in
+     CI or review — that does not block dispatching the next ticket,
+     but each implementer MUST be dispatched with
+     `isolation: "worktree"` so it gets its own checkout off the
+     current `develop` tip.
    - Confirm the ticket is well-formed. Pick the right specialist
      (Margot or Kai). Margot handles `server/`-only and ops-adjacent
      Python work; Kai handles `ios/`-only work. Cross-cutting tickets
@@ -268,34 +269,69 @@ intervene at any step.
 
 ## Concurrency
 
-Agents work **in serial on a single working copy** — no worktrees, no
-parallel branches.
+**Trial (started 2026-05-21):** parallel ticket dispatch is allowed.
+The previous strict-serial rule is preserved at the bottom of this
+section so we can roll back if the trial regresses.
 
-The serial discipline applies to two things, not just one:
+Rules during the trial:
 
-1. **Working-copy access.** Whichever agent currently holds the ticket
-   has exclusive control over the repo state. The orchestrator enforces
-   this by not invoking another agent until the current one returns.
+1. **Worktree isolation is mandatory.** Every implementer dispatch
+   uses `isolation: "worktree"` on the Agent tool. No two agents share
+   the orchestrator's working copy at the same time. Sharing the cwd
+   has already corrupted a branch once (see #453/#454, 2026-05-21) and
+   without serial dispatch as a backstop it will recur.
 
-2. **Ticket pipeline.** A ticket is *in flight* from `git checkout -b`
-   through Theo's merge commit on `develop` and the post-merge reset to
-   a clean working copy. The orchestrator must not dispatch a new
-   ticket — to any agent, in any background, foreground or otherwise —
-   while another ticket is in flight. The pipeline is strict:
+2. **Verified push is unchanged.** Read the full `git push` output —
+   never `tail`/`head` truncation — and if ambiguous run
+   `git ls-remote origin <branch>` and confirm the SHA matches local
+   `HEAD` before handing off. The squash/lost-commit regression
+   (#131 → #135 → #137 → #139) was partly attributed to skimmed push
+   output; that risk is *higher* with parallel pipelines, not lower.
 
-   `implement → push (verified) → PR → CI → review → merge → reset to clean develop → next ticket`
+3. **Multiple PRs may be in flight.** Implementers, Theo reviews, and
+   CI runs may overlap freely. Track each ticket's pipeline stage so
+   you don't lose one.
 
-   This rule exists because skipping it once already cost the team a
-   regression: a fix commit was lost in a squash merge (see #131 — the
-   originating ticket whose squash dropped the fix), which then took
-   follow-up tickets #135 and #137 to clean up.
+4. **Merges to `develop` remain strictly squash-merge, one at a time.**
+   Don't queue two `gh pr merge` calls back-to-back without confirming
+   the first landed and the second has been rebased on the new
+   `develop` tip — otherwise the second squash can drop commits the
+   way #131 did.
 
-**Dependency-resolution exception.** A ticket whose sole purpose is to
-unblock a parked PR (e.g., #137 unblocking #136) is *not* parallel
-work — it is the next step in a strictly sequential dependency chain.
-Pick it up as the new "current ticket," let the original PR sit, and
-return to the original PR only after the unblocker has merged and the
-working copy is back on a clean `develop`.
+5. **Rollback.** If parallel dispatch produces a lost-commit, branch
+   contamination, or merge-order regression, revert to the
+   strict-serial rules archived below and update this section.
+
+### Archived strict-serial rules (rollback target)
+
+These were the rules in force before 2026-05-21. If the parallel
+trial fails, restore them verbatim.
+
+> Agents work **in serial on a single working copy** — no worktrees,
+> no parallel branches.
+>
+> 1. **Working-copy access.** Whichever agent currently holds the
+>    ticket has exclusive control over the repo state. The
+>    orchestrator enforces this by not invoking another agent until
+>    the current one returns.
+>
+> 2. **Ticket pipeline.** A ticket is *in flight* from
+>    `git checkout -b` through Theo's merge commit on `develop` and
+>    the post-merge reset to a clean working copy. The orchestrator
+>    must not dispatch a new ticket — to any agent, in any background,
+>    foreground or otherwise — while another ticket is in flight. The
+>    pipeline is strict:
+>
+>    `implement → push (verified) → PR → CI → review → merge → reset to clean develop → next ticket`
+>
+>    This rule exists because skipping it once already cost the team a
+>    regression: a fix commit was lost in a squash merge (see #131),
+>    which then took follow-up tickets #135 and #137 to clean up.
+>
+> **Dependency-resolution exception.** A ticket whose sole purpose is
+> to unblock a parked PR (e.g., #137 unblocking #136) is *not*
+> parallel work — it is the next step in a strictly sequential
+> dependency chain.
 
 ## Branch and commit conventions
 
