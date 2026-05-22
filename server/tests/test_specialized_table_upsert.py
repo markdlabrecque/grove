@@ -36,7 +36,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from grove.core.config import settings
-from grove.models import Appointment, Decision, Memory, PeopleInteraction, Task
+from grove.models import Appointment, Decision, Memory, PeopleInteraction
 
 _engine = create_async_engine(settings.database_url, poolclass=NullPool)
 _Session = async_sessionmaker(_engine, expire_on_commit=False)
@@ -111,16 +111,6 @@ async def db_session() -> AsyncIterator[AsyncSession]:
                 "topics": ["testing"],
                 "next_steps": ["follow up"],
                 "confidence": 0.85,
-            },
-        ),
-        (
-            Task,
-            {
-                "description": "Write idempotence test",
-                "due_date": None,
-                "status": "open",
-                "related_people": ["Carol"],
-                "confidence": 0.88,
             },
         ),
         (
@@ -207,16 +197,6 @@ async def test_insert_if_not_exists_idempotent(
                 "topics": ["re-enrichment"],
                 "next_steps": [],
                 "confidence": 0.80,
-            },
-        ),
-        (
-            Task,
-            {
-                "description": "Re-enrichment task",
-                "due_date": None,
-                "status": "open",
-                "related_people": [],
-                "confidence": 0.70,
             },
         ),
         (
@@ -312,16 +292,6 @@ async def test_different_enrichment_version_allowed(
                 "topics": ["sync"],
                 "next_steps": [],
                 "confidence": 0.82,
-            },
-        ),
-        (
-            Task,
-            {
-                "description": "Concurrent task",
-                "due_date": None,
-                "status": "open",
-                "related_people": [],
-                "confidence": 0.8,
             },
         ),
         (
