@@ -159,9 +159,11 @@ async def create_capture(
         result = await session.execute(stmt)
         row = result.scalar_one_or_none()
 
+        is_new_memory = row is not None
         if row is None:
             # Race: another request inserted the same client_id between our
             # pre-check and the INSERT.  Fetch and return the winning row.
+            # Do NOT insert a task row here — the winning request already did.
             existing2 = await session.execute(
                 select(Memory).where(Memory.client_id == body.client_id)
             )
@@ -182,13 +184,11 @@ async def create_capture(
                 ]
             )
 
-        # Eagerly insert a task row when the user explicitly marked this capture
-        # as a task.  enrichment_version=None is the sentinel for "created at
-        # capture time, not yet enriched".  The enrichment worker will UPDATE this
-        # row (due_date, related_people, enrichment_version) rather than insert a
-        # new one.  This guarantees the task appears in GET /v1/tasks immediately
-        # without waiting for async enrichment.
-        if body.client_intent == "task":
+        # Eagerly insert a task row only when *this* request is the one that
+        # actually inserted the memory row.  The race-winner path (is_new_memory
+        # is False) must not insert a duplicate — the winning request already did,
+        # and uq_tasks_memory_id_capture_time would raise on commit anyway.
+        if body.client_intent == "task" and is_new_memory:
             session.add(
                 Task(
                     id=uuid.uuid4(),
