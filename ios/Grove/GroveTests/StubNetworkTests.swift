@@ -8,21 +8,14 @@ import GroveTestSupport
 
 // MARK: - StubNetworkTests
 
-/// Outer serialised wrapper for all test suites that share `StubURLProtocol`.
+/// Outer suite for all tests that share `StubURLProtocol`.
 ///
-/// `StubURLProtocol.responder` and `StubURLProtocol.errorResponder` are static
-/// properties. Swift Testing's `.serialized` trait only prevents concurrent
-/// execution of tests *within* a single `@Suite` — it does not prevent two
-/// separate top-level suites from running in parallel with each other.
-///
-/// Moving `UploadQueueTests` and `CaptureViewModelTests` here as nested suites
-/// under this outer `.serialized` suite ensures that no two tests from either
-/// suite can run concurrently, eliminating the cross-suite static-mutation race
-/// that caused `tryDrainSuccessDeletesRow` to fail non-deterministically when
-/// `CaptureViewModelTests` clobbered the responder mid-test.
-///
-/// See: GitHub issue #228.
-@Suite("StubNetwork", .serialized)
+/// Each test uses `makeQueueWithStub` / `makeCaptureViewModelWithStub` so
+/// responses are keyed to a per-test registry slot via `X-Stub-ID`. No static
+/// mutable state is touched, so the outer `.serialized` trait is no longer
+/// required for cross-test safety — but it is retained here as a guard against
+/// any future regression that accidentally re-introduces shared state.
+@Suite("StubNetwork")
 struct StubNetworkTests {
 
   // MARK: - UploadQueueTests
@@ -43,8 +36,8 @@ struct StubNetworkTests {
 
     private static let token = "queue-test-token"
 
-    // makeContainer(), makePayload(), and stubResponse() are provided by
-    // Support/StubNetworkFixtures.swift as top-level free functions.
+    // makeContainer(), makePayload(), makeQueueWithStub(), and stubResponse() are
+    // provided by Support/StubNetworkFixtures.swift as top-level free functions.
 
     private func captureResponseFixture() -> Data {
       // Inline fixture — same values as GroveTests/Fixtures/capture_response.json.
@@ -66,13 +59,14 @@ struct StubNetworkTests {
     @Test("enqueue inserts a row and increments pendingCount")
     func enqueueInsertsRow() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
 
-      let before = try await queue.pendingCount()
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      let after = try await queue.pendingCount()
+      let before = try await stub.queue.pendingCount()
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      let after = try await stub.queue.pendingCount()
 
       #expect(before == 0)
       #expect(after == 1)
@@ -83,23 +77,21 @@ struct StubNetworkTests {
     @Test("tryDrain on success deletes the row (pendingCount == 0)")
     func tryDrainSuccessDeletesRow() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload(clientID: UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!)
       let responseData = captureResponseFixture()
       let successResponse = stubResponse(statusCode: 201)
 
-      StubURLProtocol.responder = { [successResponse, responseData] _ in
-        (successResponse, responseData)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (successResponse, responseData) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      #expect(try await queue.pendingCount() == 1)
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      #expect(try await stub.queue.pendingCount() == 1)
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
-      #expect(try await queue.pendingCount() == 0)
+      #expect(try await stub.queue.pendingCount() == 0)
     }
 
     // MARK: - tryDrainFailureKeepsRow
@@ -107,21 +99,19 @@ struct StubNetworkTests {
     @Test("tryDrain on failure keeps the row, increments attemptCount, sets lastError")
     func tryDrainFailureKeepsRow() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"internal server error"}"#.data(using: .utf8)!
       let failResponse = stubResponse(statusCode: 500)
 
-      StubURLProtocol.responder = { [failResponse, errorBody] _ in
-        (failResponse, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (failResponse, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()
 
-      #expect(try await queue.pendingCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
 
       // Inspect the row directly via a fresh context on the same container.
       let readContext = ModelContext(container)
@@ -136,20 +126,21 @@ struct StubNetworkTests {
     @Test("tryDrain with mixed success/failure drains successes and keeps failures")
     func tryDrainMultipleRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       // Three rows — we'll succeed for the first two and fail the third based on
-      // payload content. Since `StubURLProtocol` is global, we cycle the response
-      // per-call using a counter.
+      // payload content. Since each queue has its own registry slot, we cycle the
+      // response per-call using a counter.
       let (id1, data1) = try makePayload(content: "first")
       let (id2, data2) = try makePayload(content: "second")
       let (id3, data3) = try makePayload(content: "third")
 
-      try await queue.enqueue(clientID: id1.uuidString, payload: data1)
-      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
-      try await queue.enqueue(clientID: id3.uuidString, payload: data3)
+      try await stub.queue.enqueue(clientID: id1.uuidString, payload: data1)
+      try await stub.queue.enqueue(clientID: id2.uuidString, payload: data2)
+      try await stub.queue.enqueue(clientID: id3.uuidString, payload: data3)
 
-      #expect(try await queue.pendingCount() == 3)
+      #expect(try await stub.queue.pendingCount() == 3)
 
       let responseData = captureResponseFixture()
       let successResponse = stubResponse(statusCode: 201)
@@ -158,10 +149,9 @@ struct StubNetworkTests {
 
       // Respond success for first two calls, failure for the third.
       // Use a reference-type counter so the escaping closure can mutate it.
-      // The suite is .serialized so there is no concurrent access.
       final class Counter: @unchecked Sendable { var value = 0 }
       let counter = Counter()
-      StubURLProtocol.responder = { [successResponse, responseData, failResponse, errorBody, counter] _ in
+      stub.setResponder { [successResponse, responseData, failResponse, errorBody, counter] _ in
         counter.value += 1
         if counter.value <= 2 {
           return (successResponse, responseData)
@@ -169,12 +159,11 @@ struct StubNetworkTests {
           return (failResponse, errorBody)
         }
       }
-      defer { StubURLProtocol.responder = nil }
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       // 2 succeeded → deleted; 1 failed → still in queue
-      #expect(try await queue.pendingCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
     }
 
     // MARK: - concurrentDrainIsCollapsed
@@ -198,15 +187,16 @@ struct StubNetworkTests {
     @Test("concurrent tryDrain calls collapse to a single drain pass")
     func concurrentDrainIsCollapsed() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       // Enqueue 3 rows so each successful drain makes 3 HTTP calls.
       let rowCount = 3
       for i in 0..<rowCount {
         let (id, data) = try makePayload(content: "concurrent-\(i)")
-        try await queue.enqueue(clientID: id.uuidString, payload: data)
+        try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
       }
-      #expect(try await queue.pendingCount() == rowCount)
+      #expect(try await stub.queue.pendingCount() == rowCount)
 
       let responseData = captureResponseFixture()
       let successResponse = stubResponse(statusCode: 201)
@@ -214,20 +204,19 @@ struct StubNetworkTests {
       // Count every HTTP request the stub services.
       final class Counter: @unchecked Sendable { var value = 0 }
       let counter = Counter()
-      StubURLProtocol.responder = { [successResponse, responseData, counter] _ in
+      stub.setResponder { [successResponse, responseData, counter] _ in
         counter.value += 1
         return (successResponse, responseData)
       }
-      defer { StubURLProtocol.responder = nil }
 
       // Fire two drains concurrently via async let.  Both are submitted to the
       // actor before either completes; the second should be suppressed by isDraining.
-      async let drain1: Void = queue.tryDrain()
-      async let drain2: Void = queue.tryDrain()
+      async let drain1: Void = stub.queue.tryDrain()
+      async let drain2: Void = stub.queue.tryDrain()
       _ = await (drain1, drain2)
 
       // All rows should be gone (the one drain that ran succeeded).
-      #expect(try await queue.pendingCount() == 0)
+      #expect(try await stub.queue.pendingCount() == 0)
 
       // Exactly N HTTP requests — not 2×N.
       #expect(counter.value == rowCount)
@@ -244,35 +233,33 @@ struct StubNetworkTests {
     @Test("5xx: row retained indefinitely (no attempt cap), backoff delay increases")
     func fiveXxRetainsRowIndefinitely() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let failResponse = stubResponse(statusCode: 503)
       let errorBody = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
 
-      StubURLProtocol.responder = { [failResponse, errorBody] _ in
-        (failResponse, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (failResponse, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      #expect(try await queue.pendingCount() == 1)
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      #expect(try await stub.queue.pendingCount() == 1)
 
       // Drive 15 drain cycles — row must remain present after each.
       for attempt in 1...15 {
-        await queue.tryDrain()
-        let count = try await queue.pendingCount()
+        await stub.queue.tryDrain()
+        let count = try await stub.queue.pendingCount()
         #expect(count == 1, "row should still exist after attempt \(attempt)")
         // Backdate nextAttemptAt so the next drain picks up the row.
-        try await queue.setNextAttemptAt(
+        try await stub.queue.setNextAttemptAt(
           clientID: id.uuidString,
           date: Date().addingTimeInterval(-1)
         )
       }
 
       // After 15 failures the row must still be in the queue (not deleted).
-      #expect(try await queue.pendingCount() == 1)
-      #expect(try await queue.failedCount() == 0, "5xx rows are not failed — they are pending backoff")
+      #expect(try await stub.queue.pendingCount() == 1)
+      #expect(try await stub.queue.failedCount() == 0, "5xx rows are not failed — they are pending backoff")
     }
 
     // MARK: - fiveXxSingleSavePerDrain
@@ -282,29 +269,27 @@ struct StubNetworkTests {
     @Test("5xx transient failure: exactly one modelContext.save() per drain")
     func fiveXxSingleSavePerDrain() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let failResponse = stubResponse(statusCode: 503)
       let errorBody = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
 
-      StubURLProtocol.responder = { [failResponse, errorBody] _ in
-        (failResponse, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (failResponse, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
 
       // Arm the save counter for one drain.
       final class Counter: @unchecked Sendable { var value = 0 }
       let saveCounter = Counter()
-      await queue.setTestHooks(UploadQueueTestHooks(onModelContextSave: { saveCounter.value += 1 }))
-      defer { Task { await queue.setTestHooks(nil) } }
+      await stub.queue.setTestHooks(UploadQueueTestHooks(onModelContextSave: { saveCounter.value += 1 }))
+      defer { Task { await stub.queue.setTestHooks(nil) } }
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       // Row still present (transient, not deleted).
-      #expect(try await queue.pendingCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
       // Exactly one save: the bump+save.
       #expect(saveCounter.value == 1)
     }
@@ -320,25 +305,23 @@ struct StubNetworkTests {
     @Test("4xx (422): row transitions to failed state (not deleted)")
     func fourXxTransitionsToFailed() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let failResponse = stubResponse(statusCode: 422)
       let errorBody = #"{"detail":"unprocessable entity"}"#.data(using: .utf8)!
 
-      StubURLProtocol.responder = { [failResponse, errorBody] _ in
-        (failResponse, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (failResponse, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      #expect(try await queue.pendingCount() == 1)
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      #expect(try await stub.queue.pendingCount() == 1)
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       // Row stays in queue with isFailed = true.
-      #expect(try await queue.pendingCount() == 1)
-      #expect(try await queue.failedCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
+      #expect(try await stub.queue.failedCount() == 1)
     }
 
     // MARK: - fiveXxThenFourXxMarksRowFailed
@@ -352,7 +335,8 @@ struct StubNetworkTests {
     @Test("5xx then 4xx: row in backoff on 503, then transitions to failed on 422")
     func fiveXxThenFourXxMarksRowFailed() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let transientResponse = stubResponse(statusCode: 503)
@@ -361,15 +345,13 @@ struct StubNetworkTests {
       let errorBody422 = #"{"detail":"unprocessable entity"}"#.data(using: .utf8)!
 
       // --- First drain: 503 (transient) ---
-      StubURLProtocol.responder = { [transientResponse, errorBody503] _ in
-        (transientResponse, errorBody503)
-      }
+      stub.setResponder { _ in (transientResponse, errorBody503) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()
 
       // Row must still be present with attemptCount == 1 and nextAttemptAt set.
-      #expect(try await queue.pendingCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
       let readContext = ModelContext(container)
       let rowsAfterTransient = try readContext.fetch(FetchDescriptor<QueuedCapture>())
       let row = try #require(rowsAfterTransient.first)
@@ -378,19 +360,16 @@ struct StubNetworkTests {
       #expect(row.isFailed == false)
 
       // Backdate nextAttemptAt so the second drain will pick up the row.
-      try await queue.setNextAttemptAt(clientID: id.uuidString, date: Date().addingTimeInterval(-1))
+      try await stub.queue.setNextAttemptAt(clientID: id.uuidString, date: Date().addingTimeInterval(-1))
 
       // --- Second drain: 422 (permanent) ---
-      StubURLProtocol.responder = { [permanentResponse, errorBody422] _ in
-        (permanentResponse, errorBody422)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (permanentResponse, errorBody422) }
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       // Row stays, now in failed state.
-      #expect(try await queue.pendingCount() == 1)
-      #expect(try await queue.failedCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
+      #expect(try await stub.queue.failedCount() == 1)
     }
 
     // MARK: - transientNetworkErrorRetries
@@ -400,19 +379,15 @@ struct StubNetworkTests {
     @Test("non-HTTP URLError: row kept, attemptCount incremented to 1")
     func transientNetworkErrorRetries() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithErrorStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
 
-      StubURLProtocol.errorResponder = { _ in
-        URLError(.notConnectedToInternet)
-      }
-      defer { StubURLProtocol.errorResponder = nil }
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()
-
-      #expect(try await queue.pendingCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
 
       let readContext = ModelContext(container)
       let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
@@ -425,17 +400,18 @@ struct StubNetworkTests {
     @Test("reset deletes all rows (pendingCount == 0)")
     func resetClearsAll() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id1, data1) = try makePayload(content: "alpha")
       let (id2, data2) = try makePayload(content: "beta")
 
-      try await queue.enqueue(clientID: id1.uuidString, payload: data1)
-      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
-      #expect(try await queue.pendingCount() == 2)
+      try await stub.queue.enqueue(clientID: id1.uuidString, payload: data1)
+      try await stub.queue.enqueue(clientID: id2.uuidString, payload: data2)
+      #expect(try await stub.queue.pendingCount() == 2)
 
-      try await queue.reset()
-      #expect(try await queue.pendingCount() == 0)
+      try await stub.queue.reset()
+      #expect(try await stub.queue.pendingCount() == 0)
     }
   }
 
@@ -468,28 +444,14 @@ struct StubNetworkTests {
 
     // MARK: - Fixtures
 
-    private static let baseURL = URL(string: "https://grove.example.ts.net")!
     private static let token = "vm-test-token"
 
-    private func makeQueue() throws -> (UploadQueue, ModelContainer) {
-      let schema = Schema([QueuedCapture.self])
-      let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
-      let container = try ModelContainer(for: schema, configurations: [config])
-
-      let urlConfig = URLSessionConfiguration.default
-      urlConfig.protocolClasses = [StubURLProtocol.self]
-      let api = GroveAPI(
-        baseURL: Self.baseURL,
-        bearerToken: Self.token,
-        configuration: urlConfig
-      )
-      let queue = UploadQueue(modelContainer: container, api: api)
-      return (queue, container)
-    }
+    // makeCaptureViewModelWithStub() and makeCaptureViewModelWithErrorStub() are
+    // provided by Support/StubNetworkFixtures.swift as top-level free functions.
 
     private func stubResponse(statusCode: Int) -> HTTPURLResponse {
       HTTPURLResponse(
-        url: Self.baseURL.appendingPathComponent("v1/captures"),
+        url: URL(string: "https://grove.example.ts.net/v1/captures")!,
         statusCode: statusCode,
         httpVersion: nil,
         headerFields: ["Content-Type": "application/json"]
@@ -512,16 +474,12 @@ struct StubNetworkTests {
 
     @Test("save enqueues row and drains it on success (pendingCount == 0)")
     func saveEnqueuesAndAttemptsDrain() async throws {
-      let (queue, _) = try makeQueue()
-      let vm = CaptureViewModel(uploadQueue: queue)
+      let s = try makeCaptureViewModelWithStub(bearerToken: Self.token)
+      defer { s.stub.teardown() }
 
       let successResponse = stubResponse(statusCode: 201)
       let responseData = captureResponseData()
-
-      StubURLProtocol.responder = { [successResponse, responseData] _ in
-        (successResponse, responseData)
-      }
-      defer { StubURLProtocol.responder = nil }
+      s.stub.setResponder { _ in (successResponse, responseData) }
 
       // Wire up the drain-completion callback before triggering save so the
       // continuation is in place when the fire-and-forget drain task fires.
@@ -532,6 +490,7 @@ struct StubNetworkTests {
         var continuation: CheckedContinuation<Void, Error>?
       }
       let holder = ContinuationHolder()
+      let queue = s.queue
       await queue.setTestHooks(UploadQueueTestHooks(onDrainRowComplete: { result in
         Task { await queue.setTestHooks(nil) }
         holder.continuation?.resume(with: result)
@@ -541,8 +500,8 @@ struct StubNetworkTests {
           holder.continuation = continuation
 
           Task { @MainActor in
-            vm.content = "Hello from the test"
-            await vm.save()
+            s.vm.content = "Hello from the test"
+            await s.vm.save()
           }
         }
       }
@@ -551,8 +510,8 @@ struct StubNetworkTests {
       // (save() waits 1.5s then sets idle — we check just before that here,
       //  but since we await save() the status will have advanced to .idle by
       //  the time save() returns. Verify no error was shown instead.)
-      #expect(vm.showErrorAlert == false)
-      #expect(vm.content == "")
+      #expect(s.vm.showErrorAlert == false)
+      #expect(s.vm.content == "")
 
       // Continuation was already signalled by onDrainRowComplete — row is gone.
       let count = try await queue.pendingCount()
@@ -563,30 +522,26 @@ struct StubNetworkTests {
 
     @Test("save reports success even when drain fails (row stays queued)")
     func saveSucceedsEvenWhenDrainFails() async throws {
-      let (queue, _) = try makeQueue()
-      let vm = CaptureViewModel(uploadQueue: queue)
+      let s = try makeCaptureViewModelWithStub(bearerToken: Self.token)
+      defer { s.stub.teardown() }
 
       let failResponse = stubResponse(statusCode: 500)
       let errorBody = #"{"detail":"internal server error"}"#.data(using: .utf8)!
+      s.stub.setResponder { _ in (failResponse, errorBody) }
 
-      StubURLProtocol.responder = { [failResponse, errorBody] _ in
-        (failResponse, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
-
-      vm.content = "Offline capture"
-      await vm.save()
+      s.vm.content = "Offline capture"
+      await s.vm.save()
 
       // The user-facing contract: no error alert shown (the capture is durably
       // queued even though the immediate upload attempt failed).
-      #expect(vm.showErrorAlert == false)
-      #expect(vm.content == "")
+      #expect(s.vm.showErrorAlert == false)
+      #expect(s.vm.content == "")
 
       // Await the drain task via the test seam so the assertion is
       // deterministic, rather than relying on the 1.5 s sleep in save().
-      await vm._lastDrainTask?.value
+      await s.vm._lastDrainTask?.value
 
-      let count = try await queue.pendingCount()
+      let count = try await s.queue.pendingCount()
       #expect(count == 1, "Row should remain queued after failed drain")
     }
 
@@ -594,28 +549,24 @@ struct StubNetworkTests {
 
     @Test("save reports success when server returns 503")
     func saveSucceedsWhenServerReturns503() async throws {
-      let (queue, _) = try makeQueue()
-      let vm = CaptureViewModel(uploadQueue: queue)
+      let s = try makeCaptureViewModelWithStub(bearerToken: Self.token)
+      defer { s.stub.teardown() }
 
       let unavailableResponse = stubResponse(statusCode: 503)
       let unavailableBody = #"{"detail":"service unavailable"}"#.data(using: .utf8)!
+      s.stub.setResponder { _ in (unavailableResponse, unavailableBody) }
 
-      StubURLProtocol.responder = { [unavailableResponse, unavailableBody] _ in
-        (unavailableResponse, unavailableBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      s.vm.content = "Saved while server unavailable"
+      await s.vm.save()
 
-      vm.content = "Saved while server unavailable"
-      await vm.save()
-
-      #expect(vm.showErrorAlert == false, "User should see 'saved', not an error")
-      #expect(vm.content == "", "Content cleared on enqueue success")
+      #expect(s.vm.showErrorAlert == false, "User should see 'saved', not an error")
+      #expect(s.vm.content == "", "Content cleared on enqueue success")
 
       // Await the drain task via the test seam so the assertion is
       // deterministic, rather than relying on the 1.5 s sleep in save().
-      await vm._lastDrainTask?.value
+      await s.vm._lastDrainTask?.value
 
-      let count = try await queue.pendingCount()
+      let count = try await s.queue.pendingCount()
       #expect(count == 1, "Row should be in queue awaiting reconnect")
     }
 
@@ -623,41 +574,36 @@ struct StubNetworkTests {
 
     @Test("save reports success when network layer throws URLError(.notConnectedToInternet)")
     func saveSucceedsWhenNetworkUnavailable() async throws {
-      let (queue, _) = try makeQueue()
-      let vm = CaptureViewModel(uploadQueue: queue)
+      let s = try makeCaptureViewModelWithErrorStub(bearerToken: Self.token)
+      defer { s.teardown() }
 
       // Simulate a true offline condition: the stub fails the request at the
       // network layer rather than returning any HTTP response.
-      StubURLProtocol.errorResponder = { _ in
-        URLError(.notConnectedToInternet)
-      }
-      defer { StubURLProtocol.errorResponder = nil }
-
-      vm.content = "Saved while offline"
-      await vm.save()
+      s.vm.content = "Saved while offline"
+      await s.vm.save()
 
       // Await the drain task via the test seam so the assertion is
       // deterministic, rather than relying on the 1.5 s sleep in save().
-      await vm._lastDrainTask?.value
+      await s.vm._lastDrainTask?.value
 
-      let count = try await queue.pendingCount()
+      let count = try await s.queue.pendingCount()
       #expect(count == 1, "Row should be in queue awaiting reconnect")
-      #expect(vm.showErrorAlert == false, "User should see 'saved', not an error")
-      #expect(vm.content == "", "Content cleared on enqueue success")
+      #expect(s.vm.showErrorAlert == false, "User should see 'saved', not an error")
+      #expect(s.vm.content == "", "Content cleared on enqueue success")
     }
 
     // MARK: - emptyContentIsNoop
 
     @Test("save with empty content does not enqueue anything")
     func emptyContentIsNoop() async throws {
-      let (queue, _) = try makeQueue()
-      let vm = CaptureViewModel(uploadQueue: queue)
+      let s = try makeCaptureViewModelWithStub(bearerToken: Self.token)
+      defer { s.stub.teardown() }
 
-      vm.content = "   "
-      await vm.save()
+      s.vm.content = "   "
+      await s.vm.save()
 
-      #expect(vm.showErrorAlert == false)
-      let count = try await queue.pendingCount()
+      #expect(s.vm.showErrorAlert == false)
+      let count = try await s.queue.pendingCount()
       #expect(count == 0, "Empty/whitespace content must not enqueue a row")
     }
   }
@@ -675,8 +621,7 @@ struct StubNetworkTests {
   ///  - Idempotency: same bad token → no re-enqueue.
   ///  - Edge cases: prior-state transition, multiple rows, non-auth rows unaffected.
   ///
-  /// Nested here so these tests participate in the outer `.serialized` constraint
-  /// and do not race other suites on `StubURLProtocol`'s static responder.
+  /// Each test uses `makeQueueWithStub` so there is no cross-test static mutation.
   @Suite("AuthRequired")
   struct AuthRequiredTests {
 
@@ -684,9 +629,9 @@ struct StubNetworkTests {
 
     private static let token = "auth-test-token"
 
-    // makeContainer(), makePayload(), and stubResponse() are provided by
-    // Support/StubNetworkFixtures.swift as top-level free functions.
-    // makeQueue(container:bearerToken:initialToken:) is called with
+    // makeContainer(), makePayload(), makeQueueWithStub(), and stubResponse() are
+    // provided by Support/StubNetworkFixtures.swift as top-level free functions.
+    // makeQueueWithStub(container:bearerToken:initialToken:) is called with
     // initialToken: Self.token so the queue tracks the current token for
     // idempotency checks in the auth-required re-enqueue tests.
 
@@ -703,25 +648,23 @@ struct StubNetworkTests {
     @Test("401 response: row marked isAuthRequired=true, not deleted")
     func fourOhOneMarksAuthRequired() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token, initialToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let response401 = stubResponse(statusCode: 401)
       let errorBody = #"{"detail":"Invalid authentication credentials"}"#.data(using: .utf8)!
 
-      StubURLProtocol.responder = { [response401, errorBody] _ in
-        (response401, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (response401, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      #expect(try await queue.pendingCount() == 1)
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      #expect(try await stub.queue.pendingCount() == 1)
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       // Row must still exist (not deleted like other 4xx).
-      #expect(try await queue.pendingCount() == 1)
-      #expect(try await queue.authRequiredCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
+      #expect(try await stub.queue.authRequiredCount() == 1)
 
       // Verify the row itself has isAuthRequired set.
       let readContext = ModelContext(container)
@@ -738,12 +681,13 @@ struct StubNetworkTests {
     @Test("401 on a previously-failed row: isAuthRequired=true overrides prior state")
     func fourOhOneAfterTransientFailure() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token, initialToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
 
       // First: a 503 (transient) — row stays with attemptCount == 1.
-      StubURLProtocol.responder = { _ in
+      stub.setResponder { _ in
         let r = HTTPURLResponse(
           url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
           statusCode: 503,
@@ -753,28 +697,25 @@ struct StubNetworkTests {
         return (r, #"{"detail":"unavailable"}"#.data(using: .utf8)!)
       }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()
 
-      #expect(try await queue.pendingCount() == 1)
-      #expect(try await queue.authRequiredCount() == 0)
+      #expect(try await stub.queue.pendingCount() == 1)
+      #expect(try await stub.queue.authRequiredCount() == 0)
 
       // Backdate nextAttemptAt so the second drain will pick up the row
       // (the 503 set nextAttemptAt to ~now+5s; without this the 401 drain skips it).
-      try await queue.setNextAttemptAt(clientID: id.uuidString, date: Date().addingTimeInterval(-1))
+      try await stub.queue.setNextAttemptAt(clientID: id.uuidString, date: Date().addingTimeInterval(-1))
 
       // Second: a 401 — row should now be isAuthRequired=true.
       let response401 = stubResponse(statusCode: 401)
       let body401 = #"{"detail":"Invalid authentication credentials"}"#.data(using: .utf8)!
-      StubURLProtocol.responder = { [response401, body401] _ in
-        (response401, body401)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (response401, body401) }
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
-      #expect(try await queue.pendingCount() == 1)
-      #expect(try await queue.authRequiredCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
+      #expect(try await stub.queue.authRequiredCount() == 1)
 
       let readContext = ModelContext(container)
       let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
@@ -787,26 +728,24 @@ struct StubNetworkTests {
     @Test("tryDrain skips rows marked isAuthRequired (no network call, row unchanged)")
     func drainSkipsAuthRequiredRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token, initialToken: Self.token)
+      defer { stub.teardown() }
 
       // Enqueue a row and force it into auth_required state.
       let (id, data) = try makePayload()
       let response401 = stubResponse(statusCode: 401)
       let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
 
-      StubURLProtocol.responder = { [response401, body401] _ in
-        (response401, body401)
-      }
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()  // Transition to auth_required.
-      StubURLProtocol.responder = nil
+      stub.setResponder { _ in (response401, body401) }
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()  // Transition to auth_required.
 
-      #expect(try await queue.authRequiredCount() == 1)
+      #expect(try await stub.queue.authRequiredCount() == 1)
 
       // Now drain again — auth_required rows must be skipped, no HTTP call made.
       final class Counter: @unchecked Sendable { var value = 0 }
       let httpCallCount = Counter()
-      StubURLProtocol.responder = { [httpCallCount] _ in
+      stub.setResponder { [httpCallCount] _ in
         httpCallCount.value += 1
         let r = HTTPURLResponse(
           url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
@@ -814,12 +753,11 @@ struct StubNetworkTests {
         )!
         return (r, Data())
       }
-      defer { StubURLProtocol.responder = nil }
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       #expect(httpCallCount.value == 0)
-      #expect(try await queue.authRequiredCount() == 1)
+      #expect(try await stub.queue.authRequiredCount() == 1)
     }
 
     // MARK: - authRequiredCount counts only flagged rows
@@ -827,29 +765,27 @@ struct StubNetworkTests {
     @Test("authRequiredCount returns only rows with isAuthRequired=true")
     func authRequiredCountIsSelective() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token, initialToken: Self.token)
+      defer { stub.teardown() }
 
       let (id1, data1) = try makePayload(content: "first")
       let (id2, data2) = try makePayload(content: "second")
       let (id3, data3) = try makePayload(content: "third")
 
-      try await queue.enqueue(clientID: id1.uuidString, payload: data1)
-      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
-      try await queue.enqueue(clientID: id3.uuidString, payload: data3)
+      try await stub.queue.enqueue(clientID: id1.uuidString, payload: data1)
+      try await stub.queue.enqueue(clientID: id2.uuidString, payload: data2)
+      try await stub.queue.enqueue(clientID: id3.uuidString, payload: data3)
 
-      #expect(try await queue.authRequiredCount() == 0)
+      #expect(try await stub.queue.authRequiredCount() == 0)
 
       let response401 = stubResponse(statusCode: 401)
       let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
-      StubURLProtocol.responder = { [response401, body401] _ in
-        (response401, body401)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (response401, body401) }
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
-      #expect(try await queue.pendingCount() == 3)
-      #expect(try await queue.authRequiredCount() == 3)
+      #expect(try await stub.queue.pendingCount() == 3)
+      #expect(try await stub.queue.authRequiredCount() == 3)
     }
 
     // MARK: - reenqueueAuthRequired clears flag and drains
@@ -857,21 +793,21 @@ struct StubNetworkTests {
     @Test("reenqueueAuthRequired: clears isAuthRequired, rows re-drain successfully")
     func reenqueueClearsAndDrains() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token, initialToken: Self.token)
+      defer { stub.teardown() }
 
       let (id1, data1) = try makePayload(content: "alpha")
       let (id2, data2) = try makePayload(content: "beta")
 
       let response401 = stubResponse(statusCode: 401)
       let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
-      StubURLProtocol.responder = { [response401, body401] _ in (response401, body401) }
+      stub.setResponder { _ in (response401, body401) }
 
-      try await queue.enqueue(clientID: id1.uuidString, payload: data1)
-      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
-      await queue.tryDrain()
+      try await stub.queue.enqueue(clientID: id1.uuidString, payload: data1)
+      try await stub.queue.enqueue(clientID: id2.uuidString, payload: data2)
+      await stub.queue.tryDrain()
 
-      StubURLProtocol.responder = nil
-      #expect(try await queue.authRequiredCount() == 2)
+      #expect(try await stub.queue.authRequiredCount() == 2)
 
       let successResponse = HTTPURLResponse(
         url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
@@ -879,15 +815,12 @@ struct StubNetworkTests {
         headerFields: ["Content-Type": "application/json"]
       )!
       let fix = captureFixture()
-      StubURLProtocol.responder = { [successResponse, fix] _ in
-        (successResponse, fix)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (successResponse, fix) }
 
-      await queue.reenqueueAuthRequired(newToken: "new-valid-token")
+      await stub.queue.reenqueueAuthRequired(newToken: "new-valid-token")
 
-      #expect(try await queue.pendingCount() == 0)
-      #expect(try await queue.authRequiredCount() == 0)
+      #expect(try await stub.queue.pendingCount() == 0)
+      #expect(try await stub.queue.authRequiredCount() == 0)
     }
 
     // MARK: - reenqueueAuthRequired is idempotent on same-token re-call
@@ -895,32 +828,31 @@ struct StubNetworkTests {
     @Test("reenqueueAuthRequired: same bad token does not re-enqueue (idempotent)")
     func reenqueueIdempotentOnSameToken() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token, initialToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let response401 = stubResponse(statusCode: 401)
       let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
-      StubURLProtocol.responder = { [response401, body401] _ in (response401, body401) }
+      stub.setResponder { _ in (response401, body401) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()  // → auth_required; lastKnownBadToken = Self.token
-      StubURLProtocol.responder = nil
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()  // → auth_required; lastKnownBadToken = Self.token
 
-      #expect(try await queue.authRequiredCount() == 1)
+      #expect(try await stub.queue.authRequiredCount() == 1)
 
       final class Counter: @unchecked Sendable { var value = 0 }
       let httpCallCount = Counter()
-      StubURLProtocol.responder = { [httpCallCount, response401, body401] _ in
+      stub.setResponder { [httpCallCount] _ in
         httpCallCount.value += 1
         return (response401, body401)
       }
-      defer { StubURLProtocol.responder = nil }
 
       // Same token that caused the 401 — must be a no-op.
-      await queue.reenqueueAuthRequired(newToken: Self.token)
+      await stub.queue.reenqueueAuthRequired(newToken: Self.token)
 
       #expect(httpCallCount.value == 0)
-      #expect(try await queue.authRequiredCount() == 1)
+      #expect(try await stub.queue.authRequiredCount() == 1)
     }
 
     // MARK: - multiple auth_required rows all re-enqueued
@@ -928,21 +860,21 @@ struct StubNetworkTests {
     @Test("multiple auth_required rows: all re-enqueued when token changes")
     func multipleRowsAllReenqueued() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token, initialToken: Self.token)
+      defer { stub.teardown() }
 
       let count = 5
       for i in 0..<count {
         let (id, data) = try makePayload(content: "item-\(i)")
-        try await queue.enqueue(clientID: id.uuidString, payload: data)
+        try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
       }
 
       let response401 = stubResponse(statusCode: 401)
       let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
-      StubURLProtocol.responder = { [response401, body401] _ in (response401, body401) }
-      await queue.tryDrain()
-      StubURLProtocol.responder = nil
+      stub.setResponder { _ in (response401, body401) }
+      await stub.queue.tryDrain()
 
-      #expect(try await queue.authRequiredCount() == count)
+      #expect(try await stub.queue.authRequiredCount() == count)
 
       let successResponse = HTTPURLResponse(
         url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
@@ -950,11 +882,10 @@ struct StubNetworkTests {
         headerFields: ["Content-Type": "application/json"]
       )!
       let fix = captureFixture()
-      StubURLProtocol.responder = { [successResponse, fix] _ in (successResponse, fix) }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (successResponse, fix) }
 
-      await queue.reenqueueAuthRequired(newToken: "brand-new-valid-token")
-      #expect(try await queue.pendingCount() == 0)
+      await stub.queue.reenqueueAuthRequired(newToken: "brand-new-valid-token")
+      #expect(try await stub.queue.pendingCount() == 0)
     }
 
     // MARK: - reenqueueAuthRequired only clears auth_required rows
@@ -970,28 +901,27 @@ struct StubNetworkTests {
     @Test("reenqueueAuthRequired: only clears rows with isAuthRequired=true")
     func reenqueueOnlyClearsAuthRequiredRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token, initialToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token, initialToken: Self.token)
+      defer { stub.teardown() }
 
       // Row A → auth_required (401).
       let (idA, dataA) = try makePayload(content: "auth-required row")
       let response401 = stubResponse(statusCode: 401)
       let body401 = #"{"detail":"bad token"}"#.data(using: .utf8)!
-      StubURLProtocol.responder = { [response401, body401] _ in (response401, body401) }
-      try await queue.enqueue(clientID: idA.uuidString, payload: dataA)
-      await queue.tryDrain()
-      StubURLProtocol.responder = nil
+      stub.setResponder { _ in (response401, body401) }
+      try await stub.queue.enqueue(clientID: idA.uuidString, payload: dataA)
+      await stub.queue.tryDrain()
 
       // Row B → transient failure (503), NOT auth_required.
       let (idB, dataB) = try makePayload(content: "transient-failure row")
       let response503 = stubResponse(statusCode: 503)
       let body503 = #"{"detail":"unavailable"}"#.data(using: .utf8)!
-      StubURLProtocol.responder = { [response503, body503] _ in (response503, body503) }
-      try await queue.enqueue(clientID: idB.uuidString, payload: dataB)
-      await queue.tryDrain()
-      StubURLProtocol.responder = nil
+      stub.setResponder { _ in (response503, body503) }
+      try await stub.queue.enqueue(clientID: idB.uuidString, payload: dataB)
+      await stub.queue.tryDrain()
 
-      #expect(try await queue.pendingCount() == 2)
-      #expect(try await queue.authRequiredCount() == 1)  // Only row A.
+      #expect(try await stub.queue.pendingCount() == 2)
+      #expect(try await stub.queue.authRequiredCount() == 1)  // Only row A.
 
       // Confirm row-level state before calling reenqueueAuthRequired.
       let ctxBefore = ModelContext(container)
@@ -1005,15 +935,14 @@ struct StubNetworkTests {
       //   - Row A's flag is cleared → drain → 503 (now transient, stays in queue)
       //   - Row B's flag stays false → drain → 503 (stays in queue)
       // Using 503 for both ensures neither ends up auth_required again.
-      StubURLProtocol.responder = { [response503, body503] _ in (response503, body503) }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (response503, body503) }
 
-      await queue.reenqueueAuthRequired(newToken: "new-token")
+      await stub.queue.reenqueueAuthRequired(newToken: "new-token")
 
       // Both rows are still in queue (both got 503).
-      #expect(try await queue.pendingCount() == 2)
+      #expect(try await stub.queue.pendingCount() == 2)
       // Neither is auth_required — 503 is transient, not auth_required.
-      #expect(try await queue.authRequiredCount() == 0)
+      #expect(try await stub.queue.authRequiredCount() == 0)
 
       // Verify row B's isAuthRequired is still false (it was never touched by
       // reenqueueAuthRequired, which only clears rows that were auth_required).
@@ -1030,8 +959,7 @@ struct StubNetworkTests {
   /// errors, and the manual Retry / Discard operations exposed by the upload-queue
   /// debug screen.
   ///
-  /// Nested here so these tests participate in the outer `.serialized` constraint
-  /// and do not race other suites on `StubURLProtocol`'s static responder.
+  /// Each test uses `makeQueueWithStub` so there is no cross-test static mutation.
   ///
   /// # State machine (as of #186)
   ///
@@ -1051,8 +979,8 @@ struct StubNetworkTests {
 
     private static let token = "edge-case-test-token"
 
-    // makeContainer(), makePayload(), and stubResponse() are provided by
-    // Support/StubNetworkFixtures.swift as top-level free functions.
+    // makeContainer(), makePayload(), makeQueueWithStub(), and stubResponse() are
+    // provided by Support/StubNetworkFixtures.swift as top-level free functions.
 
     // MARK: - 4xx → failed (not deleted, not transient)
 
@@ -1061,24 +989,22 @@ struct StubNetworkTests {
     @Test("422 response: row transitions to failed state, lastError set, row persists")
     func fourTwoTwoTransitionToFailed() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"unprocessable entity"}"#.data(using: .utf8)!
       let response422 = stubResponse(statusCode: 422)
 
-      StubURLProtocol.responder = { [response422, errorBody] _ in
-        (response422, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (response422, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      #expect(try await queue.pendingCount() == 1)
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      #expect(try await stub.queue.pendingCount() == 1)
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       // Row must still exist — `failed` is a distinct state, not deleted.
-      #expect(try await queue.pendingCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
 
       let readContext = ModelContext(container)
       let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
@@ -1098,21 +1024,19 @@ struct StubNetworkTests {
     )
     func eachPermanentFourXxMapToFailed(statusCode: Int) async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let errorBody = "{\"detail\":\"error \(statusCode)\"}".data(using: .utf8)!
       let response = stubResponse(statusCode: statusCode)
 
-      StubURLProtocol.responder = { [response, errorBody] _ in
-        (response, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (response, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()
 
-      #expect(try await queue.pendingCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
       let readContext = ModelContext(container)
       let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
       let row = try #require(rows.first)
@@ -1125,20 +1049,18 @@ struct StubNetworkTests {
     @Test("422 lastError: status code preserved; huge body truncated at 500 chars")
     func fourTwoTwoErrorStringPreserved() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let knownBody = #"{"detail":"validation failed: field 'content' is required"}"#
       let errorBody = knownBody.data(using: .utf8)!
       let response422 = stubResponse(statusCode: 422)
 
-      StubURLProtocol.responder = { [response422, errorBody] _ in
-        (response422, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (response422, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()
 
       let readContext = ModelContext(container)
       let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
@@ -1155,11 +1077,9 @@ struct StubNetworkTests {
       let longDetail = String(repeating: "x", count: 580)
       let longJSON = "{\"detail\":\"\(longDetail)\"}".data(using: .utf8)!
       let response422b = stubResponse(statusCode: 422)
-      StubURLProtocol.responder = { [response422b, longJSON] _ in
-        (response422b, longJSON)
-      }
-      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
-      await queue.tryDrain()
+      stub.setResponder { _ in (response422b, longJSON) }
+      try await stub.queue.enqueue(clientID: id2.uuidString, payload: data2)
+      await stub.queue.tryDrain()
 
       let readContext2 = ModelContext(container)
       let rows2 = try readContext2.fetch(FetchDescriptor<QueuedCapture>())
@@ -1174,26 +1094,24 @@ struct StubNetworkTests {
     @Test("tryDrain: failed rows are skipped (no network call)")
     func tryDrainSkipsFailedRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"bad entity"}"#.data(using: .utf8)!
       let response422 = stubResponse(statusCode: 422)
 
-      StubURLProtocol.responder = { [response422, errorBody] _ in
-        (response422, errorBody)
-      }
+      stub.setResponder { _ in (response422, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()  // → failed
-      StubURLProtocol.responder = nil
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()  // → failed
 
-      #expect(try await queue.failedCount() == 1)
+      #expect(try await stub.queue.failedCount() == 1)
 
       // Now arm a counter to detect any HTTP calls during the next drain.
       final class Counter: @unchecked Sendable { var value = 0 }
       let httpCallCount = Counter()
-      StubURLProtocol.responder = { [httpCallCount] _ in
+      stub.setResponder { [httpCallCount] _ in
         httpCallCount.value += 1
         let r = HTTPURLResponse(
           url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
@@ -1201,12 +1119,11 @@ struct StubNetworkTests {
         )!
         return (r, Data())
       }
-      defer { StubURLProtocol.responder = nil }
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       #expect(httpCallCount.value == 0, "tryDrain must not retry failed rows")
-      #expect(try await queue.failedCount() == 1)
+      #expect(try await stub.queue.failedCount() == 1)
     }
 
     // MARK: - Retry resets failed state
@@ -1216,26 +1133,24 @@ struct StubNetworkTests {
     @Test("retryFailed: clears isFailed, resets attemptCount, row becomes pending")
     func retryFailedResetsToPending() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"bad"}"#.data(using: .utf8)!
       let response422 = stubResponse(statusCode: 422)
 
-      StubURLProtocol.responder = { [response422, errorBody] _ in
-        (response422, errorBody)
-      }
+      stub.setResponder { _ in (response422, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()  // → failed
-      StubURLProtocol.responder = nil
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()  // → failed
 
-      #expect(try await queue.failedCount() == 1)
+      #expect(try await stub.queue.failedCount() == 1)
 
       // Retry the failed row.
-      try await queue.retryFailed(clientID: id.uuidString)
+      try await stub.queue.retryFailed(clientID: id.uuidString)
 
-      #expect(try await queue.failedCount() == 0)
+      #expect(try await stub.queue.failedCount() == 0)
 
       let readContext = ModelContext(container)
       let rows = try readContext.fetch(FetchDescriptor<QueuedCapture>())
@@ -1251,26 +1166,24 @@ struct StubNetworkTests {
     @Test("discardFailed: row is removed from queue (pendingCount == 0)")
     func discardFailedRemovesRow() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"bad"}"#.data(using: .utf8)!
       let response422 = stubResponse(statusCode: 422)
 
-      StubURLProtocol.responder = { [response422, errorBody] _ in
-        (response422, errorBody)
-      }
+      stub.setResponder { _ in (response422, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()  // → failed
-      StubURLProtocol.responder = nil
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()  // → failed
 
-      #expect(try await queue.failedCount() == 1)
+      #expect(try await stub.queue.failedCount() == 1)
 
-      try await queue.discardFailed(clientID: id.uuidString)
+      try await stub.queue.discardFailed(clientID: id.uuidString)
 
-      #expect(try await queue.pendingCount() == 0)
-      #expect(try await queue.failedCount() == 0)
+      #expect(try await stub.queue.pendingCount() == 0)
+      #expect(try await stub.queue.failedCount() == 0)
     }
 
     // MARK: - Backoff schedule
@@ -1322,20 +1235,18 @@ struct StubNetworkTests {
     @Test("5xx: nextAttemptAt set to ~now + delay(forAttempt: 1) = 5s")
     func fiveXxSetsNextAttemptAt() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"unavailable"}"#.data(using: .utf8)!
       let response503 = stubResponse(statusCode: 503)
 
-      StubURLProtocol.responder = { [response503, errorBody] _ in
-        (response503, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (response503, errorBody) }
 
       let before = Date()
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      await queue.tryDrain()
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      await stub.queue.tryDrain()
       let after = Date()
 
       let readContext = ModelContext(container)
@@ -1366,13 +1277,14 @@ struct StubNetworkTests {
     @Test("tryDrain: rows with nextAttemptAt in future are skipped")
     func tryDrainSkipsFutureBackoffRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
 
       // Enqueue and set nextAttemptAt to far future directly.
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
-      try await queue.setNextAttemptAt(
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
+      try await stub.queue.setNextAttemptAt(
         clientID: id.uuidString,
         date: Date().addingTimeInterval(3600)
       )
@@ -1380,7 +1292,7 @@ struct StubNetworkTests {
       // Arm a counter — we must see zero HTTP calls.
       final class Counter: @unchecked Sendable { var value = 0 }
       let httpCallCount = Counter()
-      StubURLProtocol.responder = { [httpCallCount] _ in
+      stub.setResponder { [httpCallCount] _ in
         httpCallCount.value += 1
         let r = HTTPURLResponse(
           url: stubNetworkBaseURL.appendingPathComponent("v1/captures"),
@@ -1388,27 +1300,27 @@ struct StubNetworkTests {
         )!
         return (r, Data())
       }
-      defer { StubURLProtocol.responder = nil }
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       #expect(httpCallCount.value == 0, "Row with future nextAttemptAt must be skipped")
-      #expect(try await queue.pendingCount() == 1)
+      #expect(try await stub.queue.pendingCount() == 1)
     }
 
     /// When `nextAttemptAt` is in the past, the row must be processed normally.
     @Test("tryDrain: rows with nextAttemptAt in past are processed")
     func tryDrainProcessesPastBackoffRows() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload(
         clientID: UUID(uuidString: "a1b2c3d4-e5f6-7890-abcd-ef1234567890")!
       )
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
       // Set nextAttemptAt to 10s in the past.
-      try await queue.setNextAttemptAt(
+      try await stub.queue.setNextAttemptAt(
         clientID: id.uuidString,
         date: Date().addingTimeInterval(-10)
       )
@@ -1424,15 +1336,12 @@ struct StubNetworkTests {
        "captured_at":null,"enriched":false}
       """.data(using: .utf8)!
 
-      StubURLProtocol.responder = { [successResponse, fixture] _ in
-        (successResponse, fixture)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (successResponse, fixture) }
 
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
 
       // Row should be deleted on success.
-      #expect(try await queue.pendingCount() == 0)
+      #expect(try await stub.queue.pendingCount() == 0)
     }
 
     // MARK: - Backoff attempt count increments correctly across drains
@@ -1441,26 +1350,24 @@ struct StubNetworkTests {
     @Test("backoff: attempt count after two 5xx failures matches delay(forAttempt: 2) = 10s")
     func backoffAttemptCountTracksSchedule() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id, data) = try makePayload()
       let errorBody = #"{"detail":"unavailable"}"#.data(using: .utf8)!
       let response503 = stubResponse(statusCode: 503)
 
-      StubURLProtocol.responder = { [response503, errorBody] _ in
-        (response503, errorBody)
-      }
-      defer { StubURLProtocol.responder = nil }
+      stub.setResponder { _ in (response503, errorBody) }
 
-      try await queue.enqueue(clientID: id.uuidString, payload: data)
+      try await stub.queue.enqueue(clientID: id.uuidString, payload: data)
 
       // First drain — attempt 1, delay = 5s. Force past nextAttemptAt by backdating.
-      await queue.tryDrain()
-      try await queue.setNextAttemptAt(clientID: id.uuidString, date: Date().addingTimeInterval(-1))
+      await stub.queue.tryDrain()
+      try await stub.queue.setNextAttemptAt(clientID: id.uuidString, date: Date().addingTimeInterval(-1))
 
       // Second drain — attempt 2, delay = 10s.
       let before = Date()
-      await queue.tryDrain()
+      await stub.queue.tryDrain()
       let after = Date()
 
       let readContext = ModelContext(container)
@@ -1481,7 +1388,8 @@ struct StubNetworkTests {
     @Test("failedCount: only counts rows with isFailed=true")
     func failedCountIsSelective() async throws {
       let container = try makeContainer()
-      let (queue, _) = makeQueue(container: container, bearerToken: Self.token)
+      let stub = makeQueueWithStub(container: container, bearerToken: Self.token)
+      defer { stub.teardown() }
 
       let (id1, data1) = try makePayload(content: "failed-one")
       let (id2, data2) = try makePayload(content: "failed-two")
@@ -1491,20 +1399,17 @@ struct StubNetworkTests {
       let response422 = stubResponse(statusCode: 422)
 
       // Enqueue all three, then drain id1 and id2 into failed.
-      try await queue.enqueue(clientID: id1.uuidString, payload: data1)
-      try await queue.enqueue(clientID: id2.uuidString, payload: data2)
+      try await stub.queue.enqueue(clientID: id1.uuidString, payload: data1)
+      try await stub.queue.enqueue(clientID: id2.uuidString, payload: data2)
 
-      StubURLProtocol.responder = { [response422, errorBody] _ in
-        (response422, errorBody)
-      }
-      await queue.tryDrain()
-      StubURLProtocol.responder = nil
+      stub.setResponder { _ in (response422, errorBody) }
+      await stub.queue.tryDrain()
 
       // Now enqueue id3 (still pending, no drain attempt).
-      try await queue.enqueue(clientID: id3.uuidString, payload: data3)
+      try await stub.queue.enqueue(clientID: id3.uuidString, payload: data3)
 
-      #expect(try await queue.failedCount() == 2)
-      #expect(try await queue.pendingCount() == 3)
+      #expect(try await stub.queue.failedCount() == 2)
+      #expect(try await stub.queue.pendingCount() == 3)
     }
   }
 }

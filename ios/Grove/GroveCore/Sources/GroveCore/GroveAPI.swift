@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// Async HTTP client for the Grove backend.
 ///
@@ -44,6 +45,13 @@ public actor GroveAPI {
   // MARK: - Shared instance
 
   public static let shared = GroveAPI()
+
+  // MARK: - Logging
+
+  private let logger = Logger(
+    subsystem: "com.markdlabrecque.grove",
+    category: "api"
+  )
 
   // MARK: - Private state — sessions
 
@@ -285,7 +293,7 @@ public actor GroveAPI {
     let decoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
 
-    print("[query] sent query_chars=\(queryText.count) status=\(status)")
+    logger.info("[query] sent query_chars=\(queryText.count, privacy: .public) status=\(status, privacy: .public)")
 
     guard status == 200 else {
       let detail = extractDetail(from: data)
@@ -293,7 +301,7 @@ public actor GroveAPI {
     }
 
     let result = try decoder.decode(QueryResponseBody.self, from: data)
-    print("[query] sent query_chars=\(queryText.count) status=\(status) sources=\(result.sources.count)")
+    logger.info("[query] sent query_chars=\(queryText.count, privacy: .public) status=\(status, privacy: .public) sources=\(result.sources.count, privacy: .public)")
     return result
   }
 
@@ -331,7 +339,7 @@ public actor GroveAPI {
     }
 
     let status = httpResponse.statusCode
-    print("[recent-queries] limit=\(limit) status=\(status)")
+    logger.info("[recent-queries] limit=\(limit, privacy: .public) status=\(status, privacy: .public)")
 
     guard status == 200 else {
       let detail = extractDetail(from: data)
@@ -375,7 +383,7 @@ public actor GroveAPI {
     }
 
     let status = httpResponse.statusCode
-    print("[feedback] query_id=\(queryID.uuidString.lowercased()) feedback=\(feedback.rawValue) status=\(status)")
+    logger.info("[feedback] query_id=\(queryID.uuidString.lowercased(), privacy: .public) feedback=\(feedback.rawValue, privacy: .public) status=\(status, privacy: .public)")
 
     guard status == 204 else {
       let detail = extractDetail(from: data)
@@ -383,38 +391,18 @@ public actor GroveAPI {
     }
   }
 
-  // MARK: - Task EventKit linking
+  // MARK: - Task list (all tasks for authenticated user)
 
-  /// Attach an EventKit reminder identifier to a task (PATCH /v1/tasks/{id}).
+  /// Fetch all tasks for the authenticated user (GET /v1/tasks).
   ///
-  /// Called after the app creates an `EKReminder` and captures its
-  /// `calendarItemIdentifier`. Sends `{"eventkit_identifier": <id>}` to the
-  /// server, which stores the identifier on the `tasks` row.
+  /// Returns tasks sorted by `created_at` descending (server-side). No filter
+  /// parameters — this is the full list backing the Tasks tab.
   ///
-  /// ## Status codes
-  ///
-  /// - **200** — success. Returns the full updated `TaskDTO`.
-  /// - **404** — task not found. Thrown as `APIError.httpError(404, _)`.
-  /// - **409** — already linked to a different identifier. Thrown as
-  ///   `TaskLinkingError.alreadyLinked(existingIdentifier:)` where the
-  ///   associated value is the `existing_identifier` from the response body.
-  ///   Callers should self-heal by adopting the existing identifier.
-  /// - **422** — missing or empty `eventkit_identifier`. Thrown as
-  ///   `APIError.httpError(422, _)`.
-  ///
-  /// Uses the `defaultSession` — interactive, benefits from Task cancellation.
-  public func patchTaskEventKit(
-    taskID: UUID,
-    eventkitIdentifier: String
-  ) async throws -> TaskDTO {
-    let url = baseURL.appendingPathComponent(
-      "v1/tasks/\(taskID.uuidString.lowercased())"
-    )
+  /// Uses `defaultSession` — interactive fetch, supports Task cancellation.
+  public func listTasks() async throws -> [TaskDTO] {
+    let url = baseURL.appendingPathComponent("v1/tasks")
     var request = authorizedRequest(for: url)
-    request.httpMethod = "PATCH"
-
-    let body = ["eventkit_identifier": eventkitIdentifier]
-    request.httpBody = try JSONSerialization.data(withJSONObject: body)
+    request.httpMethod = "GET"
 
     let (data, response) = try await defaultSession.data(for: request)
 
@@ -423,21 +411,7 @@ public actor GroveAPI {
     }
 
     let status = httpResponse.statusCode
-    print("[task-link] task_id=\(taskID.uuidString.lowercased()) status=\(status)")
-
-    // 409: task already linked — extract the existing identifier from the body
-    // so the caller can self-heal without a separate GET.
-    if status == 409 {
-      // FastAPI envelopes dict-detail under "detail":
-      // { "detail": { "detail": "...", "existing_identifier": "<id>" } }
-      if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-         let outer = json["detail"] as? [String: Any],
-         let existingID = outer["existing_identifier"] as? String {
-        throw TaskLinkingError.alreadyLinked(existingIdentifier: existingID)
-      }
-      // Fallback if body shape differs.
-      throw APIError.httpError(statusCode: 409, detail: "Task already linked to a reminder.")
-    }
+    logger.info("[list-tasks] status=\(status, privacy: .public)")
 
     guard status == 200 else {
       let detail = extractDetail(from: data)
@@ -445,7 +419,38 @@ public actor GroveAPI {
     }
 
     let decoder = JSONDecoder()
-    return try decoder.decode(TaskDTO.self, from: data)
+    return try decoder.decode([TaskDTO].self, from: data)
+  }
+
+  // MARK: - Delete task
+
+  /// Delete a task by ID (DELETE /v1/tasks/{id}).
+  ///
+  /// Uses the `defaultSession` — interactive, triggered from swipe-to-delete.
+  /// A 404 response is re-thrown as `APIError.httpError(404, _)` per R2.2 so
+  /// callers can decide whether to treat it as a success or surface it.
+  ///
+  /// On success the server returns 204 No Content with an empty body.
+  public func deleteTask(id: UUID) async throws {
+    let url = baseURL.appendingPathComponent(
+      "v1/tasks/\(id.uuidString.lowercased())"
+    )
+    var request = authorizedRequest(for: url)
+    request.httpMethod = "DELETE"
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    logger.info("[delete-task] task_id=\(id.uuidString.lowercased(), privacy: .public) status=\(status, privacy: .public)")
+
+    guard status == 204 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
   }
 
   // MARK: - Delete
@@ -472,12 +477,48 @@ public actor GroveAPI {
     }
 
     let status = httpResponse.statusCode
-    print("[delete] memory_id=\(id.uuidString.lowercased()) status=\(status)")
+    logger.info("[delete] memory_id=\(id.uuidString.lowercased(), privacy: .public) status=\(status, privacy: .public)")
 
     guard status == 204 else {
       let detail = extractDetail(from: data)
       throw APIError.httpError(statusCode: status, detail: detail)
     }
+  }
+
+  // MARK: - Fetch single memory
+
+  /// Fetch a memory by ID (GET /v1/memories/{id}).
+  ///
+  /// Uses `defaultSession` — this is an interactive read triggered from the
+  /// detail view, and supports Swift structured-concurrency cancellation.
+  ///
+  /// Returns a `MemoryDetailDTO` containing the raw content and key metadata
+  /// fields needed by `MemoryDetailView`. Throws `APIError.httpError(404, _)`
+  /// when the memory is not found, or `APIError.httpError(status, _)` for other
+  /// non-2xx responses.
+  public func fetchMemory(id: UUID) async throws -> MemoryDetailDTO {
+    let url = baseURL.appendingPathComponent(
+      "v1/memories/\(id.uuidString.lowercased())"
+    )
+    let request = authorizedRequest(for: url)
+
+    let (data, response) = try await defaultSession.data(for: request)
+
+    guard let httpResponse = response as? HTTPURLResponse else {
+      throw APIError.unexpectedResponse
+    }
+
+    let status = httpResponse.statusCode
+    logger.info("[fetch] memory_id=\(id.uuidString.lowercased(), privacy: .public) status=\(status, privacy: .public)")
+
+    guard status == 200 else {
+      let detail = extractDetail(from: data)
+      throw APIError.httpError(statusCode: status, detail: detail)
+    }
+
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    return try decoder.decode(MemoryDetailDTO.self, from: data)
   }
 
   // MARK: - Delegate bridge (called from UploadSessionDelegate)
@@ -518,7 +559,7 @@ public actor GroveAPI {
       do {
         try FileManager.default.removeItem(at: upload.tempFileURL)
       } catch {
-        print("[capture] failed to delete temp file \(upload.tempFileURL.path): \(error)")
+        logger.error("[capture] failed to delete temp file \(upload.tempFileURL.path, privacy: .public): \(error)")
       }
     }
 
@@ -533,7 +574,7 @@ public actor GroveAPI {
     }
 
     let status = response.statusCode
-    print("[capture] sent status=\(status)")
+    logger.info("[capture] sent status=\(status, privacy: .public)")
 
     // 200 (idempotent re-upload) and 201 (new record) are both success.
     guard status == 200 || status == 201 else {
@@ -921,6 +962,28 @@ public struct QueryResult: Codable, Hashable, Sendable {
   }
 }
 
+/// Ask-flow context passed to `MemoryDetailView` when navigating from search
+/// results. Carries the relevance metadata that lives on the `QueryResult` side
+/// of the model, so `MemoryDetailView` can display score, match type, and chunk
+/// index without holding a full `QueryResult`.
+///
+/// `nil` is the correct value when navigating from a non-search surface (e.g.,
+/// the Tasks provenance badge).
+public struct QueryContext: Hashable, Sendable {
+  /// Cosine-similarity score in 0–1 (higher is more relevant).
+  public let score: Float
+  /// `"whole"` (full-memory match) or `"chunk"` (chunk-level match).
+  public let matchedVia: String
+  /// 0-based chunk index; `nil` when `matchedVia == "whole"`.
+  public let matchedChunkIndex: Int?
+
+  public init(score: Float, matchedVia: String, matchedChunkIndex: Int?) {
+    self.score = score
+    self.matchedVia = matchedVia
+    self.matchedChunkIndex = matchedChunkIndex
+  }
+}
+
 /// Wire format returned by POST /v1/queries.
 ///
 /// Matches the server's `QueryResponse` Pydantic model.
@@ -979,6 +1042,40 @@ public struct FeedbackRequestBody: Codable, Sendable {
 
   public init(feedback: Feedback) {
     self.feedback = feedback
+  }
+}
+
+// MARK: - Memory detail DTO
+
+/// Wire format returned by GET /v1/memories/{id}.
+///
+/// Contains only the fields needed by `MemoryDetailView` — the server's
+/// `MemoryDetailSchema` returns far more (chunks, decisions, tasks, etc.) but
+/// the iOS client currently renders just the raw content and capture metadata.
+/// Additional fields can be added here as the UI grows without a server change.
+public struct MemoryDetailDTO: Codable, Sendable {
+  public let id: UUID
+  public let content: String
+  public let capturedAt: Date?
+  public let sourceModality: String?
+
+  public init(
+    id: UUID,
+    content: String,
+    capturedAt: Date?,
+    sourceModality: String?
+  ) {
+    self.id = id
+    self.content = content
+    self.capturedAt = capturedAt
+    self.sourceModality = sourceModality
+  }
+
+  public enum CodingKeys: String, CodingKey {
+    case id
+    case content
+    case capturedAt = "captured_at"
+    case sourceModality = "source_modality"
   }
 }
 

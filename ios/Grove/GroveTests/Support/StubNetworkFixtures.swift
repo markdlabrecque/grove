@@ -26,30 +26,172 @@ func makeContainer() throws -> ModelContainer {
   return try ModelContainer(for: schema, configurations: [config])
 }
 
-// MARK: - makeQueue
+// MARK: - makeQueueWithStub
 
-/// Build an `UploadQueue` backed by an in-memory container and a stub API session.
+/// The return value of `makeQueueWithStub`. Bundles the queue, API, and a
+/// per-test responder setter so tests can swap what the stub returns without
+/// touching global state.
+struct QueueWithStub {
+  let queue: UploadQueue
+  let api: GroveAPI
+
+  /// A unique identifier for the session registered with `StubURLProtocol`.
+  /// Retained so tests that need it (e.g. to call `updateResponder(for:to:)`)
+  /// have it to hand; the `setResponder` helper is more ergonomic for common cases.
+  let stubID: UUID
+
+  /// Replace the success responder for this session.
+  ///
+  /// Thread-safe: delegates to `StubURLProtocol.updateResponder(for:to:)` which
+  /// is lock-protected.
+  func setResponder(_ responder: @escaping (URLRequest) -> (HTTPURLResponse, Data)) {
+    StubURLProtocol.updateResponder(for: stubID, to: responder)
+  }
+
+  /// Tear down the stub session (remove from the `StubURLProtocol` registry).
+  ///
+  /// Call this at the end of each test (e.g. from `defer`). After teardown
+  /// any in-flight requests will precondition-fail in `StubURLProtocol`.
+  let teardown: () -> Void
+}
+
+/// Build an `UploadQueue` with a per-test-isolated `StubURLProtocol` session.
 ///
-/// - Parameters:
-///   - container: An in-memory `ModelContainer` created by `makeContainer()`.
-///   - bearerToken: The bearer token to embed in `GroveAPI`.
-///   - initialToken: Passed as `initialToken:` to `UploadQueue.init`. Suites that
-///     test token-expiry flows (e.g. `AuthRequiredTests`) pass their own token here
-///     so the queue tracks the "last known bad token". Defaults to `""`.
-func makeQueue(
+/// Unlike `makeQueue`, this variant uses `StubURLProtocol.makeSession` so each
+/// test gets its own registry slot and there is no cross-test static mutation.
+///
+/// Pattern:
+/// ```swift
+/// let stub = makeQueueWithStub(container: container, bearerToken: token)
+/// defer { stub.teardown() }
+///
+/// stub.setResponder { _ in (stubResponse(statusCode: 201), responseData) }
+/// await stub.queue.tryDrain()
+/// ```
+func makeQueueWithStub(
   container: ModelContainer,
   bearerToken: String,
   initialToken: String = ""
-) -> (UploadQueue, GroveAPI) {
-  let config = URLSessionConfiguration.default
-  config.protocolClasses = [StubURLProtocol.self]
+) -> QueueWithStub {
+  // Seed an empty responder — tests call setResponder() before any network activity.
+  // The closure is a placeholder; if a request fires before setResponder is called
+  // the test has a logic error (will hit the registry entry and return a blank 500).
+  let placeholder: (URLRequest) -> (HTTPURLResponse, Data) = { request in
+    let resp = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
+    return (resp, Data())
+  }
+  let (config, teardown) = StubURLProtocol.makeSession(responder: placeholder)
+  let stubIDString = config.httpAdditionalHeaders?[StubURLProtocol.stubIDHeaderKey] as? String
+  let stubID = UUID(uuidString: stubIDString ?? "") ?? UUID()
+
   let api = GroveAPI(
     baseURL: stubNetworkBaseURL,
     bearerToken: bearerToken,
     configuration: config
   )
   let queue = UploadQueue(modelContainer: container, api: api, initialToken: initialToken)
-  return (queue, api)
+  return QueueWithStub(queue: queue, api: api, stubID: stubID, teardown: teardown)
+}
+
+// MARK: - makeQueueWithErrorStub
+
+/// The return value of `makeQueueWithErrorStub`. Bundles the queue and a teardown
+/// closure; unlike `QueueWithStub` there is no `setResponder` because an error
+/// session uses `StubURLProtocol.makeSession(errorResponder:)` which always fails.
+struct QueueWithErrorStub {
+  let queue: UploadQueue
+  let api: GroveAPI
+  let teardown: () -> Void
+}
+
+/// Build an `UploadQueue` whose every request fails with `URLError(.notConnectedToInternet)`.
+///
+/// Use this for tests that verify queue behaviour when the network layer throws
+/// an error before any HTTP response is received (e.g. `transientNetworkErrorRetries`).
+///
+/// Pattern:
+/// ```swift
+/// let stub = makeQueueWithErrorStub(container: container, bearerToken: token)
+/// defer { stub.teardown() }
+/// await stub.queue.tryDrain()
+/// ```
+func makeQueueWithErrorStub(
+  container: ModelContainer,
+  bearerToken: String,
+  error: Error = URLError(.notConnectedToInternet),
+  initialToken: String = ""
+) -> QueueWithErrorStub {
+  let err = error
+  let (config, teardown) = StubURLProtocol.makeSession(errorResponder: { _ in err })
+  let api = GroveAPI(
+    baseURL: stubNetworkBaseURL,
+    bearerToken: bearerToken,
+    configuration: config
+  )
+  let queue = UploadQueue(modelContainer: container, api: api, initialToken: initialToken)
+  return QueueWithErrorStub(queue: queue, api: api, teardown: teardown)
+}
+
+// MARK: - makeCaptureViewModelWithStub
+
+/// The return value of `makeCaptureViewModelWithStub`. Bundles the view model, its
+/// upload queue, and the per-test stub handle so tests can swap responses.
+struct CaptureViewModelWithStub {
+  let vm: CaptureViewModel
+  let queue: UploadQueue
+  let stub: QueueWithStub
+}
+
+/// Build a `CaptureViewModel` backed by a per-test-isolated stub queue.
+///
+/// The returned `stub` handle exposes `setResponder(_:)` for success responses.
+/// For error-path tests (network throws), use `makeCaptureViewModelWithErrorStub`.
+///
+/// Pattern:
+/// ```swift
+/// let s = try makeCaptureViewModelWithStub()
+/// defer { s.stub.teardown() }
+/// s.stub.setResponder { _ in (stubResponse(statusCode: 201), responseData) }
+/// await s.vm.save()
+/// ```
+@MainActor
+func makeCaptureViewModelWithStub(
+  baseURL: URL = URL(string: "https://grove.example.ts.net")!,
+  bearerToken: String = "vm-test-token"
+) throws -> CaptureViewModelWithStub {
+  let schema = Schema([QueuedCapture.self])
+  let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+  let container = try ModelContainer(for: schema, configurations: [config])
+
+  let stub = makeQueueWithStub(container: container, bearerToken: bearerToken)
+  let vm = CaptureViewModel(uploadQueue: stub.queue)
+  return CaptureViewModelWithStub(vm: vm, queue: stub.queue, stub: stub)
+}
+
+/// The return value of `makeCaptureViewModelWithErrorStub`.
+struct CaptureViewModelWithErrorStub {
+  let vm: CaptureViewModel
+  let queue: UploadQueue
+  let teardown: () -> Void
+}
+
+/// Build a `CaptureViewModel` whose every network request fails with the given error.
+@MainActor
+func makeCaptureViewModelWithErrorStub(
+  baseURL: URL = URL(string: "https://grove.example.ts.net")!,
+  bearerToken: String = "vm-test-token",
+  error: Error = URLError(.notConnectedToInternet)
+) throws -> CaptureViewModelWithErrorStub {
+  let schema = Schema([QueuedCapture.self])
+  let config = ModelConfiguration(schema: schema, isStoredInMemoryOnly: true)
+  let container = try ModelContainer(for: schema, configurations: [config])
+
+  let err = error
+  let (urlConfig, teardown) = StubURLProtocol.makeSession(errorResponder: { _ in err })
+  let api = GroveAPI(baseURL: baseURL, bearerToken: bearerToken, configuration: urlConfig)
+  let queue = UploadQueue(modelContainer: container, api: api)
+  let vm = CaptureViewModel(uploadQueue: queue)
+  return CaptureViewModelWithErrorStub(vm: vm, queue: queue, teardown: teardown)
 }
 
 // MARK: - makePayload

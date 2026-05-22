@@ -3,7 +3,7 @@ import Foundation
 import GroveCore
 @testable import Grove
 
-/// Unit tests for `MemoryDetailViewModel`'s delete state machine.
+/// Unit tests for `MemoryDetailViewModel`'s delete state machine and content loading.
 ///
 /// The delete flow: idle → confirming → deleting → (success/dismiss | failure).
 /// Tests inject a stub `deleteProvider` closure so no live network is needed.
@@ -17,16 +17,15 @@ struct MemoryDetailViewModelTests {
 
   private static let memoryID = UUID(uuidString: "DEADBEEF-0000-0000-0000-000000000001")!
 
-  private func makeResult(id: UUID = MemoryDetailViewModelTests.memoryID) -> QueryResult {
-    QueryResult(
-      memoryID: id,
-      score: 0.9,
-      matchedVia: "whole",
-      matchedChunkIndex: nil,
-      excerpt: "Remember to call Theo about the demo.",
-      capturedAt: Date(timeIntervalSince1970: 1_778_423_400),
-      sourceModality: "text"
-    )
+  // MARK: - Init shape
+
+  @Test("MemoryDetailViewModel init accepts a bare memoryID UUID, not a QueryResult")
+  func initTakesMemoryIDNotQueryResult() {
+    // This test pins the new init signature. It will fail until
+    // MemoryDetailViewModel(memoryID:...) is added.
+    let id = Self.memoryID
+    let vm = MemoryDetailViewModel(memoryID: id, deleteProvider: { _ in })
+    #expect(vm.memoryID == id)
   }
 
   // MARK: - State: initial state is idle
@@ -34,7 +33,7 @@ struct MemoryDetailViewModelTests {
   @Test("initial state is idle — not confirming, not deleting, no error")
   func initialStateIsIdle() {
     let vm = MemoryDetailViewModel(
-      result: makeResult(),
+      memoryID: Self.memoryID,
       deleteProvider: { _ in }
     )
     #expect(vm.isShowingDeleteConfirmation == false)
@@ -48,7 +47,7 @@ struct MemoryDetailViewModelTests {
   @Test("requestDelete() sets isShowingDeleteConfirmation to true")
   func requestDeleteSetsConfirming() {
     let vm = MemoryDetailViewModel(
-      result: makeResult(),
+      memoryID: Self.memoryID,
       deleteProvider: { _ in }
     )
     vm.requestDelete()
@@ -60,7 +59,7 @@ struct MemoryDetailViewModelTests {
   @Test("cancelDelete() resets isShowingDeleteConfirmation to false")
   func cancelDeleteResetsConfirming() {
     let vm = MemoryDetailViewModel(
-      result: makeResult(),
+      memoryID: Self.memoryID,
       deleteProvider: { _ in }
     )
     vm.requestDelete()
@@ -79,8 +78,8 @@ struct MemoryDetailViewModelTests {
 
     var capturedDeletedID: UUID?
     let vm = MemoryDetailViewModel(
-      result: makeResult(),
-      deleteProvider: { id in
+      memoryID: Self.memoryID,
+      deleteProvider: { _ in
         // Successful no-op delete.
       },
       onDeleteSuccess: { id in
@@ -110,7 +109,7 @@ struct MemoryDetailViewModelTests {
     let done = AsyncStream<Void>.makeStream()
 
     let vm = MemoryDetailViewModel(
-      result: makeResult(),
+      memoryID: Self.memoryID,
       deleteProvider: { _ in
         throw APIError.httpError(statusCode: 404, detail: "memory not found")
       },
@@ -136,7 +135,7 @@ struct MemoryDetailViewModelTests {
     let done = AsyncStream<Void>.makeStream()
 
     let vm = MemoryDetailViewModel(
-      result: makeResult(),
+      memoryID: Self.memoryID,
       deleteProvider: { _ in
         defer { done.continuation.yield(()) }
         throw APIError.httpError(statusCode: 500, detail: "internal server error")
@@ -168,7 +167,7 @@ struct MemoryDetailViewModelTests {
     let done = AsyncStream<Void>.makeStream()
 
     let vm = MemoryDetailViewModel(
-      result: makeResult(),
+      memoryID: Self.memoryID,
       deleteProvider: { _ in
         defer { done.continuation.yield(()) }
         throw TestError()
@@ -186,15 +185,64 @@ struct MemoryDetailViewModelTests {
     #expect(vm.deleteError != nil)
   }
 
+  // MARK: - loadContent: always fetches on appear
+
+  @Test("loadContent() always calls fetchProvider on appear, regardless of any prior state")
+  func loadContentAlwaysFetchesOnAppear() async throws {
+    var fetchCallCount = 0
+    let expectedContent = "Remember to call Theo about the upcoming demo."
+    let vm = MemoryDetailViewModel(
+      memoryID: Self.memoryID,
+      fetchProvider: { _ in
+        fetchCallCount += 1
+        return MemoryDetailDTO(
+          id: Self.memoryID,
+          content: expectedContent,
+          capturedAt: Date(timeIntervalSince1970: 1_778_423_400),
+          sourceModality: "text"
+        )
+      }
+    )
+
+    // First call — must always fetch.
+    await vm.loadContent()
+    #expect(fetchCallCount == 1, "fetchProvider must be called on first loadContent()")
+    #expect(vm.fetchedContent == expectedContent)
+    #expect(vm.capturedAt == Date(timeIntervalSince1970: 1_778_423_400))
+    #expect(vm.sourceModality == "text")
+    #expect(vm.isFetchingContent == false)
+    #expect(vm.fetchError == nil)
+
+    // Second call — must still fetch (no excerpt-guard no-op).
+    await vm.loadContent()
+    #expect(fetchCallCount == 2, "fetchProvider must be called again on second loadContent()")
+  }
+
+  // MARK: - loadContent: surfaces error when fetch fails
+
+  @Test("loadContent() sets fetchError and does not populate fetchedContent when fetch throws")
+  func loadContentSurfacesFetchError() async throws {
+    struct FetchFailure: Error, LocalizedError {
+      var errorDescription: String? { "server unavailable" }
+    }
+
+    let vm = MemoryDetailViewModel(
+      memoryID: Self.memoryID,
+      fetchProvider: { _ in throw FetchFailure() }
+    )
+
+    await vm.loadContent()
+
+    #expect(vm.fetchedContent == nil)
+    #expect(vm.isFetchingContent == false)
+    #expect(vm.fetchError != nil)
+  }
+
   // MARK: - Ask results regression: deleted source no longer appears
 
-  /// Regression test: after a successful delete, the `QueryResult` whose
-  /// `memoryID` matches the deleted ID should be removed from the caller's
-  /// source list. This verifies the `onDeleteSuccess` callback contract that
-  /// `QueryViewModel` (or the parent view) must fulfil.
-  ///
-  /// The ViewModel itself just calls `onDeleteSuccess(id)` — this test
-  /// verifies the caller's filtering logic works correctly with that contract.
+  /// Regression test: after a successful delete, the caller's `onDeleteSuccess`
+  /// callback receives the correct `memoryID`. This verifies the contract that
+  /// `QueryViewModel` (or the parent view) uses to remove the source from its list.
   @Test("onDeleteSuccess callback receives correct memoryID for caller to filter")
   func onDeleteSuccessDeliversMemoryIDForFiltering() async throws {
     let targetID = UUID()
@@ -224,7 +272,7 @@ struct MemoryDetailViewModelTests {
     var deletedID: UUID?
 
     let vm = MemoryDetailViewModel(
-      result: makeResult(id: targetID),
+      memoryID: targetID,
       deleteProvider: { _ in },
       onDeleteSuccess: { id in
         deletedID = id

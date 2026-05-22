@@ -69,6 +69,22 @@ public final class StubURLProtocol: URLProtocol {
     lock.withLock { registry[id] }
   }
 
+  // MARK: - Registry mutation (for mutable-responder sessions)
+
+  /// Replace the success responder for an existing session without tearing it
+  /// down and re-creating it.
+  ///
+  /// Used by `makeQueueWithStub` in `StubNetworkFixtures` so tests can change
+  /// what the stub returns between steps (e.g. succeed on the first N calls,
+  /// then fail). Calling this with an `id` that is not in the registry is a
+  /// no-op (safe to call after teardown).
+  public static func updateResponder(
+    for id: UUID,
+    to responder: @escaping (URLRequest) -> (HTTPURLResponse, Data)
+  ) {
+    lock.withLock { registry[id] = .success(responder) }
+  }
+
   // MARK: - Factory
 
   /// Creates an isolated `URLSessionConfiguration` whose requests are
@@ -131,17 +147,14 @@ public final class StubURLProtocol: URLProtocol {
   }
 
   override public func startLoading() {
-    // Look up the responder by the stub ID embedded in the request's headers.
-    // All test sessions created via makeSession carry this header; requests
-    // that don't are programming errors.
     guard
       let stubIDString = request.value(forHTTPHeaderField: StubURLProtocol.stubIDHeaderKey),
       let stubID = UUID(uuidString: stubIDString)
     else {
       preconditionFailure(
-        "StubURLProtocol: request is missing the \(StubURLProtocol.stubIDHeaderKey) header. " +
-        "Use StubURLProtocol.makeSession(responder:) to create the URLSessionConfiguration — " +
-        "it embeds the required header automatically."
+        "StubURLProtocol: request carries no \(StubURLProtocol.stubIDHeaderKey) header. " +
+        "All sessions must be created via StubURLProtocol.makeSession(responder:) or " +
+        "StubURLProtocol.makeSession(errorResponder:) so each test gets an isolated registry slot."
       )
     }
 

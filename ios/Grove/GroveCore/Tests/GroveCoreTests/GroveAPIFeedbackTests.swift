@@ -172,8 +172,7 @@ struct GroveAPIFeedbackTests {
   @Test("submitFeedback sends POST to /v1/queries/{id}/feedback with correct headers and body")
   func submitFeedbackRequestShape() async throws {
     let url = feedbackURL(for: Self.queryID)
-    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
-    let box = Box<URLRequest>()
+    let box = CaptureBox<URLRequest>()
 
     let (api, teardown) = makeAPI { [url] request in
       box.value = request
@@ -219,8 +218,7 @@ struct GroveAPIFeedbackTests {
   @Test("submitFeedback encodes 'negative' in request body")
   func submitFeedbackNegativeBody() async throws {
     let url = feedbackURL(for: Self.queryID)
-    final class Box<T>: @unchecked Sendable { var value: T?; init() {} }
-    let box = Box<URLRequest>()
+    let box = CaptureBox<URLRequest>()
 
     let (api, teardown) = makeAPI { [url] request in
       box.value = request

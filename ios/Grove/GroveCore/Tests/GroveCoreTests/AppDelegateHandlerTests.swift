@@ -49,21 +49,23 @@ struct AppDelegateHandlerTests {
 
     #expect(await api.backgroundHandlerCount == 1)
 
-    // Await drain completion via a sentinel continuation rather than a fixed
-    // sleep. The sentinel handler is stored alongside the real handler and
-    // resumes the continuation when the @MainActor Task inside drain dispatches
-    // all handlers — deterministic and instant.
-    // Wrapped in withBridgeTimeout so a broken drain fails fast rather than
-    // hanging the CI runner for the full budget.
+    // Trigger the drain on the main actor, then poll until box.called flips.
+    //
+    // The previous sentinel-continuation pattern was racy: drain spawns a
+    // single `Task { @MainActor in handlers.forEach { $0() } }` and the order
+    // of items in Array(dict.values) is non-deterministic. When the sentinel
+    // was called first inside forEach it resumed the continuation — but the
+    // box.called = true handler had not yet executed in that same forEach
+    // iteration, so the outer #expect(box.called) could observe false.
+    //
+    // Polling with Task.checkCancellation() inside withBridgeTimeout is the
+    // same pattern used to fix structurally identical races in #411 and #445.
+    await api.drainBackgroundCompletionHandlers()
+
     try await withBridgeTimeout(seconds: 2) {
-      await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-        Task { @MainActor in
-          await api.storeBackgroundCompletionHandler(
-            { cont.resume() },
-            forIdentifier: "com.markdlabrecque.grove.capture-upload-sentinel"
-          )
-          await api.drainBackgroundCompletionHandlers()
-        }
+      while !box.called {
+        try Task.checkCancellation()
+        await Task.yield()
       }
     }
 
@@ -85,15 +87,23 @@ struct AppDelegateHandlerTests {
       forIdentifier: "com.example.some-other-session"
     )
 
+    // Trigger the drain on the main actor, then poll until box.called flips.
+    //
+    // The previous sentinel-continuation pattern was racy: drain spawns a
+    // single `Task { @MainActor in handlers.forEach { $0() } }` and the order
+    // of items in Array(dict.values) is non-deterministic. When the sentinel
+    // was called first inside forEach it resumed the continuation — but the
+    // box.called = true handler had not yet executed in that same forEach
+    // iteration, so the outer #expect(box.called) could observe false.
+    //
+    // Polling with Task.checkCancellation() inside withBridgeTimeout is the
+    // same pattern used to fix a structurally identical race in #411.
+    await api.drainBackgroundCompletionHandlers()
+
     try await withBridgeTimeout(seconds: 2) {
-      await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-        Task { @MainActor in
-          await api.storeBackgroundCompletionHandler(
-            { cont.resume() },
-            forIdentifier: "com.markdlabrecque.grove.capture-upload-sentinel"
-          )
-          await api.drainBackgroundCompletionHandlers()
-        }
+      while !box.called {
+        try Task.checkCancellation()
+        await Task.yield()
       }
     }
 
@@ -122,15 +132,19 @@ struct AppDelegateHandlerTests {
     // Only one entry in the map (replaced, not appended).
     #expect(await api.backgroundHandlerCount == 1)
 
+    // Trigger the drain on the main actor, then poll until counter.count
+    // reaches the expected value.
+    //
+    // The previous sentinel-continuation pattern was racy for the same reason
+    // as in handlerCalledForCanonicalIdentifier: Array(dict.values) iteration
+    // order is non-deterministic, so the sentinel could resume the continuation
+    // before the real handler executed. See #445 and #447.
+    await api.drainBackgroundCompletionHandlers()
+
     try await withBridgeTimeout(seconds: 2) {
-      await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
-        Task { @MainActor in
-          await api.storeBackgroundCompletionHandler(
-            { cont.resume() },
-            forIdentifier: "com.markdlabrecque.grove.capture-upload-sentinel"
-          )
-          await api.drainBackgroundCompletionHandlers()
-        }
+      while counter.count != 1 {
+        try Task.checkCancellation()
+        await Task.yield()
       }
     }
 

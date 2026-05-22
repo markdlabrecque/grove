@@ -3,8 +3,16 @@ import GroveCore
 
 /// Detail view for a single memory source result.
 ///
-/// Shown when the user taps a source card in the Ask results list. Displays
-/// the full memory content, capture metadata, and a Delete button.
+/// Shown when the user taps a source card in the Ask results list or taps a
+/// provenance badge in the Tasks tab. Fetches its own content from
+/// `GET /v1/memories/{id}` on every appear — no caller-supplied excerpt is used.
+///
+/// ## Query context
+///
+/// When navigating from Ask search results, the caller passes a `QueryContext`
+/// carrying relevance metadata (score, match type, chunk index). When navigating
+/// from a non-search surface (e.g., the Tasks provenance badge) `queryContext`
+/// is `nil` and the relevance section is hidden.
 ///
 /// ## Delete flow
 ///
@@ -22,18 +30,28 @@ import GroveCore
 /// without any side-effect.
 struct MemoryDetailView: View {
   @State private var viewModel: MemoryDetailViewModel
+
+  /// Ask-flow relevance metadata. `nil` when navigating from a non-search surface.
+  let queryContext: QueryContext?
+
   @Environment(\.dismiss) private var dismiss
 
-  init(result: QueryResult, onDeleteSuccess: @escaping (UUID) -> Void) {
+  init(
+    memoryID: UUID,
+    queryContext: QueryContext? = nil,
+    onDeleteSuccess: @escaping (UUID) -> Void = { _ in }
+  ) {
     _viewModel = State(initialValue: MemoryDetailViewModel(
-      result: result,
+      memoryID: memoryID,
       onDeleteSuccess: onDeleteSuccess
     ))
+    self.queryContext = queryContext
   }
 
   /// Testing initialiser — accepts a pre-configured ViewModel.
-  init(viewModel: MemoryDetailViewModel) {
+  init(viewModel: MemoryDetailViewModel, queryContext: QueryContext? = nil) {
     _viewModel = State(initialValue: viewModel)
+    self.queryContext = queryContext
   }
 
   // MARK: - Formatters
@@ -59,6 +77,9 @@ struct MemoryDetailView: View {
     }
     .navigationTitle("Memory")
     .navigationBarTitleDisplayMode(.inline)
+    .task {
+      await viewModel.loadContent()
+    }
     .toolbar {
       ToolbarItem(placement: .destructiveAction) {
         if viewModel.isDeleting {
@@ -102,10 +123,22 @@ struct MemoryDetailView: View {
         .textCase(.uppercase)
         .accessibilityHidden(true)
 
-      Text(viewModel.result.excerpt)
-        .font(.body)
-        .fixedSize(horizontal: false, vertical: true)
-        .accessibilityLabel("Memory content: \(viewModel.result.excerpt)")
+      if viewModel.isFetchingContent {
+        ProgressView()
+          .frame(maxWidth: .infinity, alignment: .center)
+          .accessibilityLabel("Loading memory content")
+      } else if let fetched = viewModel.fetchedContent {
+        Text(fetched)
+          .font(.body)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityLabel("Memory content: \(fetched)")
+      } else if let fetchError = viewModel.fetchError {
+        Text("Could not load content: \(fetchError)")
+          .font(.body)
+          .foregroundStyle(.secondary)
+          .fixedSize(horizontal: false, vertical: true)
+          .accessibilityLabel("Error loading memory content: \(fetchError)")
+      }
     }
   }
 
@@ -121,33 +154,34 @@ struct MemoryDetailView: View {
         .accessibilityHidden(true)
 
       VStack(alignment: .leading, spacing: 8) {
-        // Capture date
-        if let capturedAt = viewModel.result.capturedAt {
+        // Capture date (from fetched DTO)
+        if let capturedAt = viewModel.capturedAt {
           metadataRow(
             label: "Captured",
             value: Self.dateFormatter.string(from: capturedAt)
           )
         }
 
-        // Source modality
-        if let modality = viewModel.result.sourceModality {
+        // Source modality (from fetched DTO)
+        if let modality = viewModel.sourceModality {
           metadataRow(
             label: "Source",
             value: modality.capitalized
           )
         }
 
-        // Match type
-        metadataRow(
-          label: "Match",
-          value: matchDescription
-        )
+        // Ask-flow relevance metadata — only shown when a QueryContext was supplied.
+        if let ctx = queryContext {
+          metadataRow(
+            label: "Match",
+            value: matchDescription(for: ctx)
+          )
 
-        // Similarity score
-        metadataRow(
-          label: "Relevance",
-          value: String(format: "%.0f%%", viewModel.result.score * 100)
-        )
+          metadataRow(
+            label: "Relevance",
+            value: String(format: "%.0f%%", ctx.score * 100)
+          )
+        }
       }
       .padding(12)
       .frame(maxWidth: .infinity, alignment: .leading)
@@ -156,8 +190,8 @@ struct MemoryDetailView: View {
     }
   }
 
-  private var matchDescription: String {
-    if viewModel.result.matchedVia == "chunk", let idx = viewModel.result.matchedChunkIndex {
+  private func matchDescription(for ctx: QueryContext) -> String {
+    if ctx.matchedVia == "chunk", let idx = ctx.matchedChunkIndex {
       return "Chunk \(idx)"
     }
     return "Full memory"
@@ -202,16 +236,12 @@ struct MemoryDetailView: View {
 #Preview {
   NavigationStack {
     MemoryDetailView(
-      result: QueryResult(
-        memoryID: UUID(),
+      memoryID: UUID(uuidString: "DEADBEEF-0000-0000-0000-000000000001")!,
+      queryContext: QueryContext(
         score: 0.92,
         matchedVia: "whole",
-        matchedChunkIndex: nil,
-        excerpt: "Remember to buy oat milk and call Theo about the upcoming demo next Thursday afternoon.",
-        capturedAt: Date(timeIntervalSince1970: 1_778_423_400),
-        sourceModality: "text"
-      ),
-      onDeleteSuccess: { _ in }
+        matchedChunkIndex: nil
+      )
     )
   }
 }

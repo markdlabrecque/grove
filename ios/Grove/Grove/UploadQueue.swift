@@ -462,8 +462,8 @@ public actor UploadQueue {
       testHooks?.onModelContextSave?()
       print("[UploadQueue] drained clientID=\(row.clientID)")
       testHooks?.onDrainRowComplete?(.success(()))
-      // Notify interested parties (e.g. PendingReminderStore reconciliation)
-      // that this capture has been confirmed by the server with its UUID.
+      // Notify any interested observers that this capture has been confirmed
+      // by the server with its server-assigned UUID.
       NotificationCenter.default.post(
         name: .captureUploadedNotification,
         object: nil,
@@ -600,6 +600,14 @@ extension Notification.Name {
     "com.markdlabrecque.grove.upload-queue.auth-required-did-change"
   )
 
-  // captureUploadedNotification is defined in GroveCore (PendingReminderStore.swift)
-  // and available here via the GroveCore import.
+  /// Posted by `UploadQueue.drainRow` when a capture upload is confirmed by the
+  /// server. The `userInfo` dictionary contains `"clientID"` (the local UUID string)
+  /// and `"serverMemoryID"` (the UUID string assigned by the server).
+  ///
+  /// No observers remain in the production app after spec-02 cleanup (#453) —
+  /// `PendingReminderStore` was deleted and was the sole observer. The post is
+  /// retained in case future features re-subscribe.
+  static let captureUploadedNotification = Notification.Name(
+    "com.markdlabrecque.grove.upload-queue.capture-uploaded"
+  )
 }

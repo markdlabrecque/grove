@@ -13,7 +13,7 @@ import os
 /// A single `EKEventStore` instance is preferred per Apple's guidance —
 /// creating multiple instances within the same process is wasteful and can
 /// produce stale data. `LiveEventKitProvider` is created once in
-/// `TaskLinkingViewModel` and held for the view's lifetime.
+/// `CaptureViewModel` and held for the view's lifetime.
 @MainActor
 final class LiveEventKitProvider: EventKitProviding {
 
@@ -61,14 +61,4 @@ final class LiveEventKitProvider: EventKitProviding {
     return reminder.calendarItemIdentifier
   }
 
-  // MARK: - Fetch
-
-  func fetchCompletion(for identifier: String) -> Bool? {
-    guard let item = store.calendarItem(withIdentifier: identifier),
-          let reminder = item as? EKReminder
-    else {
-      return nil
-    }
-    return reminder.isCompleted
-  }
 }
