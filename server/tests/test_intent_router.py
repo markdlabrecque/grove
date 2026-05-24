@@ -103,18 +103,24 @@ def _make_openai_embedding_response(vec: list[float]) -> dict:
 
 
 def _make_openrouter_response(
-    content: str, prompt_tokens: int = 10, completion_tokens: int = 5
+    content: str,
+    prompt_tokens: int = 10,
+    completion_tokens: int = 5,
+    cost: float | None = None,
 ) -> dict:
+    usage: dict = {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
+    if cost is not None:
+        usage["cost"] = cost
     return {
         "id": "gen-test",
         "choices": [
             {"message": {"role": "assistant", "content": content}, "finish_reason": "stop"}
         ],
-        "usage": {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": prompt_tokens + completion_tokens,
-        },
+        "usage": usage,
     }
 
 
@@ -551,11 +557,10 @@ async def test_intent_router_cost_stamped(db_session: AsyncSession) -> None:
         def _openrouter_side_effect(request: httpx.Request) -> httpx.Response:
             call_count["n"] += 1
             if call_count["n"] == 1:
-                # Intent router call — include cost header
+                # Intent router call — cost in usage.cost body field (real OpenRouter shape)
                 return httpx.Response(
                     200,
-                    json=_intent_response(["general"]),
-                    headers={"x-openrouter-cost": "0.00042"},
+                    json=_make_openrouter_response('{"intents": ["general"]}', cost=0.00042),
                 )
             return httpx.Response(200, json=_make_openrouter_response("Answer."))
 

@@ -55,9 +55,23 @@ def _make_openai_response(vec: list[float]) -> dict:
 
 
 def _make_openrouter_response(
-    answer: str, prompt_tokens: int = 42, completion_tokens: int = 18
+    answer: str,
+    prompt_tokens: int = 42,
+    completion_tokens: int = 18,
+    cost: float | None = None,
 ) -> dict:
-    """Minimal OpenRouter chat-completion response."""
+    """Minimal OpenRouter chat-completion response.
+
+    Set cost to a float to include usage.cost in the body (matching the real
+    OpenRouter API shape — cost is in the response body, not a response header).
+    """
+    usage: dict = {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens,
+    }
+    if cost is not None:
+        usage["cost"] = cost
     return {
         "id": "gen-test",
         "object": "chat.completion",
@@ -69,11 +83,7 @@ def _make_openrouter_response(
                 "finish_reason": "stop",
             }
         ],
-        "usage": {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            "total_tokens": prompt_tokens + completion_tokens,
-        },
+        "usage": usage,
     }
 
 
@@ -174,8 +184,9 @@ async def test_synthesis_happy_path_returns_answer_and_sources(db_session: Async
         respx.post(_OPENROUTER_URL).mock(
             return_value=httpx.Response(
                 200,
-                json=_make_openrouter_response(f"The meeting is on Tuesday at 3pm [#{memory_id}]."),
-                headers={"x-openrouter-cost": "0.000021"},
+                json=_make_openrouter_response(
+                    f"The meeting is on Tuesday at 3pm [#{memory_id}].", cost=0.000021
+                ),
             )
         )
 
@@ -245,9 +256,8 @@ async def test_synthesis_columns_stamped_in_query_log(db_session: AsyncSession) 
             return_value=httpx.Response(
                 200,
                 json=_make_openrouter_response(
-                    "Test answer.", prompt_tokens=55, completion_tokens=12
+                    "Test answer.", prompt_tokens=55, completion_tokens=12, cost=0.000033
                 ),
-                headers={"x-openrouter-cost": "0.000033"},
             )
         )
 

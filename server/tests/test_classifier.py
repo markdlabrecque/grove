@@ -57,9 +57,13 @@ def _make_openrouter_response(
     content: str,
     prompt_tokens: int = 120,
     completion_tokens: int = 80,
-    cost: float = 0.00042,
+    cost: float | None = 0.00042,
 ) -> dict:
-    """Build a minimal OpenRouter chat completion response body."""
+    """Build a minimal OpenRouter chat completion response body.
+
+    Includes usage.cost matching the real OpenRouter API shape (cost is in the
+    response body, not the x-openrouter-cost header which is no longer populated).
+    """
     return {
         "id": "gen-test-123",
         "model": "openai/gpt-4o-mini",
@@ -74,6 +78,7 @@ def _make_openrouter_response(
             "prompt_tokens": prompt_tokens,
             "completion_tokens": completion_tokens,
             "total_tokens": prompt_tokens + completion_tokens,
+            **({"cost": cost} if cost is not None else {}),
         },
     }
 
@@ -129,7 +134,6 @@ class TestOversizeGuard:
             return_value=httpx.Response(
                 200,
                 json=_make_openrouter_response(_VALID_CLASSIFICATION_JSON),
-                headers={"x-openrouter-cost": "0.00042"},
             )
         )
 
@@ -171,7 +175,6 @@ class TestHappyPath:
             return_value=httpx.Response(
                 200,
                 json=_make_openrouter_response(_VALID_CLASSIFICATION_JSON),
-                headers={"x-openrouter-cost": "0.00042"},
             )
         )
 
@@ -195,7 +198,6 @@ class TestHappyPath:
                     prompt_tokens=150,
                     completion_tokens=90,
                 ),
-                headers={"x-openrouter-cost": "0.00099"},
             )
         )
 
@@ -208,7 +210,7 @@ class TestHappyPath:
 
     @respx.mock
     async def test_happy_path_cost_captured(self) -> None:
-        """Cost from x-openrouter-cost header is captured on the result."""
+        """Cost from usage.cost body field is captured on the result."""
         bundle = _make_prompt_bundle()
         mem = _make_memory("Met Alice.", token_count=5)
 
@@ -216,7 +218,6 @@ class TestHappyPath:
             return_value=httpx.Response(
                 200,
                 json=_make_openrouter_response(_VALID_CLASSIFICATION_JSON),
-                headers={"x-openrouter-cost": "0.00042"},
             )
         )
 
@@ -226,16 +227,16 @@ class TestHappyPath:
         assert result.cost_usd == pytest.approx(0.00042)
 
     @respx.mock
-    async def test_happy_path_cost_none_when_header_absent(self) -> None:
-        """When x-openrouter-cost header is missing, cost_usd is None."""
+    async def test_happy_path_cost_none_when_body_field_absent(self) -> None:
+        """When usage.cost is absent from the body, cost_usd is None."""
         bundle = _make_prompt_bundle()
         mem = _make_memory("Met Alice.", token_count=5)
 
         respx.post(_OPENROUTER_URL).mock(
             return_value=httpx.Response(
                 200,
-                json=_make_openrouter_response(_VALID_CLASSIFICATION_JSON),
-                # No cost header
+                # cost=None omits usage.cost from the response body
+                json=_make_openrouter_response(_VALID_CLASSIFICATION_JSON, cost=None),
             )
         )
 
