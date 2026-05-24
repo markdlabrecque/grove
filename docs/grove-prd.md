@@ -403,29 +403,31 @@ The `embedding_model` field per row enables future re-embedding strategies — o
 
 The `enriched_version` field on memories and specialized tables enables selective re-enrichment when classification logic changes.
 
-### 8.4 Deployment topology — three options
+### 8.4 Deployment topology — chosen: Ryzen mini PC self-hosted
 
-The backend, database, and third-party AI services can be hosted in several configurations within budget. The PRD does not pick one — this is a decision point during implementation.
+**Decided 2026-05-24:** Grove runs on a self-hosted Linux mini PC at home (Beelink SER7 / Minisforum UM790 Pro class), accessed over Tailscale. Cloud LLMs handle embedding, enrichment classification, and Ask synthesis; the box hosts Postgres + pgvector, FastAPI, Caddy, and the enrichment worker as a systemd timer.
 
-**Option A: Mini PC self-hosted**
+**Chosen spec (target):**
+- Box: Ryzen 7 7840HS or Ryzen 9 7940HS mini PC
+- RAM: 32 GB DDR5 (2× SO-DIMM slots, upgradeable to 64 GB later)
+- Storage: 1 TB NVMe (second M.2 slot reserved for future expansion)
+- OS: Linux (distro TBD at provisioning time — likely Debian stable or Ubuntu LTS)
+- Bootstrap cost: ~550 USD
+- Ongoing cost: ~1–2 CAD/month electricity + ~4–6 CAD/month offsite backup + ~5–10 CAD/month API spend = under 20 CAD/month all-in
 
-A dedicated mini PC (Intel N100 or similar, 16GB RAM, 500GB NVMe) at home runs Postgres, the backend API, Caddy as a reverse proxy, and the enrichment worker as a cron job. Third-party APIs are still used for embedding, synthesis, and classification. Bootstrap cost: 280-400 CAD. Ongoing cost: roughly 1-2 CAD/month electricity + 4-6 CAD/month offsite backup + ~5 CAD/month API spend = under 15 CAD/month all-in. Amortization over 5 years adds another 5-7 CAD/month.
+Trade-offs: full control of the database, no SaaS dependencies for storage, requires home network exposure (Tailscale handles this), home internet outages affect the system, user owns ops. RAM and storage are user-upgradeable — no buy-once-cry-once pressure.
 
-Trade-offs: full control of the database, no SaaS dependencies for storage, requires home network exposure (Tailscale recommended), home internet outages affect the system, user owns ops.
+**Why this option over the alternatives evaluated:**
 
-**Option B: Rented box (Hetzner)**
+- **vs. Mac Mini M4 / M4 Pro:** Mac Mini's only material advantage is local-LLM inference via Apple Silicon's unified memory + MLX (3–5× faster than Ryzen iGPU for LLM workloads at comparable price). Grove's Ask synthesis stays in the cloud (Sonnet/Opus quality matters for hard queries), so the Mac premium ($450–1,650 over the Ryzen) only displaces ~$2–3/mo of embedding + enrichment cloud spend — a 12–45 year payback. Apple Notes capture path, the other Mac-specific argument, is replaceable by Obsidian on any platform (see `docs/grove-document-corpus-spec.md`).
+- **vs. Hetzner CX22 (~6 CAD/mo):** Cheaper, but data lives on someone else's hardware. Sovereignty over the durable corpus was the user's primary driver. Hetzner remains documented here as the fallback if self-hosting ever becomes impractical.
+- **vs. DigitalOcean droplet (~$30–60 USD/mo for a comparable spec):** Worst of both worlds — more expensive than Hetzner, less sovereign than self-hosted. Rejected outright.
+- **vs. Supabase managed:** Vendor lock-in to Supabase's edge function runtime and managed Postgres. Rejected for the same sovereignty reason.
 
-A small Hetzner Cloud instance (CX22, 2 vCPU, 4GB RAM) runs the same stack: Postgres, backend API, Caddy, enrichment worker as cron. Third-party APIs handle embedding, synthesis, and classification. Ongoing cost: ~6 CAD/month server + ~6 CAD/month API spend = ~12 CAD/month. No bootstrap hardware cost. No amortization concern.
-
-Trade-offs: someone else's infrastructure, no home network exposure, slight latency depending on region, predictable monthly cost, easier to walk away from if the project doesn't pan out.
-
-**Option C: Supabase managed**
-
-Supabase free tier (or Pro at 25 USD/month if outgrown) provides Postgres with pgvector, edge functions for the backend logic, and a managed REST API. Scheduled enrichment runs as a Supabase scheduled function or external cron triggering an edge function. Third-party APIs still handle embedding, synthesis, and classification (OpenRouter or direct). Free tier handles personal volume comfortably. Ongoing cost: ~6 CAD/month API spend on free tier; ~30+ USD/month if upgraded to Pro.
-
-Trade-offs: minimum infrastructure work, generous free tier for personal scale, vendor lock-in to Supabase's edge function runtime (Deno), still your data but in someone else's database.
-
-A recommendation among these will be made at implementation time based on weighing the user's priorities. All three fit within the $5-20/month budget.
+**Future scaling path (incremental, no machine replacement):**
+- +$150 to bump RAM to 64 GB if Postgres working set ever pressures memory
+- +$120 for a second 2 TB NVMe in the empty M.2 slot if corpus growth requires it
+- eGPU enclosure + discrete NVIDIA GPU if local Ask synthesis ever becomes desirable (~$800–1,200, deferred indefinitely)
 
 ### 8.5 Third-party AI services
 

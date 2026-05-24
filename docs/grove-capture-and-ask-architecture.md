@@ -299,19 +299,22 @@ The following architectures were considered in earlier design conversations and 
 **When this would be reconsidered:**
 - Only if Grove genuinely needs server-driven push to the user's phone. Not foreseen.
 
-### A.8 Local frontier-quality LLM on a high-tier Mac Mini (deferred, not rejected)
+### A.8 Local frontier-quality LLM on a high-tier Mac Mini (rejected 2026-05-24)
 
 **The path:** Buy an M4 Pro Mac Mini with 48–64 GB RAM. Run a 32B–70B local LLM via Ollama / MLX. All Grove inference happens locally.
 
-**Why deferred for V2:**
-- Hardware premium ($1,200–1,500 over base) doesn't pay back versus cloud LLM costs at one-user scale until ~5–7 years.
-- Quality of locally-runnable models still trails frontier cloud models on Grove's hardest tasks (multi-hop ask, nuanced enrichment).
-- This decision is **orthogonal** to the capture/ask surface decision. The architecture in this doc works equally well with cloud, hybrid, or local LLM hosting; the choice can be made independently and revisited later.
+**Why rejected:**
+- Hardware premium ($1,250–1,650 over the chosen Ryzen mini PC at ~$550) only pays back if it displaces cloud LLM spend.
+- Ask synthesis must stay in the cloud — Sonnet/Opus-tier quality is required for the hard multi-hop queries that justify Ask in the first place, and even Mac Mini M4 Pro 48GB tops out at ~Haiku-class local quality (32B models at 10–15 t/s).
+- That leaves only embedding (~$0.50/mo cloud) and enrichment classification (~$1–2/mo cloud) as workloads the Mac could displace — a ~$3/mo savings against a $1,250+ premium. Payback measured in decades.
+- Apple Silicon's main hardware advantage — unified memory bandwidth (273 GB/s on M4 Pro vs ~89 GB/s on Ryzen iGPU) — only matters for the local-Ask workload that's been ruled out.
 
-**When this would be reconsidered:**
-- Cloud LLM pricing changes meaningfully (significant price hikes from major providers).
-- Locally-runnable open models reach frontier quality.
-- Data-sovereignty concerns become more pressing than they currently are.
+**Decision:** the chosen deployment is a Ryzen mini PC running Linux (see `grove-prd.md §8.4`). Cloud LLM stays the inference path indefinitely. Sovereignty over the durable corpus is preserved by self-hosting Postgres; cloud LLM transit is accepted under Anthropic's no-retention API terms.
+
+**When this would be revisited:**
+- Cloud LLM pricing changes meaningfully (significant price hikes from major providers, or a Sonnet/Opus-tier provider exit).
+- A Sonnet/Opus-class open model becomes runnable on a $500–800 box (would require x86 + discrete NVIDIA GPU at that price tier, not a unified-memory ARM box).
+- Data-sovereignty concerns shift from "data at rest" (already covered by self-hosting) to "transient query content" (currently accepted).
 
 ---
 
