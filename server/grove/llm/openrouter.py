@@ -5,9 +5,9 @@ Public API:
 
 All three OpenRouter call-sites (classifier, synthesizer, intent_router) shared
 identical HTTP boilerplate: the URL constant, the four request headers,
-raise_for_status(), and the x-openrouter-cost header parse.  This module
-consolidates that boilerplate into a single function and is the only place in
-the codebase that constructs an httpx.AsyncClient for OpenRouter.
+raise_for_status(), and cost parsing.  This module consolidates that boilerplate
+into a single function and is the only place in the codebase that constructs an
+httpx.AsyncClient for OpenRouter.
 
 Error semantics are unchanged from the original call-sites:
     httpx.HTTPStatusError   — 4xx/5xx from OpenRouter; propagates unchanged.
@@ -35,8 +35,8 @@ class ChatCompletionResult:
 
     Fields:
         content         — assistant message content string.
-        cost_usd        — parsed from x-openrouter-cost response header;
-                          None when the header is absent or malformed.
+        cost_usd        — parsed from usage.cost in the response body;
+                          None when the field is absent or malformed.
         prompt_tokens   — usage.prompt_tokens from the response body (0 if absent).
         completion_tokens — usage.completion_tokens from the response body (0 if absent).
         total_tokens    — usage.total_tokens; falls back to prompt+completion when absent.
@@ -107,12 +107,12 @@ async def chat_completion(
     total_tokens: int = usage.get("total_tokens", prompt_tokens + completion_tokens)
 
     cost_usd: float | None = None
-    raw_cost = response.headers.get("x-openrouter-cost")
+    raw_cost = usage.get("cost")
     if raw_cost is not None:
         try:
             cost_usd = float(raw_cost)
-        except ValueError:
-            # Malformed header — treat as absent (matches prior call-site behaviour).
+        except (ValueError, TypeError):
+            # Malformed value — treat as absent.
             pass
 
     content: str = body["choices"][0]["message"]["content"]

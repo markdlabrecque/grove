@@ -5,7 +5,8 @@ All tests mock at the HTTP boundary with respx — no live OpenRouter calls.
 Coverage:
   - All four request headers present with correct values.
   - Authorization header carries "Bearer <key>" prefix.
-  - Cost header: present (returns float), missing (returns None), malformed (returns None).
+  - Cost body: present (returns float), missing (returns None), malformed (returns None).
+  - Cost read from usage.cost body field (not x-openrouter-cost header).
   - Non-2xx response propagates httpx.HTTPStatusError.
   - response_format forwarded when provided, omitted when None.
   - Timeout forwarded to the underlying httpx call.
@@ -33,9 +34,19 @@ def _make_response(
     prompt_tokens: int = 10,
     completion_tokens: int = 5,
     total_tokens: int | None = None,
-    cost_header: str | None = "0.00042",
+    cost_header: str | None = None,
+    cost_body: float | None = 0.00042,
     status_code: int = 200,
 ) -> httpx.Response:
+    usage: dict = {
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+    }
+    if total_tokens is not None:
+        usage["total_tokens"] = total_tokens
+    if cost_body is not None:
+        usage["cost"] = cost_body
+
     body = {
         "id": "gen-test",
         "object": "chat.completion",
@@ -47,11 +58,7 @@ def _make_response(
                 "finish_reason": "stop",
             }
         ],
-        "usage": {
-            "prompt_tokens": prompt_tokens,
-            "completion_tokens": completion_tokens,
-            **({"total_tokens": total_tokens} if total_tokens is not None else {}),
-        },
+        "usage": usage,
     }
     headers = {}
     if cost_header is not None:
@@ -126,15 +133,18 @@ class TestRequestHeaders:
 
 
 # ---------------------------------------------------------------------------
-# Cost header parsing
+# Cost body parsing (usage.cost — primary source)
 # ---------------------------------------------------------------------------
 
 
-class TestCostHeaderParsing:
+class TestCostBodyParsing:
     @respx.mock
-    async def test_cost_present_returns_float(self) -> None:
-        """x-openrouter-cost header present → cost_usd is a float."""
-        respx.post(_OPENROUTER_URL).mock(return_value=_make_response(cost_header="0.00042"))
+    async def test_cost_from_body_present_returns_float(self) -> None:
+        """usage.cost in response body → cost_usd is a float."""
+        # No x-openrouter-cost header; cost only in usage.cost body field.
+        respx.post(_OPENROUTER_URL).mock(
+            return_value=_make_response(cost_body=0.0012, cost_header=None)
+        )
 
         result = await chat_completion(
             api_key="sk-test",
@@ -142,25 +152,14 @@ class TestCostHeaderParsing:
             messages=_MESSAGES,
         )
 
-        assert result.cost_usd == pytest.approx(0.00042)
+        assert result.cost_usd == pytest.approx(0.0012)
 
     @respx.mock
-    async def test_cost_missing_returns_none(self) -> None:
-        """x-openrouter-cost header absent → cost_usd is None."""
-        respx.post(_OPENROUTER_URL).mock(return_value=_make_response(cost_header=None))
-
-        result = await chat_completion(
-            api_key="sk-test",
-            model="openai/gpt-4o-mini",
-            messages=_MESSAGES,
+    async def test_cost_body_absent_returns_none(self) -> None:
+        """usage.cost absent from body AND no header → cost_usd is None."""
+        respx.post(_OPENROUTER_URL).mock(
+            return_value=_make_response(cost_body=None, cost_header=None)
         )
-
-        assert result.cost_usd is None
-
-    @respx.mock
-    async def test_cost_malformed_returns_none(self) -> None:
-        """Malformed x-openrouter-cost header → cost_usd is None (not raised)."""
-        respx.post(_OPENROUTER_URL).mock(return_value=_make_response(cost_header="not-a-number"))
 
         result = await chat_completion(
             api_key="sk-test",
@@ -169,6 +168,22 @@ class TestCostHeaderParsing:
         )
 
         assert result.cost_usd is None
+
+    @respx.mock
+    async def test_cost_body_takes_priority_over_header(self) -> None:
+        """When both usage.cost body and x-openrouter-cost header are present,
+        body value is used (header is legacy)."""
+        respx.post(_OPENROUTER_URL).mock(
+            return_value=_make_response(cost_body=0.0012, cost_header="0.0099")
+        )
+
+        result = await chat_completion(
+            api_key="sk-test",
+            model="openai/gpt-4o-mini",
+            messages=_MESSAGES,
+        )
+
+        assert result.cost_usd == pytest.approx(0.0012)
 
 
 # ---------------------------------------------------------------------------
