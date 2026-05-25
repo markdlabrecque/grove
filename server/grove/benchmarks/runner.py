@@ -45,6 +45,16 @@ from grove.llm.prompts import load_intent_prompts, load_synthesis_prompts
 
 logger = structlog.get_logger(__name__)
 
+# Default model sweep — covers cheap/mid/frontier across four provider families.
+# Override at runtime with --models; override for the Make target with BENCH_MODELS.
+DEFAULT_MODELS: list[str] = [
+    "openai/gpt-4o-mini",
+    "anthropic/claude-haiku-4-5",
+    "anthropic/claude-sonnet-4-6",
+    "google/gemini-2.5-flash",
+    "meta-llama/llama-3.3-70b-instruct",
+]
+
 _DEFAULT_CONCURRENCY = 4
 _DEFAULT_OUT = Path(__file__).parent / "results"
 _DEFAULT_JUDGE_MODEL = "anthropic/claude-opus-4-7"
@@ -435,7 +445,7 @@ async def _async_main(args: argparse.Namespace) -> None:
         )
 
 
-def main() -> None:
+def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Grove benchmark runner — compare models across enrichment, "
@@ -450,8 +460,11 @@ def main() -> None:
     )
     parser.add_argument(
         "--models",
-        required=True,
-        help="Comma-separated OpenRouter model IDs (e.g. openai/gpt-4o-mini,openai/gpt-4o)",
+        default=",".join(DEFAULT_MODELS),
+        help=(
+            "Comma-separated OpenRouter model IDs "
+            "(default: the canonical five-model sweep defined in DEFAULT_MODELS)"
+        ),
     )
     parser.add_argument(
         "--cases",
@@ -479,7 +492,11 @@ def main() -> None:
         action="store_true",
         help="Skip the cost-cap pre-flight check (use with caution)",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    args = _build_arg_parser().parse_args()
     asyncio.run(_async_main(args))
 
 

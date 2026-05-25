@@ -104,16 +104,15 @@ test: ## Run the test suite inside the app container (rebuilds the app image fir
 
 # ---------- benchmarks ----------
 
-# Default model sweep — covers cheap/mid/frontier across four families.
-# Adjust BENCH_MODELS to run a subset (or set via env: make bench BENCH_MODELS=openai/gpt-4o-mini).
-BENCH_MODELS ?= openai/gpt-4o-mini,anthropic/claude-haiku-4-5,anthropic/claude-sonnet-4-6,google/gemini-2.5-flash,meta-llama/llama-3.3-70b-instruct
+# BENCH_MODELS is an opt-in override; when unset the runner uses its own DEFAULT_MODELS constant.
+# Example: make bench BENCH_MODELS=openai/gpt-4o-mini,openai/gpt-4o
 
 .PHONY: bench
 bench: ## Run the full benchmark sweep (requires OPENROUTER_API_KEY)
 	$(COMPOSE) run --rm --no-deps -e OPENROUTER_API_KEY=$(OPENROUTER_API_KEY) \
 		--build $(APP) bash -c \
 		"pip install -e '.[dev,bench]' >/dev/null && python -m grove.benchmarks.runner \
-		--workflow all --models $(BENCH_MODELS)"
+		--workflow all $(if $(BENCH_MODELS),--models $(BENCH_MODELS),)"
 
 .PHONY: bench-report
 bench-report: ## Generate a report from existing benchmark results

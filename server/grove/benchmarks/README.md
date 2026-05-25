@@ -22,6 +22,28 @@ python -m grove.benchmarks.runner \
     --models openai/gpt-4o-mini,anthropic/claude-sonnet-4-6
 ```
 
+## Default model sweep
+
+When `--models` is omitted, the runner uses `DEFAULT_MODELS` from
+`grove/benchmarks/runner.py` — the canonical five-model sweep:
+
+```
+openai/gpt-4o-mini
+anthropic/claude-haiku-4-5
+anthropic/claude-sonnet-4-6
+google/gemini-2.5-flash
+meta-llama/llama-3.3-70b-instruct
+```
+
+`make bench` passes no `--models` flag unless `BENCH_MODELS` is set, so it
+picks up this default automatically. To run a different set ad-hoc:
+
+```bash
+make bench BENCH_MODELS=openai/gpt-4o-mini,openai/gpt-4o
+# or directly:
+python -m grove.benchmarks.runner --workflow all --models openai/gpt-4o-mini
+```
+
 ## CLI reference
 
 ```
