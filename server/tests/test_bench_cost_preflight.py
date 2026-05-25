@@ -110,6 +110,57 @@ def test_estimate_sweep_cost_missing_model_raises():
 
 @pytest.mark.asyncio
 @respx.mock
+async def test_preflight_two_models_cost_not_inflated():
+    """Projected cost with two models equals cases × sum(per-model costs).
+
+    Regression test for the n_cases over-estimate bug: runner must pass
+    len(cases) (per-model count), not len(cases) * len(models).
+    """
+    # Two models at different prices; 10 cases each.
+    # mini  @ $1/M: 10 * (500 + 500) * 1e-6  = $0.01
+    # gpt4o @ $5/M: 10 * (500 + 500) * 5e-6  = $0.05
+    # Expected total: $0.06
+    respx.get(_MODELS_URL).mock(
+        return_value=Response(
+            200,
+            json={
+                "data": [
+                    {
+                        "id": "openai/gpt-4o-mini",
+                        "pricing": {
+                            "prompt": str(1.0 / 1_000_000),
+                            "completion": str(1.0 / 1_000_000),
+                        },
+                    },
+                    {
+                        "id": "openai/gpt-4o",
+                        "pricing": {
+                            "prompt": str(5.0 / 1_000_000),
+                            "completion": str(5.0 / 1_000_000),
+                        },
+                    },
+                ]
+            },
+        )
+    )
+    respx.get(_KEY_URL).mock(
+        return_value=Response(200, json=_key_response(usage_usd=0.0, limit_usd=20.0))
+    )
+
+    result = await run_cost_preflight(
+        api_key="test-key",
+        models=["openai/gpt-4o-mini", "openai/gpt-4o"],
+        n_cases=10,
+        cap_usd=20.0,
+        estimated_input_tokens=500,
+        estimated_output_tokens=500,
+    )
+    # If n_cases were inflated by len(models)=2, projected would be $0.12 instead of $0.06.
+    assert abs(result.projected_cost_usd - 0.06) < 1e-6
+
+
+@pytest.mark.asyncio
+@respx.mock
 async def test_preflight_passes_under_cap():
     """Pre-flight succeeds when projected cost + current spend is under cap."""
     respx.get(_MODELS_URL).mock(

@@ -354,8 +354,8 @@ async def run_workflow(
     else:
         raise ValueError(f"Unknown workflow: {workflow!r}")
 
-    n_cases = len(cases) * len(models)
-    logger.info("runner.start", workflow=workflow, models=models, n_cases=len(cases))
+    n_cases = len(cases)
+    logger.info("runner.start", workflow=workflow, models=models, n_cases=n_cases)
 
     if not skip_cost_check:
         try:

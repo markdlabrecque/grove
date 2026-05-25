@@ -69,7 +69,11 @@ def test_correct_memory_type_decision():
 
 
 def test_wrong_memory_type():
-    """Grade is correct=False when model outputs wrong type."""
+    """Grade is correct=False when model outputs wrong type.
+
+    Pins the early-return contract: all expected fields appear in missing_fields
+    and field_matches is empty (no field comparison attempted).
+    """
     case = _make_case(
         memory_type="decisions",
         expected_fields={"decision_maker": "Alice"},
@@ -80,6 +84,10 @@ def test_wrong_memory_type():
     )
     result = grade_enrichment(case, output)
     assert result.correct is False
+    # Early-return contract: no field comparison is attempted on a type mismatch.
+    assert result.field_matches == {}
+    # Every expected field is reported missing.
+    assert set(result.missing_fields) == {"decision_maker"}
 
 
 def test_empty_output_wrong():
