@@ -445,7 +445,7 @@ async def _async_main(args: argparse.Namespace) -> None:
         )
 
 
-def main() -> None:
+def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Grove benchmark runner — compare models across enrichment, "
@@ -492,7 +492,11 @@ def main() -> None:
         action="store_true",
         help="Skip the cost-cap pre-flight check (use with caution)",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def main() -> None:
+    args = _build_arg_parser().parse_args()
     asyncio.run(_async_main(args))
 
 
