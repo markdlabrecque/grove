@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import argparse
 
-import pytest
-
 
 def _build_parser() -> argparse.ArgumentParser:
     """Import and return the parser from the runner's main() function.
