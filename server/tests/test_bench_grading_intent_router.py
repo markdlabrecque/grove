@@ -11,10 +11,7 @@ Coverage:
 
 from __future__ import annotations
 
-import pytest
-
 from grove.benchmarks.grading.intent_router import grade_intent_router
-
 
 # ---------------------------------------------------------------------------
 # Helpers

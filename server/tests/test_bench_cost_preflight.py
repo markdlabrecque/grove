@@ -5,7 +5,8 @@ TDD red commit: these tests are written before the implementation exists.
 The pre-flight check:
 1. Fetches per-model pricing from OpenRouter /api/v1/models
 2. Fetches current-month spend from /api/v1/auth/key (soft: warns if unavailable)
-3. Estimates sweep cost = sum(input_price * estimated_input_tokens + output_price * estimated_output_tokens) * n_cases
+3. Estimates sweep cost = sum(input_price * estimated_input_tokens
+      + output_price * estimated_output_tokens) * n_cases
 4. Aborts with CostCapError if projected cost + current spend would exceed the cap
 
 All HTTP calls are mocked via respx.
@@ -17,8 +18,11 @@ import pytest
 import respx
 from httpx import Response
 
-from grove.benchmarks.cost_preflight import CostCapError, estimate_sweep_cost, run_cost_preflight
-
+from grove.benchmarks.cost_preflight import (
+    CostCapError,
+    estimate_sweep_cost,
+    run_cost_preflight,
+)
 
 _MODELS_URL = "https://openrouter.ai/api/v1/models"
 _KEY_URL = "https://openrouter.ai/api/v1/auth/key"
@@ -109,7 +113,9 @@ def test_estimate_sweep_cost_missing_model_raises():
 async def test_preflight_passes_under_cap():
     """Pre-flight succeeds when projected cost + current spend is under cap."""
     respx.get(_MODELS_URL).mock(
-        return_value=Response(200, json=_models_response("openai/gpt-4o-mini", price_per_million=1.0))
+        return_value=Response(
+            200, json=_models_response("openai/gpt-4o-mini", price_per_million=1.0)
+        )
     )
     respx.get(_KEY_URL).mock(
         return_value=Response(200, json=_key_response(usage_usd=1.0, limit_usd=20.0))

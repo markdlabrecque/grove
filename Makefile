@@ -102,6 +102,24 @@ new-migration: ## Create a new migration. Usage: make new-migration MSG="add mem
 test: ## Run the test suite inside the app container (rebuilds the app image first)
 	$(COMPOSE) run --rm --build $(APP) bash -c "pip install -e '.[dev]' >/dev/null && alembic upgrade head && pytest"
 
+# ---------- benchmarks ----------
+
+# Default model sweep — covers cheap/mid/frontier across four families.
+# Adjust BENCH_MODELS to run a subset (or set via env: make bench BENCH_MODELS=openai/gpt-4o-mini).
+BENCH_MODELS ?= openai/gpt-4o-mini,anthropic/claude-haiku-4-5,anthropic/claude-sonnet-4-6,google/gemini-2.5-flash,meta-llama/llama-3.3-70b-instruct
+
+.PHONY: bench
+bench: ## Run the full benchmark sweep (requires OPENROUTER_API_KEY)
+	$(COMPOSE) run --rm --no-deps -e OPENROUTER_API_KEY=$(OPENROUTER_API_KEY) \
+		--build $(APP) bash -c \
+		"pip install -e '.[dev,bench]' >/dev/null && python -m grove.benchmarks.runner \
+		--workflow all --models $(BENCH_MODELS)"
+
+.PHONY: bench-report
+bench-report: ## Generate a report from existing benchmark results
+	$(COMPOSE) run --rm --no-deps --build $(APP) bash -c \
+		"pip install -e '.[dev,bench]' >/dev/null && python -m grove.benchmarks.report"
+
 .PHONY: lint
 lint: ## Run ruff lint + format check
 	$(COMPOSE) run --rm $(APP) bash -c "pip install -e '.[dev]' >/dev/null && ruff check . && ruff format --check ."

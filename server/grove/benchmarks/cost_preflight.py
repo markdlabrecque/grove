@@ -16,10 +16,10 @@ sometimes returns 403 for that endpoint depending on key scope.
 
 from __future__ import annotations
 
-import structlog
 from dataclasses import dataclass
 
 import httpx
+import structlog
 
 logger = structlog.get_logger(__name__)
 

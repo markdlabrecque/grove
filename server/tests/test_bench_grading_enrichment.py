@@ -13,10 +13,7 @@ Coverage:
 
 from __future__ import annotations
 
-import pytest
-
 from grove.benchmarks.grading.enrichment import grade_enrichment
-
 
 # ---------------------------------------------------------------------------
 # Fixtures — minimal case/result shapes
@@ -134,9 +131,7 @@ def test_field_mismatch_detected():
         memory_type="decisions",
         expected_fields={"chosen_option": "PostgreSQL"},
     )
-    output = _make_classification_output(
-        decisions=[{"chosen_option": "MySQL", "confidence": 0.9}]
-    )
+    output = _make_classification_output(decisions=[{"chosen_option": "MySQL", "confidence": 0.9}])
     result = grade_enrichment(case, output)
     assert result.field_matches["chosen_option"] is False
     assert result.correct is False
@@ -154,9 +149,7 @@ def test_missing_fields_reported():
         expected_fields={"decision_maker": "Alice", "chosen_option": "Postgres"},
     )
     # Model only returns decision_maker
-    output = _make_classification_output(
-        decisions=[{"decision_maker": "Alice", "confidence": 0.9}]
-    )
+    output = _make_classification_output(decisions=[{"decision_maker": "Alice", "confidence": 0.9}])
     result = grade_enrichment(case, output)
     assert "chosen_option" in result.missing_fields
 
@@ -168,12 +161,14 @@ def test_extra_fields_reported():
         expected_fields={"decision_maker": "Alice"},
     )
     output = _make_classification_output(
-        decisions=[{
-            "decision_maker": "Alice",
-            "chosen_option": "Postgres",
-            "rationale": "It scales",
-            "confidence": 0.9,
-        }]
+        decisions=[
+            {
+                "decision_maker": "Alice",
+                "chosen_option": "Postgres",
+                "rationale": "It scales",
+                "confidence": 0.9,
+            }
+        ]
     )
     result = grade_enrichment(case, output)
     # chosen_option and rationale are extra (not in expected)
@@ -208,9 +203,7 @@ def test_confidence_out_of_range_flagged():
         expected_confidence_min=0.8,
         expected_confidence_max=1.0,
     )
-    output = _make_classification_output(
-        decisions=[{"decision_maker": "Alice", "confidence": 0.4}]
-    )
+    output = _make_classification_output(decisions=[{"decision_maker": "Alice", "confidence": 0.4}])
     result = grade_enrichment(case, output)
     assert result.confidence_in_range is False
 
@@ -245,9 +238,7 @@ def test_grade_result_has_required_keys():
         memory_type="decisions",
         expected_fields={"decision_maker": "Alice"},
     )
-    output = _make_classification_output(
-        decisions=[{"decision_maker": "Alice", "confidence": 0.9}]
-    )
+    output = _make_classification_output(decisions=[{"decision_maker": "Alice", "confidence": 0.9}])
     result = grade_enrichment(case, output)
     assert hasattr(result, "correct")
     assert hasattr(result, "field_matches")

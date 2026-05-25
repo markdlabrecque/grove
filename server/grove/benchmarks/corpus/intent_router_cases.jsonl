@@ -1,0 +1,25 @@
+{"case_id":"intent-001","query":"What database did we choose for the backend?","expected_tables":["decisions"],"expected_intent":"decisions"}
+{"case_id":"intent-002","query":"Tell me about my meeting with Bob Chen","expected_tables":["people_interactions"],"expected_intent":"people_interactions"}
+{"case_id":"intent-003","query":"What appointments do I have coming up?","expected_tables":["appointments"],"expected_intent":"appointments"}
+{"case_id":"intent-004","query":"Who should I call about the partnership?","expected_tables":["people_interactions"],"expected_intent":"people_interactions"}
+{"case_id":"intent-005","query":"What did we decide about the tech stack?","expected_tables":["decisions"],"expected_intent":"decisions"}
+{"case_id":"intent-006","query":"When is my next doctor's appointment?","expected_tables":["appointments"],"expected_intent":"appointments"}
+{"case_id":"intent-007","query":"What framework did we pick for the frontend?","expected_tables":["decisions"],"expected_intent":"decisions"}
+{"case_id":"intent-008","query":"What happened when I talked to Priya at PyCon?","expected_tables":["people_interactions"],"expected_intent":"people_interactions"}
+{"case_id":"intent-009","query":"What meetings do I have this week?","expected_tables":["appointments"],"expected_intent":"appointments"}
+{"case_id":"intent-010","query":"Who recommended Honeycomb for observability?","expected_tables":["people_interactions"],"expected_intent":"people_interactions"}
+{"case_id":"intent-011","query":"What infrastructure choices did we make this quarter?","expected_tables":["decisions"],"expected_intent":"decisions"}
+{"case_id":"intent-012","query":"What time is the board meeting on Thursday?","expected_tables":["appointments"],"expected_intent":"appointments"}
+{"case_id":"intent-013","query":"What are my notes from the AI conference?","expected_tables":["people_interactions"],"expected_intent":"people_interactions"}
+{"case_id":"intent-014","query":"Did we decide to use GraphQL or REST?","expected_tables":["decisions"],"expected_intent":"decisions"}
+{"case_id":"intent-015","query":"Remind me what we discussed in the 1:1 with Carlos","expected_tables":["people_interactions"],"expected_intent":"people_interactions"}
+{"case_id":"intent-016","query":"What are my goals for the next quarter?","expected_tables":["general"],"expected_intent":"general"}
+{"case_id":"intent-017","query":"How am I feeling about work this week?","expected_tables":["general"],"expected_intent":"general"}
+{"case_id":"intent-018","query":"What book did I say I wanted to read?","expected_tables":["general"],"expected_intent":"general"}
+{"case_id":"intent-019","query":"When is the sprint planning and what decisions were made going into it?","expected_tables":["appointments","decisions"],"expected_intent":"appointments"}
+{"case_id":"intent-020","query":"Tell me about decisions made by people I've recently met","expected_tables":["decisions","people_interactions"],"expected_intent":"decisions"}
+{"case_id":"intent-021","query":"What payment processor did we go with?","expected_tables":["decisions"],"expected_intent":"decisions"}
+{"case_id":"intent-022","query":"What is Yuki Tanaka's role at OpenAI?","expected_tables":["people_interactions"],"expected_intent":"people_interactions"}
+{"case_id":"intent-023","query":"Do I have any upcoming interviews?","expected_tables":["appointments"],"expected_intent":"appointments"}
+{"case_id":"intent-024","query":"What's the plan for retiring the old API?","expected_tables":["decisions"],"expected_intent":"decisions"}
+{"case_id":"intent-025","query":"Who is working at Shopify that I know?","expected_tables":["people_interactions"],"expected_intent":"people_interactions"}
