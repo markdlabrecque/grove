@@ -1,0 +1,4 @@
+workflow,model,n_cases,n_passed,mean_score,p50_latency_ms,p95_latency_ms,total_cost_usd,cost_per_case_usd
+enrichment,openai/gpt-4o-mini,32,1,0.031,2766.6,4061.8,0.002401,7.5e-05
+intent_router,openai/gpt-4o-mini,25,16,0.64,834.7,1155.5,0.001331,5.3e-05
+synthesis,openai/gpt-4o-mini,20,0,0.95,1738.3,2757.8,0.001635,8.2e-05

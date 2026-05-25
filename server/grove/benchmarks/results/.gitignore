@@ -1,0 +1,8 @@
+# Ignore all benchmark result files and the judge cache (they are large and local).
+# Committed sample reports go in a report_<timestamp>/ subdirectory — add them explicitly.
+run_*.jsonl
+.judge_cache.db
+charts/
+
+# But track this .gitignore itself.
+!.gitignore
