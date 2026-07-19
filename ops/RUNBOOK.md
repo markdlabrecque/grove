@@ -512,6 +512,11 @@ in `ops/systemd/` and must be installed once after deploy.
    default `/opt/grove`). Update `WorkingDirectory=` in `grove-enrichment.service`
    if your checkout path differs.
 
+3. Confirm the local Ollama server runs as `ollama.service` and is enabled on
+   boot (`sudo systemctl enable --now ollama`). The enrichment unit is ordered
+   `After=docker.service ollama.service` / `Wants=ollama.service` because the
+   worker calls local models (gpt-oss-20b, bge-m3) through Ollama.
+
 ### Install the units
 
 ```bash

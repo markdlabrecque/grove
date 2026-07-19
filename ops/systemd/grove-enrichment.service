@@ -1,8 +1,13 @@
 [Unit]
 Description=Grove enrichment worker (single run)
-# Ensures Docker is up before the service fires.
-After=docker.service
+# Ensures Docker and the local Ollama inference server are up before the
+# service fires. Enrichment calls local models (gpt-oss-20b for classification,
+# bge-m3 for embeddings) through Ollama, so it must be ordered after it.
+# Wants (not Requires) for ollama: a transient Ollama outage lets the run start
+# and fail gracefully into enrichment_error + retry rather than being blocked.
+After=docker.service ollama.service
 Requires=docker.service
+Wants=ollama.service
 
 [Service]
 Type=oneshot
