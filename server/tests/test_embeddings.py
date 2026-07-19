@@ -7,13 +7,16 @@ using respx so the real API is never called.
 from __future__ import annotations
 
 import json
+from unittest.mock import patch
 
 import httpx
 import pytest
 import respx
 
+from grove.core.config import settings
 from grove.embeddings import EMBEDDING_DIM, WHOLE_VS_CHUNKS_THRESHOLD
 from grove.embeddings.chunker import chunk
+from grove.embeddings.factory import get_embedding_provider
 from grove.embeddings.openai_provider import OpenAIEmbeddingProvider
 from grove.embeddings.tokenizer import count_tokens
 
@@ -306,3 +309,30 @@ class TestConfigurableEmbeddingBaseUrl:
         await provider.embed_batch(texts)
 
         assert route.called
+
+
+# ---------------------------------------------------------------------------
+# Factory settings pass-through (#524) — get_embedding_provider() must forward
+# settings.embedding_base_url / settings.embedding_model to the provider it
+# constructs. The provider-level threading is pinned above; this pins the
+# factory wiring itself so a regression there (e.g. dropping a kwarg) fails
+# loudly instead of silently mis-targeting embeddings.
+# ---------------------------------------------------------------------------
+
+
+class TestGetEmbeddingProviderSettingsPassthrough:
+    def test_forwards_configured_base_url_and_model(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(settings, "embedding_model", "bge-m3")
+        monkeypatch.setattr(settings, "embedding_base_url", "http://host.docker.internal:11434/v1")
+
+        get_embedding_provider.cache_clear()
+        try:
+            with patch("grove.embeddings.factory.OpenAIEmbeddingProvider") as mock_provider_cls:
+                get_embedding_provider()
+
+                mock_provider_cls.assert_called_once_with(
+                    model="bge-m3",
+                    base_url="http://host.docker.internal:11434/v1",
+                )
+        finally:
+            get_embedding_provider.cache_clear()
