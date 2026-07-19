@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from grove.core.config import settings
+from grove.embeddings import EMBEDDING_DIM
 from grove.models import Memory, MemoryChunk
 
 
@@ -55,8 +56,8 @@ async def test_cascade_delete_removes_chunks(db_session: AsyncSession) -> None:
     db_session.add(memory)
     await db_session.flush()
 
-    # Fake 1536-dim embedding (all zeros is valid for storage; not for search).
-    fake_embedding = [0.0] * 1536
+    # Fake embedding (all zeros is valid for storage; not for search).
+    fake_embedding = [0.0] * EMBEDDING_DIM
 
     chunk_a = MemoryChunk(
         id=uuid.uuid4(),

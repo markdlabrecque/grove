@@ -26,6 +26,9 @@ services:
       DATABASE_URL: postgresql+asyncpg://grove:${POSTGRES_PASSWORD}@postgres:5432/grove
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      CHAT_BASE_URL: ${CHAT_BASE_URL:-https://openrouter.ai/api/v1}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-bge-m3}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
     expose:
       - "8000"

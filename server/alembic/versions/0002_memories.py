@@ -35,7 +35,7 @@ def upgrade() -> None:
         sa.Column("language", sa.Text(), nullable=True),
         sa.Column("token_count", sa.Integer(), nullable=True),
         sa.Column("embedding_model", sa.Text(), nullable=True),
-        sa.Column("embedding", Vector(1536), nullable=True),
+        sa.Column("embedding", Vector(1024), nullable=True),
         sa.Column("client_id", sa.UUID(), nullable=False),
         sa.Column(
             "enriched",

@@ -135,7 +135,7 @@ async def test_happy_path_creates_memory(payload: dict, db_session: AsyncSession
     assert row.source_device == payload["source_device"]
     assert row.language == "en"
     assert row.enriched is False
-    assert row.embedding_model == "text-embedding-3-small"
+    assert row.embedding_model == "bge-m3"
     # Short content: embedding stored on the memory row directly.
     assert row.embedding is not None
     assert len(row.embedding) == EMBEDDING_DIM

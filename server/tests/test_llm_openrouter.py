@@ -357,7 +357,9 @@ class TestOptionalParameters:
 
 class TestConfigurableBaseUrl:
     @respx.mock
-    async def test_request_targets_configured_chat_base_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_request_targets_configured_chat_base_url(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         """chat_completion posts to settings.chat_base_url, not a hardcoded URL."""
         monkeypatch.setattr(settings, "chat_base_url", "http://host.docker.internal:11434/v1")
         route = respx.post("http://host.docker.internal:11434/v1/chat/completions").mock(
