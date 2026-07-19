@@ -12,7 +12,7 @@ This plan breaks the V1 PRD into the five phases sketched in §12 of the PRD, wi
 | Backend stack | **Python 3.12 + FastAPI** (API and enrichment worker share a codebase) |
 | Capture entry point | **Action Button → dedicated capture screen** (share sheet deferred) |
 | LLM routing | **OpenRouter gateway** for synthesis and classification |
-| Embedding provider | **OpenAI `text-embedding-3-small` direct** (1536-dim, cheap, no benefit from routing) |
+| Embedding provider | **bge-m3 (1024-dim) via OpenAI-compatible endpoint** (local-inference default; base URL + model configurable, can point at OpenAI text-embedding-3-small) |
 | Chunking strategy | **Paragraph-based, ~400-token cap, ~50-token overlap** |
 | V1 specialized tables | `decisions`, `people_interactions`, `appointments` |
 | Specialized-table retrieval | **Hybrid**: vector search on `memories` + intent-driven joins to specialized tables |
