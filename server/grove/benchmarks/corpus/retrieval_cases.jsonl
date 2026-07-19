@@ -1,0 +1,5 @@
+{"case_id":"retr-001","query":"What database did we decide to use for Grove?","relevant_memory_ids":["mem-r001"]}
+{"case_id":"retr-002","query":"Who have I met at conferences recently?","relevant_memory_ids":["mem-r003","mem-r004","mem-r005"]}
+{"case_id":"retr-003","query":"When is my dentist appointment?","relevant_memory_ids":["mem-r006"]}
+{"case_id":"retr-004","query":"What embedding model are we using now and why did we switch?","relevant_memory_ids":["mem-r008"]}
+{"case_id":"retr-005","query":"When is my performance review?","relevant_memory_ids":["mem-r007"]}

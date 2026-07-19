@@ -119,6 +119,16 @@ bench-report: ## Generate a report from existing benchmark results
 	$(COMPOSE) run --rm --no-deps --build $(APP) bash -c \
 		"pip install -e '.[dev,bench]' >/dev/null && python -m grove.benchmarks.report"
 
+# BENCH_EMBEDDERS is an opt-in override; when unset the retrieval runner falls back to
+# the currently configured single embedder (settings.embedding_model / embedding_base_url).
+# Example: make bench-retrieval BENCH_EMBEDDERS="bge-m3@http://localhost:11434/v1,text-embedding-3-small@"
+
+.PHONY: bench-retrieval
+bench-retrieval: ## Run the retrieval/embedding benchmark (compares embedders on recall@k / MRR)
+	$(COMPOSE) run --rm --no-deps --build $(APP) bash -c \
+		"pip install -e '.[dev,bench]' >/dev/null && python -m grove.benchmarks.retrieval \
+		$(if $(BENCH_EMBEDDERS),--embedders $(BENCH_EMBEDDERS),)"
+
 .PHONY: lint
 lint: ## Run ruff lint + format check
 	$(COMPOSE) run --rm $(APP) bash -c "pip install -e '.[dev]' >/dev/null && ruff check . && ruff format --check ."
