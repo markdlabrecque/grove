@@ -165,7 +165,7 @@ the workflow file itself. Three jobs run in parallel:
 - **migrations** — `alembic upgrade head && alembic downgrade base && alembic
   upgrade head` (confirms round-trip reversibility)
 
-Python-only PRs require all three to be green before Theo merges.
+Python-only PRs require all three to be green before merge.
 
 ## Routine operations
 
