@@ -19,6 +19,7 @@ import httpx
 import pytest
 import respx
 
+from grove.core.config import settings
 from grove.llm.openrouter import ChatCompletionResult, chat_completion
 
 _OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -346,3 +347,27 @@ class TestOptionalParameters:
         request = route.calls.last.request
         body = json.loads(request.content)
         assert "response_format" not in body
+
+
+# ---------------------------------------------------------------------------
+# Configurable base URL (#518) — local (Ollama) endpoints must be reachable
+# without touching openrouter.ai.
+# ---------------------------------------------------------------------------
+
+
+class TestConfigurableBaseUrl:
+    @respx.mock
+    async def test_request_targets_configured_chat_base_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """chat_completion posts to settings.chat_base_url, not a hardcoded URL."""
+        monkeypatch.setattr(settings, "chat_base_url", "http://host.docker.internal:11434/v1")
+        route = respx.post("http://host.docker.internal:11434/v1/chat/completions").mock(
+            return_value=_make_response()
+        )
+
+        await chat_completion(
+            api_key="sk-test",
+            model="gpt-oss-20b",
+            messages=_MESSAGES,
+        )
+
+        assert route.called

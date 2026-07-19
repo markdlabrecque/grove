@@ -186,7 +186,10 @@ class TestChunk:
     # --- Constants ---
 
     def test_constants(self) -> None:
-        assert EMBEDDING_DIM == 1536
+        # bge-m3 (1024-d) is the target embedding model for the local-inference
+        # deployment (#518) — there is no prod data to preserve, so the
+        # default dimension commits to that stack rather than OpenAI's 1536.
+        assert EMBEDDING_DIM == 1024
         assert WHOLE_VS_CHUNKS_THRESHOLD == 500
 
 
@@ -277,3 +280,29 @@ class TestOpenAIEmbeddingProvider:
 
         provider = OpenAIEmbeddingProvider(api_key=_TEST_API_KEY)
         assert isinstance(provider, EmbeddingProvider)
+
+
+# ---------------------------------------------------------------------------
+# Configurable base URL (#518) — local (Ollama) endpoints must be reachable
+# without touching api.openai.com.
+# ---------------------------------------------------------------------------
+
+
+class TestConfigurableEmbeddingBaseUrl:
+    @respx.mock
+    async def test_embed_batch_targets_configured_base_url(self) -> None:
+        """embed_batch posts to the provider's configured base_url, not the
+        OpenAI SDK default, when one is supplied."""
+        texts = ["local inference please"]
+        route = respx.post("http://host.docker.internal:11434/v1/embeddings").mock(
+            return_value=httpx.Response(200, json=_make_openai_response(texts))
+        )
+
+        provider = OpenAIEmbeddingProvider(
+            model="bge-m3",
+            api_key=_TEST_API_KEY,
+            base_url="http://host.docker.internal:11434/v1",
+        )
+        await provider.embed_batch(texts)
+
+        assert route.called
