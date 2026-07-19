@@ -25,6 +25,15 @@ class Settings(BaseSettings):
     # local OpenAI-compatible endpoint (e.g. Ollama's
     # http://host.docker.internal:11434/v1) for fully local inference.
     chat_base_url: str = "https://openrouter.ai/api/v1"
+
+    @field_validator("chat_base_url", mode="after")
+    @classmethod
+    def _strip_trailing_slash_from_chat_base_url(cls, value: str) -> str:
+        # An operator-supplied CHAT_BASE_URL with a trailing slash (e.g.
+        # "http://host.docker.internal:11434/v1/") would otherwise produce
+        # a double slash when openrouter.py concatenates "/chat/completions".
+        return value.rstrip("/")
+
     # Embedding provider base URL. None means the OpenAI SDK default
     # (api.openai.com). Set to a local OpenAI-compatible endpoint for
     # self-hosted embedding models.
