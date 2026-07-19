@@ -22,9 +22,10 @@ from typing import Any
 import httpx
 import structlog
 
+from grove.core.config import settings
+
 logger = structlog.get_logger(__name__)
 
-_OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 _HTTP_REFERER = "https://github.com/markdlabrecque/grove"
 _X_TITLE = "Grove"
 
@@ -87,7 +88,7 @@ async def chat_completion(
 
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            _OPENROUTER_URL,
+            f"{settings.chat_base_url}/chat/completions",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",

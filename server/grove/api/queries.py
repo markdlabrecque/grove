@@ -1,7 +1,7 @@
 """POST /v1/queries — hybrid retrieval over memories with LLM synthesis.
 
 Flow:
-  1. Embed the query via OpenAI text-embedding-3-small.
+  1. Embed the query via the configured embedding provider (settings.embedding_model).
   2. Run cosine similarity over memories and memory_chunks (vector path).
   3. Classify query intent via a cheap OpenRouter call (intent router).
   4. For each non-general intent, run a structured query against the matching

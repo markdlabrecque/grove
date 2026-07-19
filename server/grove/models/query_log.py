@@ -9,6 +9,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TIMESTAMP
 
+from grove.embeddings import EMBEDDING_DIM
 from grove.models.base import Base
 
 
@@ -20,7 +21,7 @@ class QueryLog(Base):
         TIMESTAMP(timezone=True), nullable=False, server_default="now()"
     )
     query_text: Mapped[str] = mapped_column(Text, nullable=False)
-    query_embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
+    query_embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
     # Structured JSON recording which tables participated in the query and the outcome
     # per table: {"vector": true, "decisions": "matched"|"empty"|"skipped", ...}
     tables_searched: Mapped[dict] = mapped_column(JSONB, nullable=False)

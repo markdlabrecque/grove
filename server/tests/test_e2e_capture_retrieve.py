@@ -48,7 +48,7 @@ from grove.main import app
 
 _OPENAI_EMBEDDINGS_URL = "https://api.openai.com/v1/embeddings"
 
-# Deterministic 1536-element vector — avoids any dependence on real OpenAI output.
+# Deterministic EMBEDDING_DIM-element vector — avoids any dependence on real OpenAI output.
 _FAKE_VECTOR: list[float] = [0.001 * i for i in range(EMBEDDING_DIM)]
 
 _AUTH_HEADERS = {"Authorization": f"Bearer {settings.bearer_token}"}

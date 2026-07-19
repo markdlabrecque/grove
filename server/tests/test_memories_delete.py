@@ -27,6 +27,7 @@ from sqlalchemy.pool import NullPool
 
 from grove.core.config import settings
 from grove.core.db import get_session
+from grove.embeddings import EMBEDDING_DIM
 from grove.models.appointment import Appointment
 from grove.models.decision import Decision
 from grove.models.memory import Memory, MemoryChunk
@@ -92,8 +93,8 @@ async def test_delete_cascades_to_all_related_rows(db_session: AsyncSession) -> 
         memory_id=memory_id,
         chunk_index=0,
         content="Meeting with Sarah",
-        # Embedding column is NOT NULL — supply a zero vector (1536-dim).
-        embedding=[0.0] * 1536,
+        # Embedding column is NOT NULL — supply a zero vector.
+        embedding=[0.0] * EMBEDDING_DIM,
         embedding_model="text-embedding-3-small",
     )
     decision = Decision(

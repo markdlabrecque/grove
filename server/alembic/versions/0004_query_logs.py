@@ -31,7 +31,7 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("query_text", sa.Text(), nullable=False),
-        sa.Column("query_embedding", Vector(1536), nullable=True),
+        sa.Column("query_embedding", Vector(1024), nullable=True),
         sa.Column("tables_searched", ARRAY(sa.Text()), nullable=False),
         sa.Column("result_count", sa.Integer(), nullable=False),
         # returned_memory_ids is a plain UUID array with no FK constraint.

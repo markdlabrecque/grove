@@ -1,4 +1,4 @@
-from pydantic import BaseModel, SecretStr
+from pydantic import BaseModel, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -21,6 +21,37 @@ class Settings(BaseSettings):
     openai_api_key: SecretStr | None = None
     openrouter_api_key: SecretStr | None = None
     log_level: str = "INFO"
+    # Chat-completion provider base URL. Defaults to OpenRouter; point at a
+    # local OpenAI-compatible endpoint (e.g. Ollama's
+    # http://host.docker.internal:11434/v1) for fully local inference.
+    chat_base_url: str = "https://openrouter.ai/api/v1"
+
+    @field_validator("chat_base_url", mode="after")
+    @classmethod
+    def _strip_trailing_slash_from_chat_base_url(cls, value: str) -> str:
+        # An operator-supplied CHAT_BASE_URL with a trailing slash (e.g.
+        # "http://host.docker.internal:11434/v1/") would otherwise produce
+        # a double slash when openrouter.py concatenates "/chat/completions".
+        return value.rstrip("/")
+
+    # Embedding provider base URL. None means the OpenAI SDK default
+    # (api.openai.com). Set to a local OpenAI-compatible endpoint for
+    # self-hosted embedding models.
+    embedding_base_url: str | None = None
+    # Embedding model name. Defaults to bge-m3 (1024-d) — the target model
+    # for Grove's local-inference deployment. Must match EMBEDDING_DIM in
+    # grove.embeddings, which is the vector column width.
+    embedding_model: str = "bge-m3"
+
+    @field_validator("embedding_base_url", mode="before")
+    @classmethod
+    def _blank_embedding_base_url_is_none(cls, value: str | None) -> str | None:
+        # docker-compose's ${VAR:-} substitution sets an unset host var to an
+        # empty string rather than omitting it, which would otherwise turn
+        # into base_url="" and break every embedding request. Treat blank
+        # the same as unset.
+        return value or None
+
     # Separate enrichment_model from any intent-router model so each can be
     # tuned independently without coupling the two call-sites.
     enrichment_model: str = "openai/gpt-4o-mini"

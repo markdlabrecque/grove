@@ -11,7 +11,11 @@ logger = structlog.get_logger()
 
 
 class OpenAIEmbeddingProvider:
-    """Concrete embedding provider backed by OpenAI text-embedding-3-small.
+    """Embedding provider using the OpenAI embeddings API shape.
+
+    Defaults (via settings) to bge-m3 served locally through an
+    OpenAI-compatible endpoint (e.g. Ollama); also works against real OpenAI
+    models when pointed at api.openai.com with an OpenAI model name.
 
     Uses the official openai Python SDK's async client.  The client is
     instantiated once per provider instance; callers should treat a single
@@ -23,9 +27,18 @@ class OpenAIEmbeddingProvider:
         api_key: Override the API key from settings.  Primarily used in tests
                  so the provider can be constructed without a real key reaching
                  the network.
+        base_url: Override the API base URL. None uses the OpenAI SDK default
+                   (api.openai.com); pass a local OpenAI-compatible endpoint
+                   (e.g. Ollama's http://host.docker.internal:11434/v1) to
+                   embed against a self-hosted model.
     """
 
-    def __init__(self, model: str = "text-embedding-3-small", api_key: str | None = None) -> None:
+    def __init__(
+        self,
+        model: str = "text-embedding-3-small",
+        api_key: str | None = None,
+        base_url: str | None = None,
+    ) -> None:
         self._model = model
         if api_key is None:
             cfg_key = settings.openai_api_key
@@ -38,6 +51,7 @@ class OpenAIEmbeddingProvider:
         # if it somehow isn't, OpenAI returns 401 which is the right failure.
         self._client = AsyncOpenAI(
             api_key=api_key if api_key else "sk-test-placeholder",
+            base_url=base_url,
             _enforce_credentials=False,
         )
 

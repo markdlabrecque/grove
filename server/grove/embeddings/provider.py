@@ -23,7 +23,7 @@ class EmbeddingProvider(Protocol):
 
         Returns:
             List of float vectors in the same order as *texts*.  Each vector
-            has length ``EMBEDDING_DIM`` (1536 for text-embedding-3-small).
+            has length ``EMBEDDING_DIM`` (1024 for bge-m3, the default).
 
         Raises:
             Any exception from the underlying HTTP client propagates — callers

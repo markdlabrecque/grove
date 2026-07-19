@@ -146,6 +146,13 @@ and port from `.env`. From the iPhone (on the tailnet), browsing to
 `https://$TAILSCALE_HOSTNAME:${GROVE_HTTPS_PORT:-8443}/healthz` should return
 JSON, no cert warning.
 
+> **Automatic migrations on start.** The `app` container's `entrypoint.sh` runs
+> `alembic upgrade head` before handing off to uvicorn (#519) — pending
+> migrations are applied on every `make up` / `make rebuild`, and a failed
+> migration aborts the container fail-fast rather than serving against a
+> half-migrated schema. `make migrate` is still available for running it
+> manually (e.g. against a stopped app container).
+
 ## CI (GitHub Actions)
 
 The workflow at `.github/workflows/ci.yml` runs automatically on `push` to

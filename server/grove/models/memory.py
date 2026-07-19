@@ -16,6 +16,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import TIMESTAMP
 
+from grove.embeddings import EMBEDDING_DIM
 from grove.models.base import Base
 
 if TYPE_CHECKING:
@@ -41,7 +42,7 @@ class Memory(Base):
     token_count: Mapped[int | None] = mapped_column(Integer)
     embedding_model: Mapped[str | None] = mapped_column(Text)
     # Null when content is chunked (long memories stored in memory_chunks instead).
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(1536))
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM))
     client_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False, unique=True)
     enriched: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
     enriched_at: Mapped[datetime | None] = mapped_column(TIMESTAMP(timezone=True))
@@ -78,7 +79,7 @@ class MemoryChunk(Base):
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding: Mapped[list[float]] = mapped_column(Vector(1536), nullable=False)
+    embedding: Mapped[list[float]] = mapped_column(Vector(EMBEDDING_DIM), nullable=False)
     embedding_model: Mapped[str] = mapped_column(Text, nullable=False)
 
     memory: Mapped[Memory] = relationship("Memory", back_populates="chunks")
