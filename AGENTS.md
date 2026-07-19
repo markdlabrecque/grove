@@ -1,398 +1,204 @@
 # Working with the team
 
-Grove is built by a small team of specialised Claude subagents
-coordinated by an orchestrator session. You can invoke any agent by
-name ("ask Margot to…", "have Theo review this"), or describe the work
-and let the orchestrator route it.
+Grove is built by a small team of specialised Claude subagents coordinated
+by an orchestrator session. The roster is **role-based**: one implementer
+covers the whole codebase, with dedicated test, review, and reporting roles
+around it. You invoke any agent by role ("have the reviewer look at this")
+or describe the work and let the orchestrator route it.
 
 ## Repository shape
 
 Single mono-repo. Backend (`server/`) and iOS client (`ios/`) live
-side-by-side because the API contract is the interface between them
-and most non-trivial tickets touch both. Splitting would force every
-cross-cutting change into two coordinated PRs — not worth the cost at
-this scale. Docs (`docs/`), ops (`ops/`), and team config
-(`.claude/agents/`, `AGENTS.md`) live at the root.
+side-by-side because the API contract is the interface between them and most
+non-trivial tickets touch both. Splitting would force every cross-cutting
+change into two coordinated PRs — not worth the cost at this scale. Docs
+(`docs/`), ops (`ops/`), and team config (`.claude/agents/`, `AGENTS.md`)
+live at the root.
 
 ## The team
 
-| Agent | Role | When to invoke |
-|---|---|---|
-| **Margot** | Senior Python engineer | Tickets in `server/`: FastAPI, SQLAlchemy, Alembic, enrichment, embedding/LLM clients, pytest. |
-| **Kai** | Senior iOS engineer | Tickets in `ios/`: SwiftUI, SwiftData, URLSession background, Speech, Action Button / Shortcuts, XCTest. |
-| **Theo** | Code reviewer + merger | Every non-trivial ticket after the implementer finishes. Reviews, triages, and on approval merges to `develop` and closes the ticket. |
+| Role | Model | Effort | Access | When it runs |
+|---|---|---|---|---|
+| **Implementer** | Sonnet 5 (→ Opus 4.8 for the hard ~20%) | high | mutation | Writes production code + proving tests for a ticket, and applies review fixes. Language-agnostic: `server/` Python and `ios/` Swift. |
+| **Test Writer** | Sonnet 5 | low | mutation (test files only) | Hardens the implementation with edge cases and negative paths after it lands. Never edits production code. |
+| **Reviewer** | Opus 4.8 | high | read-only | Inspects the diff for regressions, security, contracts, concurrency, and test quality. Returns structured findings. Never edits, never merges. |
+| **Reporter** | Haiku 4.5 | medium | read-only + `gh` | Records the system-of-record ledger entry on the ticket when the work lands. |
 
-Definitions: `.claude/agents/{margot,kai,theo}.md` — committed so any
-collaborator gets the same team.
+Definitions live in `.claude/agents/{implementer,test-writer,reviewer,reporter}.md`
+— committed so any collaborator gets the same team. The Implementer defaults
+to Sonnet 5; the orchestrator escalates it to Opus 4.8 (via the dispatch-time
+`model` override) for complex, high-risk, or design-heavy tickets.
+
+**Planning is a foreground pre-flight**, not a workflow role. Before
+dispatching, the orchestrator (or the built-in Plan agent) produces and
+approves the scope + acceptance criteria on **Opus 4.8**. Workflow roles
+execute an approved plan; they do not re-plan it.
+
+**Merging is an orchestrator action.** No workflow role merges — the
+Reviewer approves, and the orchestrator performs the squash-merge.
 
 ## Tickets are the unit of work
 
-**No work without a ticket.** GitHub Issues is the source of truth.
-The orchestrator should refuse to delegate freeform work; instead,
-file a ticket first, then delegate by ticket number.
+**No work without a ticket.** GitHub Issues is the source of truth. The
+orchestrator refuses to delegate freeform work; file a ticket first, then
+delegate by ticket number.
 
-A well-formed ticket has:
-
-- A clear title.
-- An "Acceptance criteria" section listing what done looks like.
-- Any relevant context (links to PRD section, prior tickets, etc.).
-
-If the request is vague, the orchestrator pushes back before opening
-the ticket — vague tickets produce vague work.
+A well-formed ticket has a clear title, an "Acceptance criteria" section
+listing what done looks like, and any relevant context (links to PRD
+section, prior tickets). If the request is vague, the orchestrator pushes
+back before opening the ticket — vague tickets produce vague work.
 
 ### Required labels
 
 | Label | Meaning |
 |---|---|
 | `bug` / `feature` / `chore` / `docs` | Type. Pick one when filing a normal ticket. |
-| `regression` | Set by Theo on review findings where existing behaviour used to work and is now broken. Jumps the queue — dispatched as soon as it lands, not held for weekly review. |
-| `enhancement` | Set by Theo on review findings that are drive-by improvements (never worked / could be tidier / refactor opportunity). Held in the backlog and dispositioned in weekly review. |
-| `in progress` | Optional. Set by the implementing agent when picked up; cleared at merge. |
+| `regression` | A review finding where existing behaviour used to work and is now broken. Jumps the queue — dispatched as soon as it lands. |
+| `enhancement` | A review finding that is a drive-by improvement (never worked / could be tidier). Held in the backlog for weekly review. |
+| `in progress` | Optional. Set by the Implementer when picked up; cleared at merge. |
 
-The `regression` vs `enhancement` split lives at file-time so the queue stays scannable as it grows. The judgment is "did this used to work?" — if yes, `regression`; if no, `enhancement`. When unsure, default to `enhancement` and flag the doubt in the issue body.
-
-If a label doesn't exist yet, the agent that needs it creates it via
-`gh label create`.
+The `regression` vs `enhancement` split lives at file-time. The judgment is
+"did this used to work?" — if yes `regression`, if no `enhancement`. Default
+to `enhancement` when unsure and flag the doubt in the issue body. Create a
+missing label via `gh label create`.
 
 ## PR scope
 
-PRs should stay reasonably small — small enough that a reviewer can
-load the diff into their head in one sitting and a tester can exercise
-the change without juggling unrelated concerns. Two rules:
+PRs stay small enough that a reviewer can load the diff in one sitting and a
+tester can exercise it without juggling unrelated concerns.
 
-1. **Keep PRs small to make them easier to test and review.** Smaller
-   diffs surface bugs earlier, keep CI signal focused, and make
-   `git bisect` useful when something regresses later.
-2. **Do not group related work in the interest of higher velocity.**
-   It is tempting to fold a refactor, a bug fix, and a feature into one
-   PR because they live in the same area. Don't. Each piece becomes
-   harder to review, and a single bad change blocks the rest.
+1. **Keep PRs small** — smaller diffs surface bugs earlier, keep CI focused,
+   and make `git bisect` useful later.
+2. **Do not group related work for velocity** — folding a refactor + a fix +
+   a feature into one PR because they share an area makes each harder to
+   review and lets one bad change block the rest.
 
-A ticket may produce **more than one PR** in service of these rules.
-Split when the work naturally divides (e.g., a schema migration PR,
-then a feature PR that uses the new column; or a server PR followed by
-the iOS PR that consumes the new endpoint within the same ticket).
-Interim PRs reference the ticket in their body as `Refs #N`. Only the
-final PR that completes the ticket's acceptance criteria uses
-`Closes #N` so GitHub auto-closes on merge.
+A ticket may produce **more than one PR**. Interim PRs reference the ticket
+as `Refs #N`; only the final PR that completes the acceptance criteria uses
+`Closes #N`.
 
 ## The lifecycle
 
-For every ticket that requires implementation work:
+Planning happens first, in the foreground, on Opus 4.8: the orchestrator
+produces and approves the scope + acceptance criteria before any dispatch.
+Then, for every ticket that requires implementation work:
 
-1. **Triage in the orchestrator session.**
-   - **Pre-flight check (required before touching any ticket).**
-     Confirm the orchestrator's working copy is on `develop`,
-     fast-forwarded to the latest merge
-     (`git pull --ff-only origin develop`), and clean
-     (`git status --short` is empty). Under the parallel-dispatch
-     trial (see §Concurrency) a previous ticket's PR may still be in
-     CI or review — that does not block dispatching the next ticket,
-     but each implementer MUST be dispatched with
-     `isolation: "worktree"` so it gets its own checkout off the
-     current `develop` tip.
-   - Confirm the ticket is well-formed. Pick the right specialist
-     (Margot or Kai). Margot handles `server/`-only and ops-adjacent
-     Python work; Kai handles `ios/`-only work. Cross-cutting tickets
-     that touch both halves are split into two tickets and worked
-     sequentially, server first by default so the iOS side can
-     integrate against a real endpoint.
+1. **Triage (orchestrator).**
+   - **Pre-flight:** confirm the working copy is on `develop`,
+     fast-forwarded (`git pull --ff-only origin develop`), and clean
+     (`git status --short` shows only known untracked paths).
+   - Confirm the ticket is well-formed and its acceptance criteria are
+     explicit. Decide whether it's routine (Implementer on Sonnet 5) or
+     complex (escalate to Opus 4.8).
 
-2. **Specialist picks up the ticket.**
-   - Reads the issue: `gh issue view <N>`.
-   - Reads `docs/grove-prd.md` and
-     `docs/grove-implementation-plan.md` if not already in
-     context. The PRD constrains intent; the plan constrains stack.
+2. **Implementing (Implementer).**
+   - Reads the issue (`gh issue view <N>`), and `docs/grove-prd.md` +
+     `docs/grove-implementation-plan.md` if not already in context (PRD
+     constrains intent, plan constrains stack).
    - Branches off `develop`: `git checkout develop && git pull && git
-     checkout -b <N>-<short-slug>` (e.g. `42-capture-endpoint`).
-   - Sets the `in progress` label and assigns themselves on the
-     issue.
+     checkout -b <N>-<short-slug>`. Sets `in progress` and self-assigns.
+   - Implements the approved scope: production code, the tests needed to
+     prove it works, and **any docs that go stale** (`docs/grove-implementation-plan.md`,
+     `ops/RUNBOOK.md`, inline docs). Doc drift is a must-fix in review —
+     handle it up front.
+   - Commits conventional-commit style, ticket number leading
+     (`#42 feat: add capture endpoint`), grouped by concern.
+   - **Runs tests + lint/format locally, green before pushing — a hard gate.**
+     Server: `make test`; `ruff format .` + `ruff check --fix .`. iOS:
+     `make ios-test`. **Run test commands in the FOREGROUND** (`Bash` with
+     `run_in_background: false`); **never Monitor a background test process**
+     — a silent crash leaves Monitor watching forever and hangs the turn.
+   - **Verified push:** `git push -u origin <branch>` and read the FULL
+     output (no `tail`/`head`). If ambiguous, `git ls-remote origin
+     <branch>` and confirm the remote SHA equals local HEAD before handoff.
+     An unverified push was a likely cause of the #131 squash-loss.
+   - Opens a PR into `develop` (`Closes #N` on the final PR). Hands off.
 
-3. **Implements to completion on the branch.**
-   - Code, tests, and **any documentation that goes stale because of
-     this change** (RUNBOOK, implementation plan, inline docs). Doc
-     drift is a must-fix issue if Theo catches it later, so handle it
-     up front.
-   - **Red → green ordering (TDD).** For any ticket whose acceptance
-     criteria can be expressed as machine-checkable assertions, the
-     failing test(s) land in their **own commit** before the
-     implementation commit(s). Push the red commit, confirm it fails
-     for the *expected* reason (a wrong-failure-mode red is the same
-     as no test), then commit and push the green. The red commit MUST
-     precede the green commit in the branch history; Theo verifies the
-     ordering during review.
-     - **Applies to:** pure-logic features and refactors (parsers,
-       classifiers, ranking changes, state machines, anything with a
-       deterministic input → output contract) and all bug fixes (this
-       extends the existing regression-test-for-every-fix rule by
-       moving the test to the front).
-     - **Does not apply to:** UI / visual work (SwiftUI layout,
-       animations, look-and-feel polish); prompt engineering
-       (classifier / synthesis / intent-router prompts — quality is
-       judged manually via untracked manual-test docs); schema-only
-       migrations without behaviour changes; one-line typo fixes,
-       dependency bumps, and docs; glue / integration code whose
-       value is entirely in the wiring (Caddy, systemd, cron) — smoke
-       tests still apply where reasonable, but a red→green ceremony
-       is overkill; **pure refactors with no behaviour change** (file
-       moves between targets, type-visibility promotions, rename /
-       extract-helper, dependency-injection plumbing — the existing
-       test suite is the safety net, and a fabricated "type not found"
-       red commit pins no contract); **test-only improvements** (race
-       fixes, fixture cleanup, switching to a more robust async
-       pattern — no production diff means there is no contract delta
-       to pin).
-     - When the judgment is ambiguous, the implementer notes the call
-       in the PR body — `TDD applied` or `TDD skipped because <reason>`
-       — and Theo confirms it during review.
-   - **Test quality bar.** Tests should match the cost of the change —
-     a one-line bug fix earns one focused regression test, not a
-     suite. The bar is "would a future regression in this area be
-     caught," not coverage percentage. Within that frame:
-     - Bug fixes include a regression test that fails on the pre-fix
-       code (revert the production change locally and confirm red
-       before claiming green).
-     - Before claiming any new test passes, confirm it fails when the
-       production change is reverted. Honour-system but worth naming.
-     - Tests must be deterministic — no wall-clock `sleep` /
-       `Task.sleep` / `DispatchQueue.asyncAfter` for synchronisation.
-       Use continuations, expectations, or injected clocks. Sleeps
-       are allowed only to simulate real user wait time, never to
-       wait for an async operation to finish.
-     - Shared test fixtures (URL protocols, factories, stubs) live in
-       one place — don't duplicate across test targets.
-     - **Completeness is reviewed.** Theo checks the test set against
-       the ticket's acceptance criteria for assertion strength (prefer
-       value equality over `is not None` / truthiness when possible),
-       coverage of the obvious edge cases, and at least one negative /
-       failure path where the contract has one. Aim for that bar at
-       handoff rather than discovering it in round 2.
-   - Commits in the project's conventional-commit style, ticket
-     number leading: `#42 feat: add capture endpoint`. Group commits
-     by concern.
-   - **iOS pre-push gate (Kai only).** Before pushing any iOS PR, run
-     `make ios-test` from the repo root. This runs three steps in
-     sequence: `ios-test-core` (SPM path), `ios-lint-pbxproj` (wiring
-     check), and `ios-test-app` (xcodebuild). The `ios-lint-pbxproj`
-     step fails fast if a new `*Tests.swift` file under `GroveTests/`
-     is not referenced in `project.pbxproj` — fix by opening
-     `Grove.xcodeproj` in Xcode, selecting the file, and ticking the
-     GroveTests checkbox under Target Membership.
-   - **Pushes the branch and verifies the push landed.** Run
-     `git push -u origin <branch>` (or `git push --force-with-lease`
-     after a rebase) and **read the full output** — do not pipe through
-     `tail`, `head`, or otherwise truncate it, since a failure line
-     can sit anywhere in the output. If the result is ambiguous, run
-     `git ls-remote origin <branch>` and confirm the SHA matches local
-     `HEAD`. The remote tip must equal the implementer's last commit
-     before the handoff is safe. This rule exists because an
-     unverified push was a likely cause of the #131 squash-loss
-     regression.
-   - Opens a PR into `develop`: `gh pr create --base develop`. Per
-     the PR scope section above, a ticket may produce more than one
-     PR. The PR body uses `Closes #42` only when this PR completes the
-     ticket's acceptance criteria; interim PRs use `Refs #42` so the
-     ticket stays open until the final PR merges.
-   - Hands off to Theo and stops touching the branch.
+3. **Testing (Test Writer).**
+   - Inspects the implementation and adds focused, behaviour-pinning tests
+     and the edge/negative cases the happy-path work missed. Owns only test
+     files it creates or first changes; does not touch production code.
+     Implementation defects found here are reported back to the orchestrator
+     for the Implementer, not fixed in place.
+   - Same local-green + foreground-test + verified-push gates as above.
+   - For a small or self-evidently-covered ticket the orchestrator may skip
+     this stage; note the skip on the PR.
 
-4. **Theo reviews (round 1).**
-   - Reads the diff against `develop` and the full files where
-     context demands it.
-   - Categorises findings:
-     - **Must-fix** — correctness bugs, security issues, regressions,
-       missing tests for new behaviour, missing regression tests on
-       bug fixes, **incomplete test sets** (weak assertions, missing
-       edge cases from the acceptance criteria, no negative path where
-       the contract has one — completeness is its own named concern,
-       not folded into "missing tests"), **red commit out of order on
-       a TDD-eligible ticket** (the failing test must precede the
-       implementation in branch history; a single "everything together"
-       commit fails this check even if the tests pass), **tests that
-       re-encode the implementation rather than pinning the
-       invariant** (passes green but catches nothing), tests that use
-       `sleep` / `Task.sleep` / `DispatchQueue.asyncAfter` as
-       synchronisation primitives, duplicated test fixtures that should
-       be unified, broken doc references, plus
-       *cheap drive-by improvements to files already in the diff*
-       (rename a confusingly-named local, fix an obvious typo in a
-       changed comment, etc.). These ride along — they don't get
-       their own ticket.
-     - **Non-blocking** — anything else: drive-by improvements that
-       would expand scope, refactor opportunities, observations about
-       adjacent code that wasn't touched. Theo files each as a new
-       GitHub issue with a short description and either `regression`
-       (used to work, now broken — jumps the queue) or `enhancement`
-       (never worked / could be tidier — backlog). Default to
-       `enhancement` when unsure. Theo does not block merge on either.
-   - Posts a review comment on the PR summarising findings. If
-     there are no must-fix issues, skip to step 6.
-   - **Informational metadata (not a gate).** CI posts a comment on
-     every PR with line coverage (per target) and the top-5 functions
-     by cyclomatic complexity, flagged ★ if the PR touched their
-     file. These numbers are surfaced for trend visibility; Theo does
-     not block merge on them. A coverage regression or a function
-     creeping high on the worst-list is a normal candidate for a
-     non-blocking follow-up issue under step 4 above.
+4. **Reviewing (Reviewer).**
+   - Reads the diff and full files where context demands, runs non-mutating
+     checks, and confirms **CI is green on the head SHA** (`gh pr checks <PR>`).
+   - Returns structured JSON findings, each in one category: `must_fix`,
+     `quick_fix` (≤5 min), `follow_up` (a new ticket — mark `regression` or
+     `enhancement`), `advisory`, or `approved`. Cheap drive-by fixes to files
+     already in the diff ride along as `must_fix`/`quick_fix`; anything that
+     would expand scope becomes a `follow_up` ticket. Emits `approved` only
+     when no blocking finding remains.
+   - Runs in parallel with the CI watcher. Never edits code; when a fix is
+     obvious it writes the diff into the finding for the Implementer.
 
-5. **Implementer addresses must-fix issues.** Same agent as step 3.
-   New commits on the same branch. When done, hand back to Theo.
+5. **Fixing (Implementer).** If the Reviewer returns `must_fix`/`quick_fix`,
+   the Implementer addresses them on the same branch with new commits (no
+   rebase/force-push) and hands back for a round-2 review. Unresolved review
+   cycles block the ticket after 3 rounds by default.
 
-6. **Theo's final pass.**
-   - Re-reviews the latest diff.
-   - Runs the relevant test suite locally to confirm green
-     (`make test` for server work; `xcodebuild test` for iOS once
-     scaffolded).
-   - **Confirms CI is green on the head commit.** `gh pr checks <PR>`
-     must report every required check (`Lint`, `Test`, `Migrations`
-     for server PRs) as `pass` on the latest SHA. If any check is
-     failing, pending, or stale, do not merge — comment on the PR
-     and hand back to the implementer. Local-green is not a substitute
-     for CI-green; both gate the merge.
-   - **Merges.** `gh pr merge --squash --delete-branch <PR>`. Squash
-     because one ticket = one commit on `develop`. The squash commit
-     subject is `#<N> <type>: <title>` matching the project's commit
-     conventions.
-   - The merge action pushes to `origin/develop` automatically.
-   - Adds a completion comment on the issue summarising what shipped
-     and any follow-up tickets he filed during review. (GitHub
-     auto-closes the issue from `Closes #<N>` in the PR body.)
-   - Removes the `in progress` label if it was set.
-   - **Resets the working copy to a clean `develop`:** `git checkout
-     develop && git pull --ff-only origin develop`. The
-     `--delete-branch` flag on the merge removes the remote branch but
-     the local feature branch lingers, and all agents share one working
-     copy. The next agent should inherit a workspace already on
-     `develop` with the latest merge pulled.
+6. **Merge (orchestrator).** On `approved` + green CI:
+   - `gh pr merge <PR> --squash --delete-branch --subject "#<N> <type>: <title>"`.
+     Always pass `--subject` — branches carry multiple commits and the
+     default drifts to the last one. `<type>` is derived from the ticket
+     (a functionality ticket squashes `feat:` even if its last commit was
+     `test:`/`fix:`).
+   - Reset to a clean `develop`: `git checkout develop && git pull --ff-only
+     origin develop`.
 
-The implementer never merges. Theo never edits code. The user can
-intervene at any step.
+7. **Reporting (Reporter).** Posts a concise ledger comment on the ticket:
+   work completed, important findings, and follow-ups (especially Reviewer
+   `follow_up` items) — explicitly stating when there are none. Files the
+   `follow_up` tickets the Reviewer flagged.
+
+The Implementer and Test Writer never merge. The Reviewer never edits code.
+The orchestrator merges. The user can intervene at any step.
 
 ## Concurrency
 
-**Trial (started 2026-05-21):** parallel ticket dispatch is allowed.
-The previous strict-serial rule is preserved at the bottom of this
-section so we can roll back if the trial regresses.
+Default is **serial**: one ticket in flight at a time on the shared working
+copy, from `git checkout -b` through the orchestrator's merge and the
+post-merge reset. This is the safe default and needs no worktrees.
 
-Rules during the trial:
+**Parallel dispatch** is allowed when tickets are independent, with two
+rules:
 
-1. **Worktree isolation is mandatory.** Every implementer dispatch
-   uses `isolation: "worktree"` on the Agent tool. No two agents share
-   the orchestrator's working copy at the same time. Sharing the cwd
-   has already corrupted a branch once (see #453/#454, 2026-05-21) and
-   without serial dispatch as a backstop it will recur.
-
-2. **Verified push is unchanged.** Read the full `git push` output —
-   never `tail`/`head` truncation — and if ambiguous run
-   `git ls-remote origin <branch>` and confirm the SHA matches local
-   `HEAD` before handing off. The squash/lost-commit regression
-   (#131 → #135 → #137 → #139) was partly attributed to skimmed push
-   output; that risk is *higher* with parallel pipelines, not lower.
-
-3. **Multiple PRs may be in flight.** Implementers, Theo reviews, and
-   CI runs may overlap freely. Track each ticket's pipeline stage so
-   you don't lose one.
-
-4. **Merges to `develop` remain strictly squash-merge, one at a time.**
-   Don't queue two `gh pr merge` calls back-to-back without confirming
-   the first landed and the second has been rebased on the new
-   `develop` tip — otherwise the second squash can drop commits the
-   way #131 did.
-
-5. **Theo runs in parallel with CI.** When the implementer hands back
-   a PR, dispatch Theo and start the CI watcher concurrently. Merge
-   requires both signals green. If CI fails first, brief the
-   implementer with the CI errors *and* any Theo findings already
-   received so the next push is a single batched fix-up. If Theo
-   finds must-fixes first, send the implementer back immediately — no
-   need to wait on CI. This applies only post–PR-open; never dispatch
-   Theo on the red-commit push alone.
-
-6. **Worktree confinement.** Briefing an implementer dispatched with
-   `isolation: "worktree"` MUST use repo-relative paths only
-   (`server/grove/api/captures.py`), never absolute paths under
-   `/Users/mark/Projects/grove/...`. Absolute paths cause agents to
-   operate against the orchestrator's main checkout instead of their
-   isolated worktree, defeating the harness's `isolation` request and
-   producing the cross-branch contamination class documented in
-   [[parallel-agents-share-cwd]].
-
-7. **Contamination check (orchestrator, after every implementer
-   hand-back).** Before dispatching the next step (Theo, merge, next
-   ticket) or creating a new branch in the main checkout, run:
-   ```
-   git -C /Users/mark/Projects/grove status --short
-   git -C /Users/mark/Projects/grove branch --show-current
-   ```
-   The expected state is HEAD on `develop` and only the known
-   long-standing untracked paths (e.g. `docs/specs/`). If HEAD has
-   moved to a feature branch or there are unexpected modifications,
-   the implementer's worktree isolation was bypassed and the main
-   tree is contaminated. Investigate before proceeding — do NOT
-   create new branches from a contaminated HEAD.
-
-8. **Rollback.** If parallel dispatch produces a lost-commit, branch
-   contamination, or merge-order regression, revert to the
-   strict-serial rules archived below and update this section.
-
-### Archived strict-serial rules (rollback target)
-
-These were the rules in force before 2026-05-21. If the parallel
-trial fails, restore them verbatim.
-
-> Agents work **in serial on a single working copy** — no worktrees,
-> no parallel branches.
->
-> 1. **Working-copy access.** Whichever agent currently holds the
->    ticket has exclusive control over the repo state. The
->    orchestrator enforces this by not invoking another agent until
->    the current one returns.
->
-> 2. **Ticket pipeline.** A ticket is *in flight* from
->    `git checkout -b` through Theo's merge commit on `develop` and
->    the post-merge reset to a clean working copy. The orchestrator
->    must not dispatch a new ticket — to any agent, in any background,
->    foreground or otherwise — while another ticket is in flight. The
->    pipeline is strict:
->
->    `implement → push (verified) → PR → CI → review → merge → reset to clean develop → next ticket`
->
->    This rule exists because skipping it once already cost the team a
->    regression: a fix commit was lost in a squash merge (see #131),
->    which then took follow-up tickets #135 and #137 to clean up.
->
-> **Dependency-resolution exception.** A ticket whose sole purpose is
-> to unblock a parked PR (e.g., #137 unblocking #136) is *not*
-> parallel work — it is the next step in a strictly sequential
-> dependency chain.
+1. **Worktree isolation is mandatory for parallel implementers.** Every
+   parallel Implementer dispatch uses `isolation: "worktree"` so no two
+   agents share the orchestrator's working copy. Brief with **repo-relative
+   paths only** (`server/grove/api/captures.py`) — absolute paths under
+   `/Users/mark/Projects/grove/...` send the agent back to the main checkout
+   and defeat isolation. *(Known failure mode: stale `worktree-agent-*`
+   branches based on the repo's root commit can poison a new worktree —
+   prune them if a worktree comes up on the wrong base.)*
+2. **Merges to `develop` stay strictly one-at-a-time**, squash only. Confirm
+   the first landed and the second is rebased on the new tip before the
+   second merge — otherwise a squash can drop commits (#131).
 
 ## Branch and commit conventions
 
-- Default branch: **`develop`**. `main` is reserved for tagged
-  releases (eventual; not used in V1).
-- Branch names: `<issue-number>-<short-slug>`, all lower-case, hyphen
-  separated. e.g. `42-capture-endpoint`, `47-fix-sync-retry`.
-- Commits use conventional-commit prefixes (`feat:`, `fix:`, `chore:`,
-  `docs:`, `refactor:`, `test:`).
-- Commit subjects lead with the ticket number:
-  `#42 feat: add capture endpoint`. GitHub auto-links the reference.
-- Group commits by concern. One concept per commit.
-- Squash-merge into `develop`. The squash subject mirrors a single
-  conventional commit so `develop` history reads as a clean ledger of
-  tickets.
-- Never use a `Co-Authored-By: Claude` trailer.
-- Never bypass commit hooks (`--no-verify`).
-- Never force-push to `develop` or `main`.
+- Default branch: **`develop`**. `main` is reserved for tagged releases.
+- Branch names: `<issue-number>-<short-slug>`, lower-case, hyphen-separated.
+- Conventional-commit prefixes (`feat:`/`fix:`/`chore:`/`docs:`/`refactor:`/`test:`),
+  ticket number leading: `#42 feat: add capture endpoint`.
+- One concept per commit. Squash-merge into `develop` so history reads as a
+  clean ledger of tickets.
+- Never use a `Co-Authored-By: Claude` trailer. Never bypass hooks
+  (`--no-verify`). Never force-push to `develop` or `main`.
 
 ## When *not* to delegate
 
-- One-line typo fixes, doc tweaks, dependency bumps with no test
-  surface — orchestrator handles these directly. Still file a ticket
-  if the change is non-obvious; skip the ticket only for trivial,
-  self-evident edits.
-- Repo-shape changes (top-level layout, `.gitignore`, `.editorconfig`,
-  `Makefile`, `docker-compose.yml`, `.claude/`, `AGENTS.md`) —
-  orchestrator owns these because they aren't squarely in any
-  specialist's lane.
-- Cross-cutting work that genuinely needs both halves changed in
-  lockstep — split into two tickets and serialise (server first, iOS
-  second) rather than letting one agent reach across the boundary.
+- One-line typo fixes, doc tweaks, dependency bumps with no test surface —
+  orchestrator handles directly. File a ticket if non-obvious; skip it only
+  for trivial, self-evident edits.
+- **Repo-shape / team-config changes** (top-level layout, `.gitignore`,
+  `Makefile`, `docker-compose.yml`, `.claude/`, `AGENTS.md`) — orchestrator
+  owns these; they aren't in any role's lane. Doc-only changes open a PR,
+  wait for green CI, and the orchestrator merges without a review round.
+- Cross-cutting work that needs both halves changed in lockstep — split into
+  two tickets and serialise (server first) rather than reaching across the
+  boundary in one dispatch.
