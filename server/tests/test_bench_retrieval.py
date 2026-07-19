@@ -11,8 +11,11 @@ Coverage:
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
+from grove.benchmarks import corpus as corpus_module
 from grove.benchmarks.corpus import load_retrieval_cases, load_retrieval_corpus
 from grove.benchmarks.retrieval import (
     cosine_similarity,
@@ -371,36 +374,6 @@ async def test_evaluate_embedder_complete_miss_scores_zero() -> None:
     assert case.reciprocal_rank == pytest.approx(1 / 3)
 
 
-@pytest.mark.asyncio
-async def test_evaluate_embedder_duplicate_memory_id_in_corpus_last_content_wins() -> None:
-    """Two corpus entries sharing a memory_id collapse via dict(zip(...)) in
-    evaluate_embedder - pinning that the *last* entry's embedding wins
-    silently (no error raised for the duplicate). This documents existing
-    behavior; a genuinely duplicate-labeled corpus is a data-integrity bug
-    upstream, not something evaluate_embedder currently guards against."""
-    provider = FakeEmbeddingProvider(
-        "fake-embedder",
-        {
-            "alpha": [1.0, 0.0, 0.0],
-            "gamma": [0.0, 0.0, 1.0],
-            "query-case1": [1.0, 0.0, 0.0],
-        },
-    )
-    dup_corpus = [
-        {"memory_id": "mem-1", "content": "alpha"},
-        {"memory_id": "mem-1", "content": "gamma"},  # same id, different content - last wins
-    ]
-    cases = [{"case_id": "retr-dup", "query": "query-case1", "relevant_memory_ids": ["mem-1"]}]
-
-    result = await evaluate_embedder(provider, dup_corpus, cases, k_values=(1,))
-
-    # Only one id survives ("mem-1" mapped to gamma's vector, not alpha's),
-    # so a query aligned with alpha does NOT rank mem-1 first.
-    case = result.case_results[0]
-    assert case.ranked_ids == ["mem-1"]
-    assert case.recall_at_k == {1: 1.0}  # still "hits" since it's the only id in the pool
-
-
 # ---------------------------------------------------------------------------
 # corpus loaders
 # ---------------------------------------------------------------------------
@@ -412,6 +385,24 @@ def test_load_retrieval_corpus_seed_shape() -> None:
     for doc in corpus:
         assert isinstance(doc["memory_id"], str) and doc["memory_id"]
         assert isinstance(doc["content"], str) and doc["content"]
+
+
+def test_load_retrieval_corpus_rejects_duplicate_memory_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The corpus is hand-curated, so a repeated memory_id must fail loudly at
+    load time rather than silently collapsing later via dict(zip(...)) in
+    evaluate_embedder, which would drop one document's embedding and produce
+    a wrong-but-confident eval score."""
+    corpus_dir = tmp_path / "corpus"
+    corpus_dir.mkdir()
+    (corpus_dir / "retrieval_corpus.jsonl").write_text(
+        '{"memory_id": "mem-1", "content": "alpha"}\n{"memory_id": "mem-1", "content": "gamma"}\n'
+    )
+    monkeypatch.setattr(corpus_module, "_CORPUS_DIR", corpus_dir)
+
+    with pytest.raises(ValueError, match="mem-1"):
+        load_retrieval_corpus()
 
 
 def test_load_retrieval_cases_seed_shape() -> None:
