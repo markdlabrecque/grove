@@ -519,7 +519,7 @@ docker exec grove-drill psql -U grove -d grove \
 Before running the drill on production, capture a snapshot from the live DB:
 
 ```bash
-# On the production host (Hetzner box), before/during the same backup window:
+# On the production host (Fedora deploy box), before/during the same backup window:
 docker compose exec -T postgres psql -U grove -d grove -c "
 SELECT 'memories'          AS tbl, COUNT(*) FROM memories
 UNION ALL

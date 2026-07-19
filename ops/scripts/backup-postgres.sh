@@ -80,10 +80,13 @@ if [[ ! -s "$DUMP_FILE" ]]; then
   exit 1
 fi
 
-# Guard 2: confirm the archive is structurally valid before we encrypt and
-# ship it. pg_restore --list only reads the table of contents, so this is
-# cheap even for a large dump, and it catches truncation/corruption that a
-# mere non-empty check would miss.
+# Guard 2: confirm the archive header/TOC is readable before we encrypt and
+# ship it. pg_restore --list only reads the table of contents at the front of
+# the archive, so this is cheap even for a large dump, and it catches an
+# empty or header-truncated dump -- but it is not a full-integrity guarantee,
+# since it does not read the data section and so won't catch truncation or
+# corruption there. The non-empty check above, the post-upload confirm, and
+# the daily cadence are the offsetting mitigations for that gap.
 echo "→ Verifying archive integrity (pg_restore --list)"
 if ! docker compose exec -T postgres pg_restore --list < "$DUMP_FILE" > /dev/null; then
   echo "error: pg_restore --list failed against the dump -- archive is corrupt or truncated, aborting." >&2

@@ -3,7 +3,7 @@ Description=Nightly Grove Postgres backup timer
 
 [Timer]
 # 03:00 UTC -- off-peak, and clear of the top-of-hour enrichment runs.
-OnCalendar=*-*-* 03:00:00
+OnCalendar=*-*-* 03:00:00 UTC
 Persistent=true
 Unit=grove-backup.service
 
