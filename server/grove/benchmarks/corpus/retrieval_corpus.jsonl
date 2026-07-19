@@ -1,0 +1,8 @@
+{"memory_id":"mem-r001","content":"Alice Smith and I decided to use PostgreSQL over MySQL for the new Grove backend. Alice felt strongly that pgvector support was the deciding factor."}
+{"memory_id":"mem-r002","content":"We need to migrate the prototype SQLite data to PostgreSQL next sprint."}
+{"memory_id":"mem-r003","content":"Caught up with Priya Nair at PyCon. She's leading the ML infra team at Stripe now."}
+{"memory_id":"mem-r004","content":"Met Dr. Lisa Park at the AI in Healthcare conference. She runs the clinical NLP lab at Stanford."}
+{"memory_id":"mem-r005","content":"Networked with Yuki Tanaka from OpenAI DevRel at the Hackathon."}
+{"memory_id":"mem-r006","content":"Dentist appointment with Dr. Chen on Thursday at 2pm for a routine cleaning."}
+{"memory_id":"mem-r007","content":"Annual performance review with my manager Sarah is scheduled for next Friday morning."}
+{"memory_id":"mem-r008","content":"Decided to switch the local-inference stack from cloud OpenAI embeddings to a self-hosted bge-m3 model running on Ollama, mainly for cost and privacy reasons."}

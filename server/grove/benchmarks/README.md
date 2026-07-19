@@ -2,7 +2,9 @@
 
 Automated quality/cost/latency comparison for Grove's three LLM-touching workflows:
 **enrichment** (memory classification), **synthesis** (RAG answer composition), and
-**intent routing** (query intent classification).
+**intent routing** (query intent classification) — plus a separate **retrieval**
+benchmark for comparing embedders on recall@k / MRR (see
+[Retrieval benchmark](#retrieval-benchmark) below).
 
 ## Quick start
 
@@ -96,6 +98,53 @@ outputs skips re-grading. Delete the cache file to force re-evaluation.
 
 See `corpus/README.md` for the case schema. Drop new `*_cases*.jsonl` files into
 `corpus/` and they are picked up automatically by the loader.
+
+## Retrieval benchmark
+
+Separate from the three chat workflows above: `grove/benchmarks/retrieval.py`
+compares **embedders** (not chat models) on retrieval quality — embed a query,
+rank the memory corpus by cosine similarity, score with recall@k and MRR. It's
+a sibling entry point rather than a 4th `runner.py` workflow because it isn't
+LLM-shaped: there's no prompt/response to grade or OpenRouter cost to track,
+just embed → rank → metric.
+
+```bash
+# Compare local bge-m3 (via Ollama) against cloud text-embedding-3-small
+export OPENAI_API_KEY=sk-...   # required for the text-embedding-3-small leg
+python -m grove.benchmarks.retrieval \
+    --embedders "bge-m3@http://localhost:11434/v1,text-embedding-3-small@"
+
+# Or via make (BENCH_EMBEDDERS mirrors BENCH_MODELS for the chat sweep):
+make bench-retrieval BENCH_EMBEDDERS="bge-m3@http://localhost:11434/v1,text-embedding-3-small@"
+```
+
+Each `model@base_url` spec targets an OpenAI-compatible embeddings endpoint;
+an empty base_url (`text-embedding-3-small@` or just `text-embedding-3-small`)
+uses the OpenAI SDK default (`api.openai.com`). Omit `--embedders` entirely to
+benchmark just the currently configured embedder (`settings.embedding_model` /
+`settings.embedding_base_url`).
+
+Corpus format (`corpus/retrieval_corpus.jsonl` + `corpus/retrieval_cases.jsonl`)
+is documented in `corpus/README.md` — including a note that the seed set
+shipped with the harness is illustrative only, not yet large or representative
+enough to make a real embedder decision from.
+
+Output: `results/run_<ts>_retrieval.jsonl` (one row per case per embedder) and
+a self-contained `results/retrieval_summary_<ts>.md` comparison table. This
+does **not** flow through `report.py` — recall@k/MRR aren't on the same 0–1
+scale as the chat workflows' graded scores, so mixing them into one report
+would be misleading.
+
+There is no cost pre-flight for retrieval: local bge-m3 via Ollama is free,
+and OpenAI's `text-embedding-3-small` pricing is negligible (~$0.00002/1K
+tokens) compared to the chat-completion costs the pre-flight guards against.
+
+**CI runs no live embedder.** `evaluate_embedder()` takes an `EmbeddingProvider`
+instance, never settings or the factory — tests inject a deterministic fake
+provider with pre-registered vectors so recall@k/MRR assertions are exact and
+require no network. Only the CLI (`retrieval.py main()`, never exercised by
+`make test`) constructs a real `OpenAIEmbeddingProvider` against Ollama or
+OpenAI.
 
 ## Output structure
 
