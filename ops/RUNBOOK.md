@@ -273,52 +273,174 @@ check-and-decrement).
 
 ## Nightly backup (§1.6)
 
-The production Hetzner box runs a nightly `pg_dump` that writes a dated
-custom-format archive to a Hetzner Storage Box (or Backblaze B2 bucket).
-30-day retention.  The backup job is a host-level cron on the Hetzner box
-(`/etc/cron.d/grove-backup` or equivalent) that executes roughly:
+> **Status (#526): authored but unverified.** The script, unit files, and
+> this section were written while the Fedora deploy box was not yet
+> reachable. Syntax/lint-checked locally (`bash -n` + `shellcheck`, both
+> clean) but **no backup has actually been run against a live stack, and no
+> restore drill has been performed against the new pipeline.** Both must be
+> done once the host is reachable — see the "Restore drill" section below.
+
+The memory corpus in Postgres is the only real data-loss path on the
+fully-local Fedora deployment (see the local-inference-deployment decision).
+A systemd timer runs `ops/scripts/backup-postgres.sh` nightly, which:
+
+1. Takes a consistent snapshot with `pg_dump -Fc` (custom/compressed format)
+   from the running `postgres` compose service.
+2. Verifies the dump is non-empty and structurally valid (`pg_restore
+   --list`) **before** doing anything else with it — a failed or truncated
+   dump must never be encrypted or uploaded as if it were good.
+3. Encrypts it with [`age`](https://github.com/FiloSottile/age) to a
+   recipient **public** key. The box only ever holds the public key — the
+   private key lives off-box with the operator, so a compromised box can
+   produce backups but can never decrypt them.
+4. Uploads the encrypted archive to a Backblaze B2 bucket via `rclone`.
+
+The script deletes nothing, locally (scratch files are cleaned up on every
+exit path) or remotely — see "Retention" below for why.
+
+### Required env vars
+
+Set these in `.env` (see `example.env`); the script sources `.env`
+automatically the same way `bootstrap-cert.sh` does:
+
+| Var | Purpose |
+|-----|---------|
+| `AGE_RECIPIENT` | age public key (`age1...`) the backup is encrypted to. |
+| `RCLONE_REMOTE` | rclone destination, e.g. `b2:grove-backups`. |
+
+### One-time setup: age keypair
+
+Generate the keypair **on a machine that is not the deploy box** — a
+laptop, or any device the operator controls:
 
 ```bash
-BACKUP_DIR=/mnt/storagebox/grove-backups   # or rclone-mounted B2 bucket
-DATESTAMP=$(date -u +%Y-%m-%d)
-docker compose -f $REPO_ROOT/docker-compose.yml exec -T postgres \
-    pg_dump -U grove -d grove -Fc \
-    > "${BACKUP_DIR}/grove-${DATESTAMP}.dump"
-# prune files older than 30 days
-find "${BACKUP_DIR}" -name 'grove-*.dump' -mtime +30 -delete
+age-keygen -o grove-backup-key.txt
+# Public key: age1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
 ```
 
-> **Note:** The backup job itself is not committed in this repo — it lives on
-> the production host.  The paths above are the canonical convention; confirm
-> `BACKUP_DIR` with the host's actual mount point after deploy.
+- Copy **only the public key line** into the deploy box's `.env` as
+  `AGE_RECIPIENT`.
+- Keep `grove-backup-key.txt` (the private key) somewhere durable and
+  off-box — a password manager entry or an encrypted volume the operator
+  controls. **Never copy this file to the deploy box.** If it's lost, every
+  existing backup becomes permanently unreadable; if it leaks, every
+  existing backup becomes readable by whoever has it. Treat it like a
+  master password.
+
+### One-time setup: rclone B2 remote
+
+On the deploy box, as the `grove` user (the same user the systemd units run
+as — rclone reads `~/.config/rclone/rclone.conf` for whichever user invokes
+it):
+
+```bash
+rclone config
+# n) New remote
+# name> b2
+# Storage> b2 (Backblaze B2)
+# account> <Backblaze application key ID>
+# key> <Backblaze application key>
+# (accept the rest of the defaults)
+```
+
+Create the bucket in the B2 web console first if it doesn't exist (a
+private bucket — these are encrypted backups but there's no reason to make
+the bucket public). Then set `RCLONE_REMOTE=b2:<bucket-name>` (optionally
+with a `/prefix`) in `.env`.
+
+Verify the remote works before relying on the timer:
+
+```bash
+rclone lsd b2:
+```
+
+### Retention: B2 lifecycle rule, not the script
+
+The backup script intentionally **never deletes anything** — a backup
+script that prunes its own uploads is a footgun; a bug in the prune logic
+could silently delete every existing copy. Retention is instead a
+**B2 bucket lifecycle rule**, configured once in the B2 web console
+(bucket → Lifecycle Settings) or via the `b2` CLI:
+
+```bash
+b2 bucket update --lifecycle-rule '{
+  "fileNamePrefix": "",
+  "daysFromUploadingToHiding": 30,
+  "daysFromHidingToDeleting": 1
+}' <bucket-name> allPublic
+```
+
+This is B2's standard recipe for "delete objects that aren't being
+overwritten/versioned after N days": since every backup filename is unique
+(timestamped), a rule that only sets `daysFromHidingToDeleting` would never
+fire — the file has to be hidden first. Setting
+`daysFromUploadingToHiding: 30` hides each object 30 days after upload, and
+`daysFromHidingToDeleting: 1` deletes it a day later — giving a rolling
+~30-day retention window matching the previous (uncommitted) cron
+convention. Adjust the day count to taste; it's independent of the backup
+script.
+
+### Install the units
+
+Same pattern as `grove-enrichment` (see "Enrichment cron" below):
+
+```bash
+sudo cp $REPO_ROOT/ops/systemd/grove-backup.{service,timer} \
+    /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now grove-backup.timer
+```
+
+Trigger an ad-hoc run and check the log:
+
+```bash
+sudo systemctl start grove-backup.service
+journalctl -u grove-backup.service -n 100 --no-pager
+```
+
+Verify the timer is scheduled: `systemctl list-timers grove-backup.timer`.
+
+A failed run exits non-zero and logs the reason to journald — check
+`systemctl status grove-backup.service` (or the journal) if a backup
+appears to be missing from B2.
 
 ---
 
 ## Restore drill
 
+> **Status (#526): drill pending box access.** The steps below were updated
+> for the age + B2 pipeline but have **not yet been executed against a real
+> B2 upload** — the deploy box isn't reachable yet, so there's no live
+> backup to pull down. Run this drill (using a real B2 object and the
+> operator's off-box age private key) as soon as the host is reachable, and
+> record the result in the "Restore drill — Last verified appendix" below.
+> The 2026-05-15 appendix entry predates the age/B2 pipeline (it drilled a
+> plain, unencrypted local dump) and does not satisfy this ticket's
+> acceptance criterion on its own.
+
 Run this drill any time you need to verify a backup, recover from data loss,
 or satisfy the §1.6 exit criterion.  All commands are copy-pasteable.
 
-### Step 1 — Pull the most recent backup to a scratch directory
+### Step 1 — Pull the most recent backup and decrypt it
 
-On the Hetzner box (or from a machine with access to the backup storage):
+From a machine that has both `rclone` access to the B2 bucket **and** the
+age **private** key (i.e. the operator's machine — the deploy box only ever
+holds the public key and cannot do this step):
 
 ```bash
-BACKUP_DIR=/mnt/storagebox/grove-backups   # adjust to actual mount
 SCRATCH=/tmp/grove-restore-$(date -u +%Y-%m-%d)
 mkdir -p "${SCRATCH}"
 
-# Copy the newest dated archive
-LATEST=$(ls -t "${BACKUP_DIR}"/grove-*.dump | head -1)
-cp "${LATEST}" "${SCRATCH}/grove.dump"
+# Pull the newest object from the bucket (adjust remote/prefix to match
+# RCLONE_REMOTE in .env)
+LATEST=$(rclone lsf b2:grove-backups --files-only | sort | tail -1)
+rclone copy "b2:grove-backups/${LATEST}" "${SCRATCH}/"
 echo "Working with: ${LATEST}"
-```
 
-If the backup target is remote (e.g. Backblaze B2 via rclone):
-
-```bash
-rclone copy b2:grove-backups/"$(rclone ls b2:grove-backups | sort -k2 | tail -1 | awk '{print $2}')" "${SCRATCH}/"
-# then rename to grove.dump as above
+# Decrypt with the off-box private key (never present on the deploy box)
+age -d -i /path/to/grove-backup-key.txt \
+    -o "${SCRATCH}/grove.dump" \
+    "${SCRATCH}/${LATEST}"
 ```
 
 ### Step 2 — Spin up a throwaway Postgres+pgvector container

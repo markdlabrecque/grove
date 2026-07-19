@@ -1,0 +1,23 @@
+[Unit]
+Description=Grove nightly encrypted Postgres backup to Backblaze B2
+# Only needs the Docker Compose stack (for the `postgres` service pg_dump
+# runs against) -- this unit doesn't touch Ollama/inference at all.
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# WorkingDirectory must be the directory containing docker-compose.yml.
+# Adjust to the actual deploy path on the box (see RUNBOOK.md).
+WorkingDirectory=/opt/grove
+
+# Run as the system user that owns the Docker Compose project and is a member
+# of the 'docker' group (same user as grove-enrichment.service).
+User=grove
+
+ExecStart=/opt/grove/ops/scripts/backup-postgres.sh
+
+# journald captures stdout/stderr by default for systemd services;
+# these two lines are explicit for clarity but have no net effect.
+StandardOutput=journal
+StandardError=journal
