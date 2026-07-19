@@ -61,6 +61,39 @@ def test_rank_by_similarity_orders_descending() -> None:
     assert ranked == ["mem-c", "mem-b", "mem-a"]
 
 
+def test_rank_by_similarity_empty_corpus_returns_empty_list() -> None:
+    assert rank_by_similarity([1.0, 0.0], {}) == []
+
+
+def test_rank_by_similarity_all_zero_query_vector_no_crash() -> None:
+    """An all-zero query vector has undefined cosine against everything -
+    cosine_similarity treats that as 0.0 similarity for every doc, so ranking
+    must fall back entirely to corpus (insertion) order rather than raising
+    a divide-by-zero."""
+    doc_vectors = {
+        "mem-a": [1.0, 0.0],
+        "mem-b": [0.0, 1.0],
+        "mem-c": [1.0, 1.0],
+    }
+    ranked = rank_by_similarity([0.0, 0.0], doc_vectors)
+    assert ranked == ["mem-a", "mem-b", "mem-c"]
+
+
+def test_rank_by_similarity_duplicate_memory_id_in_pool_last_wins() -> None:
+    """dict(zip(memory_ids, vectors)) construction in evaluate_embedder means a
+    duplicate memory_id can only ever keep one vector - pin that rank_by_similarity
+    itself (given a dict, so duplicates are already collapsed) behaves normally,
+    documenting where duplicate-id collapse actually happens (upstream of this
+    function, at dict construction)."""
+    # Simulates what evaluate_embedder would produce for corpus
+    # [{"memory_id": "mem-a", "content": "x"}, {"memory_id": "mem-a", "content": "y"}]
+    # -> dict(zip(["mem-a", "mem-a"], [vec_x, vec_y])) collapses to the *last* vector.
+    doc_vectors = dict(zip(["mem-a", "mem-a"], [[1.0, 0.0], [0.0, 1.0]], strict=True))
+    assert doc_vectors == {"mem-a": [0.0, 1.0]}
+    ranked = rank_by_similarity([0.0, 1.0], doc_vectors)
+    assert ranked == ["mem-a"]
+
+
 def test_rank_by_similarity_ties_preserve_corpus_order() -> None:
     doc_vectors = {
         "mem-a": [1.0, 0.0],
@@ -99,6 +132,19 @@ def test_recall_at_k_empty_relevant_set_is_zero() -> None:
     assert recall_at_k(["mem-1"], set(), k=1) == 0.0
 
 
+def test_recall_at_k_larger_than_corpus_size_still_full_recall() -> None:
+    """k beyond len(ranked_ids) should just include everything, not error."""
+    ranked = ["mem-1", "mem-2"]
+    assert recall_at_k(ranked, {"mem-1", "mem-2"}, k=10) == 1.0
+
+
+def test_recall_at_k_zero_when_relevant_id_absent_from_ranking() -> None:
+    """A relevant id that never appears in ranked_ids at all (e.g. beyond k
+    for every k requested) contributes 0, not a crash from a missing key."""
+    ranked = ["mem-2", "mem-3"]
+    assert recall_at_k(ranked, {"mem-1"}, k=2) == 0.0
+
+
 # ---------------------------------------------------------------------------
 # reciprocal_rank
 # ---------------------------------------------------------------------------
@@ -114,6 +160,16 @@ def test_reciprocal_rank_later_hit() -> None:
 
 def test_reciprocal_rank_no_hit_is_zero() -> None:
     assert reciprocal_rank(["mem-2", "mem-3"], {"mem-1"}) == 0.0
+
+
+def test_reciprocal_rank_empty_ranked_ids_is_zero() -> None:
+    """Degenerate empty ranking (e.g. empty corpus) must not crash."""
+    assert reciprocal_rank([], {"mem-1"}) == 0.0
+    assert reciprocal_rank([], set()) == 0.0
+
+
+def test_recall_at_k_empty_ranked_ids_is_zero() -> None:
+    assert recall_at_k([], {"mem-1"}, k=5) == 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -241,6 +297,108 @@ async def test_evaluate_embedder_empty_cases_returns_zeroed_aggregate() -> None:
     assert result.case_results == []
     assert result.mean_recall_at_k == {1: 0.0, 3: 0.0}
     assert result.mean_reciprocal_rank == 0.0
+
+
+@pytest.mark.asyncio
+async def test_evaluate_embedder_empty_corpus_no_crash() -> None:
+    """An empty corpus is degenerate but must not crash - a case with no
+    relevant_memory_ids can still be scored (trivially, to all zeros) since
+    there's nothing in corpus to conflict with the missing-id check."""
+    provider = FakeEmbeddingProvider("fake-embedder", {"only-query": [1.0, 0.0]})
+    cases = [{"case_id": "retr-empty", "query": "only-query", "relevant_memory_ids": []}]
+
+    result = await evaluate_embedder(provider, [], cases, k_values=(1, 5))
+
+    assert result.n_cases == 1
+    case = result.case_results[0]
+    assert case.ranked_ids == []
+    assert case.recall_at_k == {1: 0.0, 5: 0.0}
+    assert case.reciprocal_rank == 0.0
+    assert result.mean_recall_at_k == {1: 0.0, 5: 0.0}
+    assert result.mean_reciprocal_rank == 0.0
+
+
+@pytest.mark.asyncio
+async def test_evaluate_embedder_empty_corpus_with_nonempty_relevant_ids_raises() -> None:
+    """An empty corpus can never satisfy a case that names any relevant id -
+    this must surface as the same ValueError as any other unresolved id,
+    not silently score 0."""
+    provider = FakeEmbeddingProvider("fake-embedder", {"only-query": [1.0, 0.0]})
+    cases = [{"case_id": "retr-empty2", "query": "only-query", "relevant_memory_ids": ["mem-1"]}]
+
+    with pytest.raises(ValueError, match="mem-1"):
+        await evaluate_embedder(provider, [], cases)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_embedder_k_larger_than_corpus_size() -> None:
+    """Requesting recall@k for k beyond the corpus size should behave like
+    k == corpus size (everything ranked is considered), not error."""
+    provider = FakeEmbeddingProvider("fake-embedder", _FAKE_VECTORS)
+
+    result = await evaluate_embedder(provider, _FAKE_CORPUS, _FAKE_CASES, k_values=(100,))
+
+    by_id = {cr.case_id: cr for cr in result.case_results}
+    # Every case's relevant ids are fully contained in the 3-doc corpus, so
+    # recall@100 == recall@(full corpus) == 1.0 for all three.
+    assert by_id["retr-t001"].recall_at_k == {100: 1.0}
+    assert by_id["retr-t002"].recall_at_k == {100: 1.0}
+    assert by_id["retr-t003"].recall_at_k == {100: 1.0}
+    assert result.mean_recall_at_k == {100: 1.0}
+
+
+@pytest.mark.asyncio
+async def test_evaluate_embedder_complete_miss_scores_zero() -> None:
+    """A query whose relevant id never surfaces in the ranking at all (fully
+    dissimilar) must score recall@k == 0 and reciprocal_rank == 0 for every k,
+    not raise or silently omit the case."""
+    vectors = dict(_FAKE_VECTORS)
+    # Orthogonal to all three corpus vectors is impossible in 3D with a
+    # nonzero vector, so instead point at mem-3 (gamma) while the case's
+    # relevant id is mem-1 (alpha) - which will rank dead last.
+    vectors["query-miss"] = [0.0, 0.0, 1.0]
+    provider = FakeEmbeddingProvider("fake-embedder", vectors)
+    # mem-2 (beta) is orthogonal to the gamma-aligned query and ties with
+    # mem-1 for last place, broken by corpus order -> mem-2 ranks dead last.
+    cases = [{"case_id": "retr-miss", "query": "query-miss", "relevant_memory_ids": ["mem-2"]}]
+
+    result = await evaluate_embedder(provider, _FAKE_CORPUS, cases, k_values=(1, 2))
+
+    case = result.case_results[0]
+    assert case.ranked_ids == ["mem-3", "mem-1", "mem-2"]
+    # mem-2 ranks 3rd - misses both requested cutoffs (k=1, k=2).
+    assert case.recall_at_k == {1: 0.0, 2: 0.0}
+    assert case.reciprocal_rank == pytest.approx(1 / 3)
+
+
+@pytest.mark.asyncio
+async def test_evaluate_embedder_duplicate_memory_id_in_corpus_last_content_wins() -> None:
+    """Two corpus entries sharing a memory_id collapse via dict(zip(...)) in
+    evaluate_embedder - pinning that the *last* entry's embedding wins
+    silently (no error raised for the duplicate). This documents existing
+    behavior; a genuinely duplicate-labeled corpus is a data-integrity bug
+    upstream, not something evaluate_embedder currently guards against."""
+    provider = FakeEmbeddingProvider(
+        "fake-embedder",
+        {
+            "alpha": [1.0, 0.0, 0.0],
+            "gamma": [0.0, 0.0, 1.0],
+            "query-case1": [1.0, 0.0, 0.0],
+        },
+    )
+    dup_corpus = [
+        {"memory_id": "mem-1", "content": "alpha"},
+        {"memory_id": "mem-1", "content": "gamma"},  # same id, different content - last wins
+    ]
+    cases = [{"case_id": "retr-dup", "query": "query-case1", "relevant_memory_ids": ["mem-1"]}]
+
+    result = await evaluate_embedder(provider, dup_corpus, cases, k_values=(1,))
+
+    # Only one id survives ("mem-1" mapped to gamma's vector, not alpha's),
+    # so a query aligned with alpha does NOT rank mem-1 first.
+    case = result.case_results[0]
+    assert case.ranked_ids == ["mem-1"]
+    assert case.recall_at_k == {1: 1.0}  # still "hits" since it's the only id in the pool
 
 
 # ---------------------------------------------------------------------------
