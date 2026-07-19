@@ -42,6 +42,7 @@ class Settings(BaseSettings):
         # into base_url="" and break every embedding request. Treat blank
         # the same as unset.
         return value or None
+
     # Separate enrichment_model from any intent-router model so each can be
     # tuned independently without coupling the two call-sites.
     enrichment_model: str = "openai/gpt-4o-mini"
