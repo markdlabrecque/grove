@@ -113,7 +113,7 @@ Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_in
    - If `> 500`: paragraph-based chunker → ~400-token chunks with ~50-token overlap, sentence-safe within paragraphs; one row per chunk in `memory_chunks`; leave `memories.embedding` NULL.
    - Tokenization via `tiktoken` (cl100k_base). Provider abstraction so re-embedding can target a different model later.
 3. Synchronous embed inside the request for V1 simplicity; budget allows it at personal volume. Wrap in a single transaction with the memory insert; on embed failure return 5xx and let the iOS client retry (idempotent via `client_id`).
-4. `enriched = false`, `embedding_model = 'text-embedding-3-small'` stamped at insert.
+4. `enriched = false`, `embedding_model = 'bge-m3'` stamped at insert.
 5. Structured logging of capture latency, content length, chunk count.
 
 ### iOS tasks
@@ -144,7 +144,7 @@ Indexes: `(memory_id)` on every specialized table; `(person_name)` on `people_in
 
 1. `POST /v1/queries` accepting `{ query_text }`. Returns `{ answer, sources: [{memory_id, excerpt, score}], query_id }`.
 2. **Query log entry** created up front with `query_text` + `query_embedding`; updated at end with results, model, token counts.
-3. **Embedding** the query via OpenAI `text-embedding-3-small`.
+3. **Embedding** the query via the configured embedding model (local-inference default: `bge-m3`).
 4. **Vector search**:
    - Top-K (default 12) cosine search over `memory_chunks.embedding` UNION `memories.embedding` (where chunks NULL), de-duplicated by `memory_id`, keeping best score per memory.
 5. **Intent router** (hybrid retrieval, kept deliberately small for V1):
