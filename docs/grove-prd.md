@@ -122,7 +122,7 @@ More sophisticated on-device classification (intent detection, entity extraction
 The server, on receiving a capture:
 
 - Stores the raw text and metadata in the general `memories` table
-- Generates a vector embedding using a configurable embedding model (default: OpenAI text-embedding-3-small)
+- Generates a vector embedding using a configurable embedding model (fully-local deployment default: `bge-m3`, 1024 dimensions, via Ollama; OpenAI `text-embedding-3-small` remains available as a configurable cloud alternative)
 - For long content (over a configurable token threshold, default 500 tokens), chunks the content before embedding and stores embeddings per chunk linked to the parent memory
 - Stores the embedding alongside or linked to the memory record
 - Marks the memory as unenriched (`enriched = false`)
@@ -240,7 +240,7 @@ The privacy posture is documented and revisitable. A V2 may move embeddings, syn
 Target ongoing operating cost: $5-10/month, with a hard ceiling of $20/month including amortization of any hardware purchased specifically for this project.
 
 Estimated V1 monthly cost breakdown:
-- Embedding (text-embedding-3-small): under $1/month at personal volume
+- Embedding: $0/month in the fully-local deployment (`bge-m3` via Ollama); under $1/month if configured against OpenAI `text-embedding-3-small` instead
 - Synthesis (chat model for retrieval): $2-5/month at moderate query volume
 - Classification (enrichment): $0.30-1/month at personal capture volume
 - Hosting: variable based on topology choice (§8.4); $0-12/month
@@ -322,7 +322,7 @@ memories (
   language TEXT,                   -- detected language code
   token_count INTEGER,
   embedding_model TEXT,            -- name/version of model used
-  embedding VECTOR(1536),          -- null if content is chunked
+  embedding VECTOR(1024),          -- null if content is chunked; 1024d for bge-m3 (fully-local default)
   client_id UUID NOT NULL UNIQUE,  -- UUID generated on phone, idempotency key
   enriched BOOLEAN NOT NULL DEFAULT false,
   enriched_at TIMESTAMPTZ,         -- timestamp of last enrichment run
@@ -335,7 +335,7 @@ memory_chunks (
   memory_id UUID NOT NULL REFERENCES memories(id) ON DELETE CASCADE,
   chunk_index INTEGER NOT NULL,
   content TEXT NOT NULL,
-  embedding VECTOR(1536) NOT NULL,
+  embedding VECTOR(1024) NOT NULL,
   embedding_model TEXT NOT NULL
 )
 
@@ -343,7 +343,7 @@ query_logs (
   id UUID PRIMARY KEY,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   query_text TEXT NOT NULL,
-  query_embedding VECTOR(1536),
+  query_embedding VECTOR(1024),
   tables_searched TEXT[] NOT NULL,
   result_count INTEGER NOT NULL,
   returned_memory_ids UUID[],
@@ -403,35 +403,40 @@ The `embedding_model` field per row enables future re-embedding strategies — o
 
 The `enriched_version` field on memories and specialized tables enables selective re-enrichment when classification logic changes.
 
-### 8.4 Deployment topology — chosen: Ryzen mini PC self-hosted
+### 8.4 Deployment topology — chosen: Fedora desktop self-hosted, fully local inference
 
-**Decided 2026-05-24:** Grove runs on a self-hosted Linux mini PC at home (Beelink SER7 / Minisforum UM790 Pro class), accessed over Tailscale. Cloud LLMs handle embedding, enrichment classification, and Ask synthesis; the box hosts Postgres + pgvector, FastAPI, Caddy, and the enrichment worker as a systemd timer.
+**Decided 2026-05-24, superseded 2026-07-18:** Grove originally ran (or was planned to run) on a self-hosted Linux mini PC at home (Beelink SER7 / Minisforum UM790 Pro class, Ryzen 7/9), accessed over Tailscale, with cloud LLMs handling embedding, enrichment classification, and Ask synthesis. That decision reversed on 2026-07-18: Grove now runs on a dedicated Fedora desktop with an AMD Radeon 6900 XT (gfx1030), serving embedding, enrichment classification, Ask synthesis, and intent routing **entirely locally via Ollama** — no external LLM APIs in the deployed configuration. The box still hosts Postgres + pgvector, FastAPI, and Apache (reverse proxy with a Tailscale-issued TLS cert), and is reached by the MacBook and iPhone clients over Tailscale. See `docs/local-inference-setup-fedora.md` for the full setup and `docs/privacy.md` for the resulting egress model.
 
-**Chosen spec (target):**
-- Box: Ryzen 7 7840HS or Ryzen 9 7940HS mini PC
-- RAM: 32 GB DDR5 (2× SO-DIMM slots, upgradeable to 64 GB later)
-- Storage: 1 TB NVMe (second M.2 slot reserved for future expansion)
-- OS: Linux (distro TBD at provisioning time — likely Debian stable or Ubuntu LTS)
-- Bootstrap cost: ~550 USD
-- Ongoing cost: ~1–2 CAD/month electricity + ~4–6 CAD/month offsite backup + ~5–10 CAD/month API spend = under 20 CAD/month all-in
+**Current spec:**
+- Box: dedicated Fedora desktop (not dual-boot)
+- GPU: AMD Radeon 6900 XT, 16 GB VRAM, gfx1030 — on Ollama's hardcoded ROCm GPU list, so native ROCm with no Vulkan fallback needed
+- RAM: 64 GB
+- Chat model: `gpt-oss-20b` (~12 GB Q4, fully resident in VRAM; ~2-5s Ask latency)
+- Embedding model: `bge-m3`, 1024 dimensions
+- Ongoing cost: electricity + backups (a few USD/month) — no per-token API spend in this configuration
 
-Trade-offs: full control of the database, no SaaS dependencies for storage, requires home network exposure (Tailscale handles this), home internet outages affect the system, user owns ops. RAM and storage are user-upgradeable — no buy-once-cry-once pressure.
+Trade-offs: full control of the database and inference, no SaaS dependency for storage or AI calls, no per-request egress cost, requires home network exposure (Tailscale handles this), home internet/power outages affect availability, user owns ops.
 
-**Why this option over the alternatives evaluated:**
+**Historical: why the original Ryzen mini PC + cloud LLM combination was chosen over the alternatives evaluated (2026-05-24; superseded above, but the self-hosted-vs-managed reasoning below still holds):**
 
-- **vs. Mac Mini M4 / M4 Pro:** Mac Mini's only material advantage is local-LLM inference via Apple Silicon's unified memory + MLX (3–5× faster than Ryzen iGPU for LLM workloads at comparable price). Grove's Ask synthesis stays in the cloud (Sonnet/Opus quality matters for hard queries), so the Mac premium ($450–1,650 over the Ryzen) only displaces ~$2–3/mo of embedding + enrichment cloud spend — a 12–45 year payback. Apple Notes capture path, the other Mac-specific argument, is replaceable by Obsidian on any platform (see `docs/grove-document-corpus-spec.md`).
-- **vs. Hetzner CX22 (~6 CAD/mo):** Cheaper, but data lives on someone else's hardware. Sovereignty over the durable corpus was the user's primary driver. Hetzner remains documented here as the fallback if self-hosting ever becomes impractical.
-- **vs. DigitalOcean droplet (~$30–60 USD/mo for a comparable spec):** Worst of both worlds — more expensive than Hetzner, less sovereign than self-hosted. Rejected outright.
-- **vs. Supabase managed:** Vendor lock-in to Supabase's edge function runtime and managed Postgres. Rejected for the same sovereignty reason.
+- **vs. Mac Mini M4 / M4 Pro:** at the time, Mac Mini's only material advantage was local-LLM inference via Apple Silicon's unified memory + MLX. The comparison assumed Ask synthesis would stay in the cloud; that assumption no longer holds now that local inference runs on the AMD 6900 XT instead. Apple Notes capture path, the other Mac-specific argument, remains replaceable by Obsidian on any platform (see `docs/archive/grove-document-corpus-spec.md`).
+- **vs. Hetzner CX22 (~6 CAD/mo):** cheaper, but data lives on someone else's hardware. Sovereignty over the durable corpus was, and remains, the primary driver for self-hosting.
+- **vs. DigitalOcean droplet (~$30–60 USD/mo for a comparable spec):** worst of both worlds — more expensive than Hetzner, less sovereign than self-hosted. Rejected outright.
+- **vs. Supabase managed:** vendor lock-in to Supabase's edge function runtime and managed Postgres. Rejected for the same sovereignty reason.
 
-**Future scaling path (incremental, no machine replacement):**
-- +$150 to bump RAM to 64 GB if Postgres working set ever pressures memory
-- +$120 for a second 2 TB NVMe in the empty M.2 slot if corpus growth requires it
-- eGPU enclosure + discrete NVIDIA GPU if local Ask synthesis ever becomes desirable (~$800–1,200, deferred indefinitely)
+**Future scaling path:**
+- More RAM or a second NVMe if Postgres working set or corpus growth ever pressures the current box.
+- The eGPU/discrete-NVIDIA-GPU path once explored for local Ask synthesis is moot — local synthesis is already running, on the AMD 6900 XT via ROCm.
 
-### 8.5 Third-party AI services
+### 8.5 AI services (local vs. cloud)
 
-V1 defaults:
+**Current production deployment (fully local, reversed 2026-07-18 — see §8.4):** all inference is served locally by Ollama on the self-hosted box, at zero marginal API cost.
+
+- **Embedding:** `bge-m3` (1024 dimensions) via Ollama.
+- **Synthesis and classification (enrichment):** `gpt-oss-20b` via Ollama.
+- **Routing:** not applicable — no gateway needed when the endpoint is local.
+
+**Code defaults (cloud, available as a configurable alternative):**
 
 - **Embedding:** OpenAI text-embedding-3-small (1536 dimensions, ~$0.02 per million tokens). Personal-volume cost is well under $1/month.
 - **Synthesis:** A cheap chat model — candidates include Claude Haiku, GPT-4o-mini, or similar at 15-25 cents per million input tokens. RAG queries with retrieved context may run higher token counts; budget $2-5/month for moderate use.

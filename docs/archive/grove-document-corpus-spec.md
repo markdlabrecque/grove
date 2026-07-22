@@ -1,5 +1,7 @@
 # Grove — Document corpus integration spec
 
+> Historical — parked V2 feature. Superseded by the fully-local deployment; retained for context.
+
 **Status:** Draft, pending review
 **Author:** mark@affinitybridge.com (with Claude)
 **Date:** 2026-05-17

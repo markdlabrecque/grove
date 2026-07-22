@@ -1,5 +1,7 @@
 # Grove — User-surface comparison
 
+> Historical — the iOS-app-vs-alternatives surface decision is settled (iOS app ships). Superseded by the fully-local deployment; retained for context.
+
 **Status:** Decision-support doc
 **Author:** mark@affinitybridge.com (with Claude)
 **Date:** 2026-05-17

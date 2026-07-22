@@ -3,7 +3,7 @@
 **Status:** Decided architecture
 **Author:** mark@affinitybridge.com (with Claude)
 **Date:** 2026-05-17
-**Supersedes (capture/ask surface decisions only):** the analysis in `docs/grove-surface-comparison.md`, which remains valid as decision-tree history.
+**Supersedes (capture/ask surface decisions only):** the analysis in `docs/archive/grove-surface-comparison.md`, which remains valid as decision-tree history.
 
 ## 1. Summary
 
@@ -75,7 +75,7 @@ The following are decided and not under negotiation in V2:
 | Server stack | FastAPI + Postgres + pgvector, unchanged |
 | Cross-device capture coverage | Inherited from Apple Notes' iCloud sync (iPhone / iPad / Mac / Watch) |
 | Voice transcription on capture | Apple's on-device dictation in Notes |
-| Document corpus integration | Per `docs/grove-document-corpus-spec.md` — additive, unaffected by this decision |
+| Document corpus integration | Per `docs/archive/grove-document-corpus-spec.md` — additive, unaffected by this decision |
 
 ## 4. Rationale
 
@@ -299,19 +299,19 @@ The following architectures were considered in earlier design conversations and 
 **When this would be reconsidered:**
 - Only if Grove genuinely needs server-driven push to the user's phone. Not foreseen.
 
-### A.8 Local frontier-quality LLM on a high-tier Mac Mini (rejected 2026-05-24)
+### A.8 Local frontier-quality LLM on a high-tier Mac Mini (rejected 2026-05-24; reasoning superseded 2026-07-18)
 
 **The path:** Buy an M4 Pro Mac Mini with 48–64 GB RAM. Run a 32B–70B local LLM via Ollama / MLX. All Grove inference happens locally.
 
-**Why rejected:**
-- Hardware premium ($1,250–1,650 over the chosen Ryzen mini PC at ~$550) only pays back if it displaces cloud LLM spend.
-- Ask synthesis must stay in the cloud — Sonnet/Opus-tier quality is required for the hard multi-hop queries that justify Ask in the first place, and even Mac Mini M4 Pro 48GB tops out at ~Haiku-class local quality (32B models at 10–15 t/s).
-- That leaves only embedding (~$0.50/mo cloud) and enrichment classification (~$1–2/mo cloud) as workloads the Mac could displace — a ~$3/mo savings against a $1,250+ premium. Payback measured in decades.
-- Apple Silicon's main hardware advantage — unified memory bandwidth (273 GB/s on M4 Pro vs ~89 GB/s on Ryzen iGPU) — only matters for the local-Ask workload that's been ruled out.
+**Why rejected at the time (2026-05-24):**
+- Hardware premium ($1,250–1,650 over the then-chosen Ryzen mini PC at ~$550) only pays back if it displaces cloud LLM spend.
+- Ask synthesis was assumed to stay in the cloud — Sonnet/Opus-tier quality was taken as required for the hard multi-hop queries that justify Ask in the first place, and even Mac Mini M4 Pro 48GB tops out at ~Haiku-class local quality (32B models at 10–15 t/s).
+- That left only embedding (~$0.50/mo cloud) and enrichment classification (~$1–2/mo cloud) as workloads the Mac could displace — a ~$3/mo savings against a $1,250+ premium. Payback measured in decades.
+- Apple Silicon's main hardware advantage — unified memory bandwidth (273 GB/s on M4 Pro vs ~89 GB/s on Ryzen iGPU) — only mattered for the local-Ask workload that was ruled out.
 
-**Decision:** the chosen deployment is a Ryzen mini PC running Linux (see `grove-prd.md §8.4`). Cloud LLM stays the inference path indefinitely. Sovereignty over the durable corpus is preserved by self-hosting Postgres; cloud LLM transit is accepted under Anthropic's no-retention API terms.
+**Superseded 2026-07-18:** the "Ask synthesis must stay in the cloud" premise this rejection rested on no longer holds. The deployed decision is now a dedicated Fedora desktop with an AMD Radeon 6900 XT (gfx1030, 16 GB VRAM) running `gpt-oss-20b` for synthesis, enrichment, and intent routing, plus `bge-m3` for embedding — all fully local via Ollama (see `grove-prd.md §8.4` and `docs/local-inference-setup-fedora.md`). This isn't the Mac Mini path evaluated above (different box, different GPU vendor/architecture), but it reaches the same end state this section rejected as uneconomical: local inference displacing cloud LLM spend entirely, once a workable quality/cost point was found on non-Apple-Silicon hardware. Sovereignty over the durable corpus is preserved by self-hosting Postgres, and — as a byproduct of the reversal — query and memory content no longer transits any third-party API in the deployed configuration (see `docs/privacy.md`).
 
-**When this would be revisited:**
+**When the original (2026-05-24) rejection would have been revisited — largely moot now that local inference shipped, retained for history:**
 - Cloud LLM pricing changes meaningfully (significant price hikes from major providers, or a Sonnet/Opus-tier provider exit).
 - A Sonnet/Opus-class open model becomes runnable on a $500–800 box (would require x86 + discrete NVIDIA GPU at that price tier, not a unified-memory ARM box).
 - Data-sovereignty concerns shift from "data at rest" (already covered by self-hosting) to "transient query content" (currently accepted).
@@ -320,7 +320,7 @@ The following architectures were considered in earlier design conversations and 
 
 ## Appendix B — References
 
-- `docs/grove-surface-comparison.md` — original three-option decision tree (preserved as history).
-- `docs/grove-document-corpus-spec.md` — document corpus (Obsidian) integration spec (additive, unaffected by this decision).
+- `docs/archive/grove-surface-comparison.md` — original three-option decision tree (preserved as history).
+- `docs/archive/grove-document-corpus-spec.md` — document corpus (Obsidian) integration spec (additive, unaffected by this decision).
 - `docs/archive/grove-reminders-spec.md` — archived reminders spec (feature out of scope).
 - Memory: `project_reminders_out_of_scope.md` — durable record of the reminders decision.
