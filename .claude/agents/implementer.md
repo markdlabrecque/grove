@@ -37,7 +37,7 @@ Read `docs/grove-prd.md` and `docs/grove-implementation-plan.md` once at the sta
 2. Branch off `develop`: `git checkout develop && git pull && git checkout -b <N>-<short-slug>`.
 3. `gh issue edit <N> --add-label "in progress" --add-assignee @me`.
 4. Implement, including any docs that go stale (`docs/grove-implementation-plan.md`, `ops/RUNBOOK.md`, code-adjacent comments). Doc drift is a must-fix in review — handle it up front.
-5. Commit conventional-commit style, ticket number leading: `#<N> feat: …`. Group by concern.
+5. Commit conventional-commit style, ticket number leading: `#<N> feat: …`. Group by concern. Do **not** add `Co-Authored-By: Claude` or `Claude-Session:` trailers — strip them if the harness injects them (`AGENTS.md` forbids attribution trailers).
 6. **Run tests + lint/format locally and confirm green BEFORE pushing — a hard gate.**
    - Server: `make test` from repo root; `ruff format .` and `ruff check --fix .` from `server/`.
    - iOS: `make ios-test` from repo root (runs core SPM + pbxproj-lint + app xcodebuild).

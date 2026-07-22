@@ -142,11 +142,18 @@ Then, for every ticket that requires implementation work:
    cycles block the ticket after 3 rounds by default.
 
 6. **Merge (orchestrator).** On `approved` + green CI:
-   - `gh pr merge <PR> --squash --delete-branch --subject "#<N> <type>: <title>"`.
+   - `gh pr merge <PR> --squash --delete-branch --subject "#<N> <type>: <title>"
+     --body "<clean one-line summary>"`.
      Always pass `--subject` — branches carry multiple commits and the
      default drifts to the last one. `<type>` is derived from the ticket
      (a functionality ticket squashes `feat:` even if its last commit was
      `test:`/`fix:`).
+   - **Always pass an explicit clean `--body`.** The harness auto-appends
+     `Co-Authored-By: Claude` / `Claude-Session:` trailers to agent commits;
+     `gh`'s default squash body is the concatenated branch commit messages,
+     so relying on it leaks those forbidden trailers onto `develop` (this
+     happened on #524 and #520). A short authored `--body` keeps `develop`
+     clean regardless of what the branch commits contain.
    - Reset to a clean `develop`: `git checkout develop && git pull --ff-only
      origin develop`.
 
@@ -187,7 +194,10 @@ rules:
   ticket number leading: `#42 feat: add capture endpoint`.
 - One concept per commit. Squash-merge into `develop` so history reads as a
   clean ledger of tickets.
-- Never use a `Co-Authored-By: Claude` trailer. Never bypass hooks
+- Never use a `Co-Authored-By: Claude` or `Claude-Session:` trailer. The
+  harness adds these automatically; strip them from commit messages, and the
+  orchestrator's clean `--body` at squash-merge is the backstop that keeps
+  them off `develop` (see the merge step above). Never bypass hooks
   (`--no-verify`). Never force-push to `develop` or `main`.
 
 ## When *not* to delegate
