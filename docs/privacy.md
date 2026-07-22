@@ -1,9 +1,11 @@
 # Privacy posture — Grove V1
 
-**Last updated:** 2026-05-15
+**Last updated:** 2026-07-21
 **Scope:** What leaves the box, who receives it, what stays local, and how deletion works in V1. Single-author document — not a compliance template. Revisit when topology or providers change.
 
 Reference: PRD §7.3 (privacy posture), §6.6 (query log retention), §1.6 (backups).
+
+**A note on "the box":** Grove's AI calls (embedding, enrichment classification, Ask synthesis, intent routing) are driven by env-configured base URLs and model names (`CHAT_BASE_URL`/`EMBEDDING_BASE_URL`, `enrichment_model`/`synthesis_model`/`intent_router_model`/`embedding_model`). Whether any memory or query text leaves the box **depends on how those are set**, not on anything fixed in the code. The **current production deployment runs fully local** — see below — but the code's own defaults still point at cloud providers, so this document covers both cases.
 
 ---
 
@@ -11,33 +13,47 @@ Reference: PRD §7.3 (privacy posture), §6.6 (query log retention), §1.6 (back
 
 > **If I save a memory, who sees it?**
 >
+> **In the current production deployment (fully local):** nobody but the box itself. Embedding, enrichment classification, Ask synthesis, and intent routing all run on the same self-hosted Fedora machine (AMD Radeon 6900 XT, Ollama) that holds the database — see `docs/local-inference-setup-fedora.md`. No memory text or query text leaves the box for any of those calls. The only thing that leaves the box at all is the nightly encrypted backup archive.
+>
+> **If Grove is instead configured against the cloud defaults baked into the code** (`CHAT_BASE_URL`/`EMBEDDING_BASE_URL` pointing at OpenAI/OpenRouter rather than local Ollama):
+>
 > 1. **OpenAI** sees the memory text once at capture, to compute an embedding vector.
 > 2. **OpenRouter** (and whichever underlying provider it routes to — defaults to OpenAI `gpt-4o-mini`) sees the full memory text once per enrichment run, to classify it into specialised tables.
-> 3. **Hetzner** stores the database row on a CX22 instance.
-> 4. Nightly the row gets included in a `pg_dump` archive uploaded to a Hetzner Storage Box or Backblaze B2 bucket.
+> 3. At query time, the memory text *also* leaves the box again to **OpenRouter** if it's retrieved as a synthesis source for a query, and the query text goes to OpenAI (embedding) and OpenRouter (intent routing, synthesis).
 >
-> At query time, the memory text *also* leaves the box again to **OpenRouter** if it's retrieved as a synthesis source for a query.
->
-> Nobody else. No analytics, no telemetry, no third-party SDKs in the app.
+> Nobody else, in either configuration. No analytics, no telemetry, no third-party SDKs in the app.
 
 ---
 
 ## What leaves the box
 
+Egress is **config-dependent**, not fixed. The table below is split by configuration.
+
+### Fully-local configuration (current production deployment)
+
+Embedding (`bge-m3`, 1024d), enrichment classification, Ask synthesis, and intent routing (all `gpt-oss-20b`) run via Ollama on the same self-hosted box that holds the database. **No memory or query text leaves the box for any of these calls.**
+
+| Recipient | Data sent | When | Purpose | Retention |
+|---|---|---|---|---|
+| **Self-hosted box** (Fedora desktop, on-box Postgres + Ollama) | Everything — database rows, embeddings, inference | Continuously (hosting + inference) | Run the application entirely on owned hardware | Indefinite while the box exists |
+| **Backblaze B2** | `age`-encrypted `pg_dump -Fc` archive of the whole database (ciphertext only — the box holds only the `age` public key) | Nightly | Disaster recovery | 30 days, then deleted |
+
+### Cloud configuration (if configured against the code's defaults instead)
+
+The code itself still defaults `enrichment_model` / `synthesis_model` / `intent_router_model` to `openai/gpt-4o-mini` via OpenRouter, and `embedding_base_url` to `None` (OpenAI). A deployment configured this way — rather than pointed at local Ollama — sends data off-box as follows:
+
 | Recipient | Data sent | When | Purpose | Retention (per their terms) |
 |---|---|---|---|---|
-| **OpenAI** (`text-embedding-3-small`) | Memory content (capture); query text (retrieval) | Per capture, per query | Generate 1536d embedding for similarity search | API inputs not used for training per OpenAI API terms |
+| **OpenAI** (`text-embedding-3-small`, or whichever model is configured) | Memory content (capture); query text (retrieval) | Per capture, per query | Generate an embedding for similarity search | API inputs not used for training per OpenAI API terms |
 | **OpenRouter — synthesis** (`openai/gpt-4o-mini` by default) | Query text + retrieved memory excerpts | Per query that triggers synthesis | Compose RAG answer | Varies by underlying provider; OpenRouter passes through provider terms |
 | **OpenRouter — intent router** (`openai/gpt-4o-mini` by default) | Query text only | Per query | Classify intent before specialised-table retrieval | Same as synthesis |
 | **OpenRouter — enrichment classifier** (`openai/gpt-4o-mini` by default) | Full memory content | Per memory, during hourly enrichment run | Classify into decisions / people / appointments | Same as synthesis |
-| **Hetzner** (CX22 VPS) | Postgres database (memories, chunks, specialised tables, query logs) | Continuously (hosting) | Run the application | Indefinite while the instance exists |
-| **Backup target** (Hetzner Storage Box *or* Backblaze B2 — not yet selected for production) | Compressed `pg_dump -Fc` of the whole database | Nightly | Disaster recovery | 30 days, then deleted by host cron |
 
-### Per-service detail
+### Per-service detail (cloud configuration only)
 
 #### OpenAI — embeddings only
 
-- Model: `text-embedding-3-small` (1536 dimensions).
+- Model: `text-embedding-3-small` (1536 dimensions) is the code default; any OpenAI-compatible embedding model can be configured.
 - Receives: full memory content at capture time; full query text at retrieval time.
 - Logged: token counts (in `query_logs`); the request body itself is not retained server-side beyond the API call.
 - OpenAI's API terms (as of writing) state API inputs are not used to train their models.
@@ -52,17 +68,17 @@ OpenRouter is a routing layer. Each route is configurable independently via env 
 
 Spend is capped at `OPENROUTER_MONTHLY_CAP_USD` (default 20). At cap, synthesis degrades to ranked-snippets-only (no LLM call) and enrichment no-ops for the rest of the month — both reduce egress when hit.
 
-#### Hetzner — VPS hosting
+### Self-hosted box detail (applies regardless of AI-provider configuration)
 
-- Hetzner CX22 (2 vCPU, 4 GB RAM) running Docker Compose with the Postgres + app containers.
-- **Disk encryption at rest: unknown.** The default Hetzner Cloud volume is not configured for LUKS in this project, and we have not verified whether Hetzner provides volume-level encryption at the infrastructure layer. Treat the disk as unencrypted at rest until verified. *V2 follow-up: confirm or configure LUKS.*
-- TLS to the app is via a Tailscale-issued Let's Encrypt cert in front of Apache, which reverse-proxies to FastAPI.
+- A dedicated Fedora desktop (AMD Radeon 6900 XT, not dual-boot) running Docker Compose with the Postgres + app containers, and — in the fully-local configuration — Ollama serving inference. See `docs/local-inference-setup-fedora.md`.
+- **Disk encryption at rest: unknown.** This is physical hardware at the operator's home; whether the disk is encrypted at rest has not been configured or verified. Treat the disk as unencrypted at rest until verified. *V2 follow-up: confirm or configure disk encryption.*
+- TLS to the app is via a Tailscale-issued Let's Encrypt cert in front of Apache, which reverse-proxies to FastAPI. MacBook and iPhone clients reach the box over Tailscale.
 
 #### Backup target
 
-- Mechanism: nightly `pg_dump -Fc` written to a mount point (`/mnt/storagebox/...` or rclone-mounted B2 bucket). 30-day retention via `find ... -mtime +30 -delete`.
-- **Encryption: the dump file is plain (Postgres custom format, not encrypted). Transport is TLS to the storage provider. There is no client-side encryption (gpg/age) before upload.** Provider-side server encryption depends on the destination (Storage Box / B2) — we do not hold a customer-managed key. *V2 follow-up: client-side encrypt with age before upload so the backup target sees only ciphertext.*
-- The production backup target has not yet been deployed; both Hetzner Storage Box and Backblaze B2 are documented as options in `ops/RUNBOOK.md` and the operator picks one at deploy time.
+- Mechanism: nightly `pg_dump -Fc`, verified non-empty and structurally valid, then encrypted with [`age`](https://github.com/FiloSottile/age) to a recipient public key (the box holds only the public key — the private key lives off-box with the operator) before being uploaded to Backblaze B2 via `rclone`. 30-day retention.
+- Because encryption happens before upload, Backblaze B2 only ever holds ciphertext — a compromised or subpoenaed backup target cannot read the archive without the off-box private key.
+- **Status:** the backup pipeline (`ops/scripts/backup-postgres.sh`) is authored and lint-checked but, as of this writing, unverified end-to-end against a live production stack — see `ops/RUNBOOK.md` for the restore-drill status.
 
 ---
 
@@ -72,7 +88,7 @@ Spend is capped at `OPENROUTER_MONTHLY_CAP_USD` (default 20). At cap, synthesis 
 - **The local SwiftData store on the phone.** The phone's queue of pending and recently-saved captures persists in SwiftData under the app sandbox. iCloud sync is not enabled for this store.
 - **Action Button flow.** Triggering the Action Button opens the capture screen locally; no network call happens until Save.
 - **Intent routing decisions and retrieval ranking.** Once specialised tables exist on the box, the ranking and filtering of *which* memories to retrieve happens locally in Postgres. Only the resulting top-K excerpts plus the query text are sent to the synthesis route.
-- **Operational metadata** — request logs, rate-limit buckets, spend counters — all stay on the Hetzner box.
+- **Operational metadata** — request logs, rate-limit buckets, spend counters — all stay on the self-hosted box.
 - **Third-party analytics, crash reporters, SDKs**: none. The iOS app has no Firebase / Sentry / TelemetryDeck / etc. The server has no analytics middleware.
 
 ### Out of our control: iOS system dictation
@@ -86,7 +102,7 @@ The iOS app uses the system keyboard's microphone button for transcription. Whet
 Query logs are owned data, stored at the same trust level as memory content (PRD §6.6, §7.3). Each row captures:
 
 - The query text
-- The query embedding (1536d)
+- The query embedding (1024d with `bge-m3` in the fully-local configuration; 1536d if configured against OpenAI `text-embedding-3-small`)
 - The list of memory UUIDs returned (`returned_memory_ids`, `ARRAY(UUID)`, **no FK constraint by design**)
 - Token counts and timing
 
@@ -109,7 +125,7 @@ Query logs are included in the nightly backup and the 30-day retention applies t
 
 **Backups:** the nightly `pg_dump` is a point-in-time snapshot. A deleted memory is absent from subsequent snapshots, but earlier snapshots containing the row remain on the backup target until they age out (≤ 30 days). There is no proactive deletion from existing backups.
 
-**Third-party caches:** OpenAI / OpenRouter may retain inference logs per their own retention windows. We do not issue deletion requests to upstream providers. For V1, the project accepts this — the alternative (delete-on-the-providers protocol) is out of scope.
+**Third-party caches:** if configured against cloud providers, OpenAI / OpenRouter may retain inference logs per their own retention windows. We do not issue deletion requests to upstream providers. For V1, the project accepts this — the alternative (delete-on-the-providers protocol) is out of scope. Not applicable in the fully-local configuration, where no third party ever sees the content.
 
 ---
 
@@ -117,7 +133,7 @@ Query logs are included in the nightly backup and the 30-day retention applies t
 
 These are honest gaps, not blockers for V1 personal use:
 
-- Hetzner disk encryption at rest: unverified.
-- Backup encryption: no client-side encryption; relies on transport TLS and provider posture.
-- Provider-side deletion: no mechanism to ask OpenAI / OpenRouter to purge inference logs for a deleted memory.
+- Self-hosted box disk encryption at rest: unverified.
+- Backup encryption: `age` client-side encryption before upload is implemented (see `ops/RUNBOOK.md`), but as of this writing has not been exercised end-to-end against a live production stack (no restore drill performed yet).
+- Provider-side deletion: no mechanism to ask OpenAI / OpenRouter to purge inference logs for a deleted memory, applicable only when configured against cloud providers.
 - Multi-tenant readiness: this entire document assumes a single operator-user. The posture would need to change materially before accepting another person's data on the same box (see `docs/multi-tenant-scaling-exploration.md`).
